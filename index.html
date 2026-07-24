@@ -433,7 +433,7 @@ let model=null, facing='environment';
 let detections=[], present=false, appearSince=0, clearSince=0;
 let primary=null, lastInteraction=0, alertUntil=0, alertBox=null, priority='P0';
 let stream=null, wakeLock=null, detecting=false, lastDetT=0, fpsCount=0, fpsT=0, running=false;
-let bodyOn=true;
+let bodyOn=true; let switching=false;
 const vis={tint:0,videoMix:.85,edgeInt:1.0,glow:0,dim:1};
 const visTarget={tint:0,videoMix:.85,edgeInt:1.0,glow:0,dim:1};
 
@@ -541,6 +541,7 @@ const MP=(()=>{
   }
   function detect(now,hasPerson){
     if(!bodyOn||!hasPerson){ results.pose=results.hands=results.face=null; bodyGrid=null; return; }
+    if(switching||!video.videoWidth||video.readyState<2) return;
     if(now-lastRun<CFG.mpIntervalMs) return; lastRun=now;
     ts=Math.max(ts+1,Math.round(performance.now()));
     try{ if(ready.pose) results.pose=pose.detectForVideo(video,ts); }catch(e){}
@@ -551,7 +552,8 @@ const MP=(()=>{
     try{ if(ready.hands) results.hands=hands.detectForVideo(video,ts); }catch(e){}
     try{ if(ready.face) results.face=face.detectForVideo(video,ts); }catch(e){}
   }
-  return {init,detect,results,ready};
+  function reset(){ results.pose=results.hands=results.face=null; bodyGrid=null; }
+  return {init,detect,reset,results,ready};
 })();
 
 /* ── камера / wake lock ── */
@@ -568,7 +570,7 @@ addEventListener('resize',()=>COMP.resize());
 /* ── детекція COCO-SSD ── */
 async function detectLoop(){
   if(!running)return; const now=performance.now();
-  if(tab==='monitor'&&model&&!detecting&&video.readyState>=2&&now-lastDetT>1000/CFG.detectFps){
+  if(tab==='monitor'&&!switching&&model&&!detecting&&video.readyState>=2&&now-lastDetT>1000/CFG.detectFps){
     detecting=true;lastDetT=now;
     try{detections=await model.detect(video,CFG.maxDet,CFG.minScore);}catch(e){}
     detecting=false;
@@ -755,7 +757,8 @@ canvas.addEventListener('pointerdown',e=>{
   lastInteraction=performance.now();
   primary=hit?{class:hit.class,score:hit.score,cx:(()=>{const[x,,w]=hit.bbox;return x+w/2;})(),cy:(()=>{const[,y,,h]=hit.bbox;return y+h/2;})(),bbox:hit.bbox}:null;
 });
-$('btn-cam').addEventListener('click',async()=>{facing=facing==='environment'?'user':'environment';primary=null;try{await startCamera();}catch(e){}});
+function waitVideoReady(){ return new Promise(res=>{ let n=0; const id=setInterval(()=>{ if((video.videoWidth&&video.readyState>=2)||++n>40){ clearInterval(id); res(); } },50); }); }
+$('btn-cam').addEventListener('click',async()=>{ switching=true; facing=facing==='environment'?'user':'environment'; primary=null; MP.reset(); try{ await startCamera(); await waitVideoReady(); }catch(e){} switching=false; });
 $('btn-body').addEventListener('click',()=>{bodyOn=!bodyOn; $('btn-body').classList.toggle('on',bodyOn); if(!bodyOn)faceBadge.classList.add('hide');});
 $('btn-alert').addEventListener('click',()=>{
   alertUntil=performance.now()+CFG.timings.alertHold;
