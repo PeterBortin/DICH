@@ -497,12 +497,33 @@ const COMP=(()=>{
 
 /* ── MediaPipe Tasks (поза / кисті / обличчя) ── */
 let faceConn=null;
+let bodySten=null, bodyGrid=null;
+function buildBodyLayer(mask){
+  const mw=mask.width, mh=mask.height; if(!mw||!mh)return;
+  let arr; try{ arr=mask.getAsUint8Array(); }catch(e){ try{ arr=mask.getAsFloat32Array(); }catch(_){ return; } }
+  const isFloat=arr instanceof Float32Array;
+  if(!bodySten) bodySten=document.createElement('canvas');
+  if(bodySten.width!==mw||bodySten.height!==mh){ bodySten.width=mw; bodySten.height=mh; }
+  const sctx=bodySten.getContext('2d'); const id=sctx.createImageData(mw,mh); const D=id.data;
+  for(let i=0;i<mw*mh;i++){ let v=arr[i]; if(isFloat)v*=255; const a=v>40?v:0;
+    D[i*4]=132; D[i*4+1]=243; D[i*4+2]=91; D[i*4+3]=a; }
+  sctx.putImageData(id,0,0);
+  if(!bodyGrid) bodyGrid=document.createElement('canvas');
+  if(bodyGrid.width!==mw||bodyGrid.height!==mh){ bodyGrid.width=mw; bodyGrid.height=mh; }
+  const g=bodyGrid.getContext('2d'); g.clearRect(0,0,mw,mh);
+  const step=Math.max(7,Math.round(mw/24));
+  g.strokeStyle='rgba(132,243,91,0.85)'; g.lineWidth=1; g.beginPath();
+  for(let x=0;x<=mw;x+=step){ g.moveTo(x+0.5,0); g.lineTo(x+0.5,mh); }
+  for(let y=0;y<=mh;y+=step){ g.moveTo(0,y+0.5); g.lineTo(mw,y+0.5); }
+  g.stroke();
+  g.globalCompositeOperation='destination-in'; g.drawImage(bodySten,0,0); g.globalCompositeOperation='source-over';
+}
 const MP=(()=>{
   let pose=null,hands=null,face=null; const ready={pose:false,hands:false,face:false};
   const results={pose:null,hands:null,face:null}; let ts=0, lastRun=0, inited=false;
   async function mk(Cls,fileset,url){
     for(const delegate of ['GPU','CPU']){
-      try{ return await Cls.createFromOptions(fileset,{baseOptions:{modelAssetPath:url,delegate},runningMode:'VIDEO',...(Cls.name==='PoseLandmarker'?{numPoses:1,minPoseDetectionConfidence:0.6,minPosePresenceConfidence:0.6,minTrackingConfidence:0.6}:Cls.name==='HandLandmarker'?{numHands:2}:{numFaces:2,minFaceDetectionConfidence:0.5})}); }
+      try{ return await Cls.createFromOptions(fileset,{baseOptions:{modelAssetPath:url,delegate},runningMode:'VIDEO',...(Cls.name==='PoseLandmarker'?{numPoses:1,minPoseDetectionConfidence:0.6,minPosePresenceConfidence:0.6,minTrackingConfidence:0.6,outputSegmentationMasks:true}:Cls.name==='HandLandmarker'?{numHands:2}:{numFaces:2,minFaceDetectionConfidence:0.5})}); }
       catch(e){ /* пробуємо CPU */ }
     }
     return null;
@@ -519,10 +540,14 @@ const MP=(()=>{
     }catch(e){ console.warn('MediaPipe недоступний:',e); }
   }
   function detect(now,hasPerson){
-    if(!bodyOn||!hasPerson){ results.pose=results.hands=results.face=null; return; }
+    if(!bodyOn||!hasPerson){ results.pose=results.hands=results.face=null; bodyGrid=null; return; }
     if(now-lastRun<CFG.mpIntervalMs) return; lastRun=now;
     ts=Math.max(ts+1,Math.round(performance.now()));
     try{ if(ready.pose) results.pose=pose.detectForVideo(video,ts); }catch(e){}
+    try{ if(results.pose && results.pose.segmentationMasks && results.pose.segmentationMasks.length){
+      buildBodyLayer(results.pose.segmentationMasks[0]);
+      results.pose.segmentationMasks.forEach(m=>{try{ m.close&&m.close(); }catch(_){}});
+    } }catch(e){}
     try{ if(ready.hands) results.hands=hands.detectForVideo(video,ts); }catch(e){}
     try{ if(ready.face) results.face=face.detectForVideo(video,ts); }catch(e){}
   }
@@ -641,18 +666,16 @@ function drawEntity(x,y,w,h,d,dim){
 /* ── MediaPipe overlay ── */
 function drawBody(f){
   const G='132,243,91';
-  // POSE
-  const pl=MP.results.pose&&MP.results.pose.landmarks;
-  if(pl&&pl.length){ ctx.save(); ctx.lineCap='round'; ctx.strokeStyle=`rgb(${G})`; ctx.lineWidth=2; ctx.shadowColor=`rgb(${G})`; ctx.shadowBlur=6;
-    for(const lm of pl){
-      const torso=[11,12,23,24].filter(i=>lm[i]&&(lm[i].visibility??0)>0.5).length;
-      if(torso<3) continue; // без впевненого торсу не малюємо скелет (фікс: окрема рука/нога)
-      for(const [a,b] of POSE_CONN){ const pa=lm[a],pb=lm[b]; if(!pa||!pb)continue; if((pa.visibility??0)<0.5||(pb.visibility??0)<0.5)continue;
-        const A=np(pa.x,pa.y,f),B=np(pb.x,pb.y,f); ctx.beginPath();ctx.moveTo(A[0],A[1]);ctx.lineTo(B[0],B[1]);ctx.stroke(); }
-      ctx.fillStyle=`rgb(${G})`;
-      for(const i of POSE_PTS){ const p=lm[i]; if(!p||(p.visibility??0)<0.5)continue; const P=np(p.x,p.y,f);
-        ctx.beginPath();ctx.arc(P[0],P[1],3.5,0,6.283);ctx.fill(); }
-    } ctx.shadowBlur=0; ctx.restore();
+  // BODY: сітка по силуету тіла (сегментація) — замість скелета
+  if(MP.results.pose && MP.results.pose.landmarks && MP.results.pose.landmarks.length && bodySten && bodyGrid){
+    const dw=f.vW*f.s, dh=f.vH*f.s;
+    ctx.save();
+    if(mirrored()){ ctx.translate(canvas.width,0); ctx.scale(-1,1); }
+    ctx.globalAlpha=0.14; ctx.shadowColor='rgba(132,243,91,0.85)'; ctx.shadowBlur=18;
+    ctx.drawImage(bodySten, f.ox, f.oy, dw, dh);   // обʼєм: силует + glow
+    ctx.shadowBlur=0; ctx.globalAlpha=0.85;
+    ctx.drawImage(bodyGrid, f.ox, f.oy, dw, dh);   // сітка, обрізана по тілу
+    ctx.globalAlpha=1; ctx.restore();
   }
   // HANDS
   const hl=MP.results.hands&&MP.results.hands.landmarks;
