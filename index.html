@@ -18,6 +18,7 @@
 <!-- ML/WebGL з CDN -->
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.1/dist/mobilenet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
@@ -273,15 +274,38 @@ button:focus-visible{outline-color:var(--g)}
   #rv-list{max-width:780px;margin:0 auto;width:100%;display:grid;grid-template-columns:1fr 1fr;gap:6px;align-content:start}
   #rv-list .rv-day{grid-column:1/-1}
 }
-@media (prefers-reduced-motion: reduce){.orb.listening{animation:none}}
+@media (prefers-reduced-motion: reduce){.orb.listening{animation:none}#objcard{transition:none}}
+
+/* картка обʼєкта (кишеньковий асистент) */
+#objcard{position:absolute;left:0;right:0;bottom:0;z-index:14;background:rgba(16,18,25,.97);backdrop-filter:blur(16px);
+  border-top:1px solid var(--border);border-radius:22px 22px 0 0;padding:16px 16px calc(env(safe-area-inset-bottom) + 16px);
+  transform:translateY(105%);transition:transform .32s cubic-bezier(.22,1,.36,1);box-shadow:0 -18px 50px rgba(0,0,0,.55);max-height:62%;
+  display:flex;flex-direction:column;gap:10px}
+#objcard.show{transform:translateY(0)}
+.oc-top{display:flex;gap:12px;align-items:flex-start}
+#oc-thumb{width:64px;height:64px;border-radius:14px;object-fit:cover;border:1px solid var(--border);background:#000;flex-shrink:0}
+.oc-id{flex:1;min-width:0}
+#oc-name{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;letter-spacing:-.01em;line-height:1.2}
+#oc-sub{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px}
+.tagp{font-size:9.5px;letter-spacing:.06em;padding:4px 9px;border-radius:999px;border:1px solid var(--border);color:var(--txt-dim)}
+.tagp.src{border-color:rgba(62,224,208,.45);color:var(--cyan)}
+.tagp.acc{border-color:rgba(132,243,91,.45);color:var(--g)}
+#oc-close{background:none;border:1px solid var(--border);color:var(--txt-dim);width:32px;height:32px;border-radius:999px;flex-shrink:0}
+#oc-text{overflow-y:auto;font-size:13.5px;line-height:1.75;color:var(--txt);padding-right:2px;min-height:22px}
+.oc-ops{display:flex;gap:8px;flex-wrap:wrap}
+.oc-ops .btn{margin-top:0;width:auto;flex:1;min-width:110px}
+.spin{display:inline-block;width:11px;height:11px;border:2px solid rgba(132,243,91,.25);border-top-color:var(--g);border-radius:999px;animation:sp .7s linear infinite;vertical-align:-1px;margin-right:7px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.rv-item.discovery::before{background:var(--purple)}
+@media (min-width:900px){#objcard{left:auto;right:20px;bottom:20px;width:400px;border-radius:22px;max-height:66%}}
 </style>
 </head>
 <body>
 
 <div id="start">
   <h1>DICH</h1>
-  <div class="sub">detection intellect</div>
-  <div class="promise">Усе працює <b>на твоєму пристрої</b>. Нічого не надсилається в інтернет. Без акаунтів, без хмари.</div>
+  <div class="sub">кишеньковий асистент</div>
+  <div class="promise">Наведи камеру й <b>торкнись обʼєкта</b> — DICH розповість, що це. Розпізнавання <b>на пристрої</b>; факти — з Вікіпедії, якщо є інтернет.</div>
   <button id="btn-activate">ACTIVATE</button>
   <div class="err" id="start-err"></div>
 </div>
@@ -315,21 +339,37 @@ button:focus-visible{outline-color:var(--g)}
       <button class="ctl" id="btn-cap" title="знімок → Review"><span class="ci">◉</span>CAP</button>
       <button class="ctl dev" id="btn-alert" title="тимчасово: перевірка стану ALERT"><span class="ci">⚡</span>TEST</button>
     </div>
+    <div id="objcard">
+      <div class="oc-top">
+        <img id="oc-thumb" alt=""/>
+        <div class="oc-id">
+          <div id="oc-name">—</div>
+          <div id="oc-sub"></div>
+        </div>
+        <button id="oc-close">✕</button>
+      </div>
+      <div id="oc-text"></div>
+      <div class="oc-ops">
+        <button class="btn" id="oc-speak">🔊 Озвучити</button>
+        <button class="btn" id="oc-wiki">Вікіпедія</button>
+      </div>
+    </div>
     <div id="review">
       <div id="rv-head">
-        <div id="rv-title"><h2>REVIEW <span class="cnt" id="rv-cnt"></span></h2>
-          <div id="rv-actions"><button class="rv-btn" id="rv-export">EXPORT JSON</button><button class="rv-btn danger" id="rv-clear">CLEAR</button></div></div>
+        <div id="rv-title"><h2>Журнал <span class="cnt" id="rv-cnt"></span></h2>
+          <div id="rv-actions"><button class="rv-btn" id="rv-export">Експорт JSON</button><button class="rv-btn danger" id="rv-clear">Очистити</button></div></div>
         <div id="rv-filters">
-          <button class="chip" data-f="all" aria-pressed="true">ALL</button>
-          <button class="chip" data-f="capture" aria-pressed="false">CAPTURES</button>
-          <button class="chip" data-f="alert" aria-pressed="false">ALERTS</button>
-          <button class="chip" data-f="detection" aria-pressed="false">DETECTIONS</button>
+          <button class="chip" data-f="all" aria-pressed="true">Усе</button>
+          <button class="chip" data-f="discovery" aria-pressed="false">Відкриття</button>
+          <button class="chip" data-f="capture" aria-pressed="false">Знімки</button>
+          <button class="chip" data-f="alert" aria-pressed="false">Алерти</button>
+          <button class="chip" data-f="detection" aria-pressed="false">Детекції</button>
         </div>
       </div>
       <div id="rv-list"></div>
     </div>
     <section id="settings" class="screen">
-      <div class="scr-head"><h2>Settings</h2></div>
+      <div class="scr-head"><h2>Опції</h2></div>
       <div class="scr-body">
         <div class="card">
           <div class="card-h">Вигляд обличчя</div>
@@ -358,7 +398,7 @@ button:focus-visible{outline-color:var(--g)}
       </div>
     </section>
     <section id="assistant" class="screen">
-      <div class="scr-head"><h2>Assistant</h2>
+      <div class="scr-head"><h2>Голос</h2>
         <div class="asst-lang"><button class="chip" id="lang-ua" aria-pressed="true">UA</button><button class="chip" id="lang-en" aria-pressed="false">EN</button></div>
       </div>
       <div class="asst-body">
@@ -379,13 +419,13 @@ button:focus-visible{outline-color:var(--g)}
   <div id="preview">
     <img id="pv-img" alt="snapshot"/>
     <div class="pv-meta" id="pv-meta"></div>
-    <div class="pv-ops"><button class="rv-btn" id="pv-export">EXPORT PNG</button><button class="rv-btn danger" id="pv-del">DELETE</button><button class="rv-btn" id="pv-close">CLOSE</button></div>
+    <div class="pv-ops"><button class="rv-btn" id="pv-export">Експорт PNG</button><button class="rv-btn danger" id="pv-del">Видалити</button><button class="rv-btn" id="pv-close">Закрити</button></div>
   </div>
   <nav id="tabs">
-    <button class="tab" id="tab-monitor" aria-current="true"><span class="ti">◉</span>Monitor</button>
-    <button class="tab" id="tab-review"><span class="ti">▤</span>Review</button>
-    <button class="tab" id="tab-assistant"><span class="ti">◈</span>Assistant</button>
-    <button class="tab" id="tab-settings"><span class="ti">⚙</span>Settings</button>
+    <button class="tab" id="tab-monitor" aria-current="true"><span class="ti">◉</span>Огляд</button>
+    <button class="tab" id="tab-assistant"><span class="ti">◈</span>Голос</button>
+    <button class="tab" id="tab-review"><span class="ti">▤</span>Журнал</button>
+    <button class="tab" id="tab-settings"><span class="ti">⚙</span>Опції</button>
   </nav>
 </div>
 
@@ -756,6 +796,7 @@ canvas.addEventListener('pointerdown',e=>{
   const hit=detections.find(d=>{const[x,y,w,h]=d.bbox;return vx>=x&&vx<=x+w&&vy>=y&&vy<=y+h;});
   lastInteraction=performance.now();
   primary=hit?{class:hit.class,score:hit.score,cx:(()=>{const[x,,w]=hit.bbox;return x+w/2;})(),cy:(()=>{const[,y,,h]=hit.bbox;return y+h/2;})(),bbox:hit.bbox}:null;
+  if(hit) IDENT.identify(hit); else IDENT.close();
 });
 function waitVideoReady(){ return new Promise(res=>{ let n=0; const id=setInterval(()=>{ if((video.videoWidth&&video.readyState>=2)||++n>40){ clearInterval(id); res(); } },50); }); }
 $('btn-cam').addEventListener('click',async()=>{ switching=true; facing=facing==='environment'?'user':'environment'; primary=null; MP.reset(); try{ await startCamera(); await waitVideoReady(); }catch(e){} switching=false; });
@@ -835,7 +876,7 @@ async function renderReview(){
   objUrls.forEach(u=>URL.revokeObjectURL(u)); objUrls=[];
   const list=$('rv-list'); const events=(await DB.all()).filter(e=>curFilter==='all'||e.type===curFilter);
   $('rv-cnt').textContent=events.length?('/ '+events.length):'';
-  if(!events.length){ list.innerHTML='<div id="rv-empty">Подій ще немає.<br>Зроби знімок кнопкою <b>CAP</b> у Monitor або дочекайся детекцій.</div>'; return; }
+  if(!events.length){ list.innerHTML='<div id="rv-empty">Журнал порожній.<br>Наведи камеру й <b>торкнись обʼєкта</b> — DICH розповість, що це.</div>'; return; }
   list.innerHTML=''; let lastDay='';
   for(const e of events){
     const dk=dayKey(e.ts); if(dk!==lastDay){ const h=document.createElement('div'); h.className='rv-day'; h.textContent=dk; list.appendChild(h); lastDay=dk; }
@@ -844,11 +885,12 @@ async function renderReview(){
     if(e.thumb){ const u=URL.createObjectURL(e.thumb); objUrls.push(u); thumbHtml=`<img class="rv-thumb" src="${u}" data-id="${e.id}">`; }
     else thumbHtml=`<div class="rv-thumb none">${e.type==='detection'?'◈':'⚡'}</div>`;
     item.innerHTML=`${thumbHtml}<div class="rv-meta"><div class="l1">${e.label||e.type.toUpperCase()}${e.score!=null?' · '+e.score+'%':''}</div>`+
-      `<div class="l2">${fmtTime(e.ts)} · ${e.group||''} · ${e.type.toUpperCase()}</div></div>`+
-      `<div class="rv-ops">${e.thumb?`<button class="rv-op exp" data-id="${e.id}" title="експорт">⬇</button>`:''}<button class="rv-op del" data-id="${e.id}" title="видалити">✕</button></div>`;
+      `<div class="l2">${e.note?String(e.note).slice(0,80)+'…':fmtTime(e.ts)+' · '+(e.group||'')}</div></div>`+
+      `<div class="rv-ops">${e.note?`<button class="rv-op say" data-id="${e.id}" title="озвучити">🔊</button>`:''}${e.thumb?`<button class="rv-op exp" data-id="${e.id}" title="експорт">⬇</button>`:''}<button class="rv-op del" data-id="${e.id}" title="видалити">✕</button></div>`;
     list.appendChild(item);
   }
   list.querySelectorAll('.rv-thumb[data-id]').forEach(t=>t.onclick=()=>openPreview(+t.dataset.id));
+  list.querySelectorAll('.rv-op.say').forEach(b=>b.onclick=async()=>{ const e=(await DB.all()).find(x=>x.id===+b.dataset.id); if(e&&e.note) say((e.label||'')+'. '+e.note); });
   list.querySelectorAll('.rv-op.exp').forEach(b=>b.onclick=()=>exportOne(+b.dataset.id));
   list.querySelectorAll('.rv-op.del').forEach(b=>b.onclick=async()=>{ await DB.del(+b.dataset.id); renderReview(); });
 }
@@ -868,6 +910,7 @@ async function exportJSON(){ const meta=(await DB.all()).map(({thumb,...m})=>m);
 let prevTab='monitor';
 function showTab(t){
   if(prevTab==='assistant' && t!=='assistant') ASST.leave();
+  if(t!=='monitor') IDENT.close();
   prevTab=t; tab=t;
   for(const [name,el] of [['monitor','tab-monitor'],['review','tab-review'],['assistant','tab-assistant'],['settings','tab-settings']]) $(el).setAttribute('aria-current',t===name);
   $('review').classList.toggle('show',t==='review');
@@ -1011,6 +1054,169 @@ $('asst-listen').onclick=()=>{ if(ASST.isListening())ASST.stopListen(); else ASS
 $('lang-ua').onclick=()=>ASST.setLang('uk');
 $('lang-en').onclick=()=>ASST.setLang('en');
 
+/* ── Кишеньковий асистент: база знань UA + Вікіпедія + уточнення ── */
+const KB={
+person:{ua:'Людина',f:'Homo sapiens. Мозок дорослої людини споживає близько 20% усієї енергії тіла, хоча важить лише 2% від його маси. У скелеті понад 200 кісток, а найдовша з них — стегнова.'},
+bicycle:{ua:'Велосипед',f:'Найефективніший транспорт, створений людиною: велосипедист витрачає менше енергії на кілометр, ніж пішохід чи будь-яка тварина. Перші моделі 1817 року не мали педалей — їх штовхали ногами.'},
+car:{ua:'Автомобіль',f:'Сучасний автомобіль складається приблизно з 30 тисяч деталей. Перший бензиновий автомобіль Карла Бенца 1886 року розвивав до 16 км/год.'},
+motorcycle:{ua:'Мотоцикл',f:'Двоколісний моторизований транспорт, відомий високою маневреністю. Перший мотоцикл із бензиновим двигуном зібрали Даймлер і Майбах у 1885 році — він мав деревʼяну раму.'},
+airplane:{ua:'Літак',f:'Крило створює підйомну силу через різницю тиску повітря над ним і під ним. Перший керований політ братів Райт у 1903 році тривав лише 12 секунд.'},
+bus:{ua:'Автобус',f:'Міський транспорт великої місткості. Один автобус може замінити до 40 автомобілів на дорозі, суттєво зменшуючи затори.'},
+train:{ua:'Поїзд',f:'Через низьке тертя «сталь по сталі» поїзд витрачає в кілька разів менше енергії на тонну вантажу, ніж автомобіль. Рекорд швидкості на магнітній підвісці — понад 600 км/год.'},
+truck:{ua:'Вантажівка',f:'Основа наземної логістики: близько 70% усіх вантажів у світі перевозять автомобільним транспортом.'},
+boat:{ua:'Човен',f:'Тримається на воді за законом Архімеда: виштовхувальна сила дорівнює вазі витісненої води. Найдавніші знайдені човни-довбанки мають вік близько 10 тисяч років.'},
+'traffic light':{ua:'Світлофор',f:'Перший газовий світлофор встановили в Лондоні у 1868 році. Червоний обрали сигналом заборони, бо це найдовша хвиля видимого світла — вона краще видна в тумані та дощі.'},
+'fire hydrant':{ua:'Пожежний гідрант',f:'Підключення до водогону для пожежників. Колір корпусу часто кодує потужність потоку води, щоб команда одразу знала, на що розраховувати.'},
+'stop sign':{ua:'Знак «Стоп»',f:'Восьмикутна форма унікальна серед знаків: її розпізнають навіть зі спини або під снігом, коли напис не читається.'},
+'parking meter':{ua:'Паркомат',f:'Перший паркомат встановили в Оклахома-Сіті у 1935 році, щоб змусити водіїв звільняти місця в центрі міста.'},
+bench:{ua:'Лавка',f:'Проста конструкція для сидіння. В урбаністиці лавки — ключовий елемент живої вулиці: без місць для відпочинку люди не затримуються у публічному просторі.'},
+bird:{ua:'Птах',f:'Птахи — єдині живі нащадки динозаврів. Кістки багатьох птахів порожнисті, а дихальна система з повітряними мішками дозволяє летіти на висоті, де людині бракує кисню.'},
+cat:{ua:'Кіт',f:'Felis catus. Коти спять 12–16 годин на добу, а їхнє мурчання на частоті 25–150 Гц, за дослідженнями, сприяє загоєнню тканин. Вуса працюють як точний сенсор ширини отвору.'},
+dog:{ua:'Собака',f:'Canis familiaris. Нюх собаки в десятки тисяч разів чутливіший за людський, тому їх навчають шукати людей, вибухівку й навіть виявляти хвороби.'},
+horse:{ua:'Кінь',f:'Коні спять і стоячи, і лежачи — завдяки системі «замків» у ногах. Очі коня одні з найбільших серед суходільних ссавців і дають майже круговий огляд.'},
+sheep:{ua:'Вівця',f:'Горизонтальна прямокутна зіниця дає вівці поле зору близько 300° — вона бачить хижака, не повертаючи голови. Вівці розпізнають обличчя інших овець і людей.'},
+cow:{ua:'Корова',f:'Шлунок корови має чотири відділи, а пережовує їжу вона до восьми годин на добу. Корови мають соціальні звʼязки й тримаються певних особин у стаді.'},
+elephant:{ua:'Слон',f:'У хоботі близько 40 тисяч мʼязів — ним слон може підняти дерево і взяти одну травинку. Слони спілкуються інфразвуком, який чути на кілометри.'},
+bear:{ua:'Ведмідь',f:'Під час зимового сну ведмідь не їсть і не пʼє, але майже не втрачає мʼязової маси — цей механізм вивчають для медицини.'},
+zebra:{ua:'Зебра',f:'Смуги унікальні, як відпечатки пальців. За однією з гіпотез, вони збивають з орієнтації кровосисних мух, які погано сідають на контрастні поверхні.'},
+giraffe:{ua:'Жирафа',f:'Попри довгу шию, у жирафи лише сім шийних хребців — як у людини. Її серце важить понад 10 кг, щоб гнати кров до голови на висоту двох метрів.'},
+backpack:{ua:'Рюкзак',f:'Розподіляє вагу на обидва плеча та стегна. Оптимальне навантаження — до 20% ваги тіла, інакше страждає хребет.'},
+umbrella:{ua:'Парасолька',f:'Спершу парасольки захищали від сонця, а не дощу — звідси й слово parasol. Складану конструкцію запатентували у 1928 році.'},
+handbag:{ua:'Сумка',f:'Носима ємність для речей. Тривале носіння на одному плечі створює асиметричне навантаження на хребет.'},
+tie:{ua:'Краватка',f:'Походить від хусток хорватських найманців у Франції XVII століття — звідси французька назва cravate.'},
+suitcase:{ua:'Валіза',f:'Колеса до валіз додали лише у 1970-х, а вертикальну валізу з висувною ручкою — у 1987-му. До того багаж носили в руках.'},
+frisbee:{ua:'Фрісбі',f:'Летить завдяки обертанню, що стабілізує диск, і профілю, який створює підйомну силу — по суті це крило, що обертається.'},
+skis:{ua:'Лижі',f:'Найдавніші знайдені лижі мають вік понад 8000 років: спочатку це був транспорт для полювання, а не спорт.'},
+snowboard:{ua:'Сноуборд',f:'Виник у 1960-х як «сноуфер» — дошка з мотузкою для керування. Олімпійським видом спорту став у 1998 році.'},
+'sports ball':{ua:'Мʼяч',f:'Обертання мʼяча створює ефект Магнуса: потік повітря з одного боку швидший, і траєкторія вигинається — так закручують «сухий лист».'},
+kite:{ua:'Повітряний змій',f:'Змії літають понад 2000 років; їх використовували для сигналів і вимірювань. Саме зі змієм Франклін досліджував природу блискавки.'},
+'baseball bat':{ua:'Бейсбольна битка',f:'Деревʼяні битки роблять із ясена або клена. Мʼяч сходить із битки зі швидкістю понад 160 км/год.'},
+'baseball glove':{ua:'Бейсбольна рукавиця',f:'Спершу гравці ловили мʼяч голими руками; рукавиці стали нормою лише у 1890-х роках.'},
+skateboard:{ua:'Скейтборд',f:'Виник у Каліфорнії 1950-х як «серфінг по асфальту». Трюк «олі» 1978 року дозволив дошці відриватися від землі без допомоги рук.'},
+surfboard:{ua:'Дошка для серфінгу',f:'Серфінг практикували на Гаваях століттями як частину культури. Довжина дошки визначає стабільність, коротка дає маневреність.'},
+'tennis racket':{ua:'Тенісна ракетка',f:'Струни натягують із силою 20–30 кг. Подача професіонала перевищує 200 км/год.'},
+bottle:{ua:'Пляшка',f:'Скло повністю переробне без втрати якості, тоді як пластик деградує з кожним циклом. ПЕТ-пляшку винайшли у 1973 році.'},
+'wine glass':{ua:'Винний бокал',f:'Форма чаші концентрує аромати: тому для червоного вина беруть широкий бокал, а для білого — вужчий.'},
+cup:{ua:'Чашка',f:'Ручка зʼявилася, щоб не обпікати пальці. Тонкі стінки швидше віддають тепло, тому напій у порцеляні остигає інакше, ніж у товстому керамічному кухлі.'},
+fork:{ua:'Виделка',f:'У Європі виделку довго вважали зайвою розкішшю: масово вона поширилася лише у XVIII столітті.'},
+knife:{ua:'Ніж',f:'Найдавніший інструмент людини: кремʼяні леза виготовляли понад два мільйони років тому.'},
+spoon:{ua:'Ложка',f:'Один із найстаріших столових приборів — ложки з дерева й кістки використовували ще в неоліті.'},
+bowl:{ua:'Миска',f:'Одна з найдавніших форм посуду: округла форма найпростіша для ліплення з глини й водночас найміцніша.'},
+banana:{ua:'Банан',f:'З погляду ботаніки банан — ягода, а «дерево» насправді трава. Майже всі експортні банани — клони сорту Кавендіш, тому вразливі до однієї грибкової хвороби.'},
+apple:{ua:'Яблуко',f:'Існує понад 7500 сортів. Яблука приблизно на чверть складаються з повітря — тому не тонуть у воді.'},
+sandwich:{ua:'Сендвіч',f:'Названий на честь графа Сендвіча, який просив подавати мʼясо між скибками хліба, щоб не відриватися від гри в карти.'},
+orange:{ua:'Апельсин',f:'Гібрид мандарина й помело, виведений людиною. Колір шкірки не вказує на зрілість: у тропіках дозрілі апельсини лишаються зеленими.'},
+broccoli:{ua:'Броколі',f:'Виведена людиною з дикої капусти, як і кольрабі та цвітна капуста — усе це одна біологічна форма Brassica oleracea.'},
+carrot:{ua:'Морква',f:'Спочатку морква була фіолетовою та білою; оранжеву вивели у Нідерландах. Бета-каротин у ній справді корисний для зору.'},
+'hot dog':{ua:'Хот-дог',f:'Назва зʼявилася в США на початку XX століття як жарт про «сосиску-дакшунда».'},
+pizza:{ua:'Піца',f:'Піца «Маргарита» повторює кольори італійського прапора: базилік, моцарела й томати. Класична неапольська піца печеться 60–90 секунд за 450 °C.'},
+donut:{ua:'Пончик',f:'Отвір посередині придумали, щоб тісто пропікалося рівномірно — без нього середина лишалася сирою.'},
+cake:{ua:'Торт',f:'Розпушувачі — сода й пекарський порошок — виділяють вуглекислий газ; саме він робить структуру пористою.'},
+chair:{ua:'Стілець',f:'Ергономіка радить, щоб стегна були паралельні підлозі, а стопи стояли повністю: це знімає навантаження з поясниці.'},
+couch:{ua:'Диван',f:'Слово походить від перського diwan — низької платформи з подушками для сидіння.'},
+'potted plant':{ua:'Рослина в горщику',f:'Кімнатні рослини трохи підвищують вологість повітря завдяки транспірації. Найчастіша причина їхньої загибелі — перелив, а не брак води.'},
+bed:{ua:'Ліжко',f:'Людина проводить у ліжку близько третини життя. Під час глибокого сну мозок активно виводить продукти обміну через глімфатичну систему.'},
+'dining table':{ua:'Обідній стіл',f:'Спільні обіди за столом — один із найстійкіших соціальних ритуалів; антропологи вважають спільну їжу основою людських груп.'},
+toilet:{ua:'Туалет',f:'Водяний затвор, тобто сифон, — ключовий винахід: шар води блокує запахи й гази з каналізації.'},
+tv:{ua:'Телевізор',f:'Сучасні екрани створюють колір із трьох субпікселів. Око змішує їх, бо роздільна здатність зору не дозволяє побачити кожен окремо.'},
+laptop:{ua:'Ноутбук',f:'Перші «портативні» компʼютери важили понад 10 кг. Основне обмеження сучасних ноутбуків — тепловідведення, а не потужність процесора.'},
+mouse:{ua:'Компʼютерна миша',f:'Першу мишу Дуглас Енгельбарт зробив із дерева у 1964 році; назва зʼявилася через кабель, схожий на хвіст.'},
+remote:{ua:'Пульт',f:'Більшість пультів працюють інфрачервоним світлом, невидимим для ока, — але його можна побачити через камеру телефона.'},
+keyboard:{ua:'Клавіатура',f:'Розкладка QWERTY походить від друкарських машинок: часто вживані літери розводили, щоб важелі не зачіплялися.'},
+'cell phone':{ua:'Смартфон',f:'У сучасному смартфоні більше обчислювальної потужності, ніж у компʼютерах, що керували місіями «Аполлон». Основний споживач заряду — екран.'},
+microwave:{ua:'Мікрохвильова піч',f:'Гріє їжу, змушуючи молекули води обертатися. Винайшли її випадково: інженер Персі Спенсер помітив, що шоколад у кишені розтав біля радара.'},
+oven:{ua:'Духовка',f:'За температури понад 140 °C починається реакція Майяра — саме вона дає смажену кірочку й характерний аромат.'},
+toaster:{ua:'Тостер',f:'Підсмажування — та ж реакція Майяра: цукри й білки хліба утворюють нові ароматичні сполуки.'},
+sink:{ua:'Раковина',f:'Вигнута труба під раковиною — сифон — утримує воду, щоб запахи з каналізації не потрапляли в приміщення.'},
+refrigerator:{ua:'Холодильник',f:'Холод не «додається»: компресор забирає тепло зсередини й віддає його назовні. Побутові холодильники змінили логістику їжі й здешевили харчування в містах.'},
+book:{ua:'Книга',f:'Друкарський станок Гутенберга близько 1440 року зробив книги дешевими й запустив масову грамотність.'},
+clock:{ua:'Годинник',f:'Маятниковий годинник Гюйгенса 1656 року підвищив точність із хвилин до секунд на добу. Сучасні атомні годинники помиляються на секунду за мільйони років.'},
+vase:{ua:'Ваза',f:'Форма вази — компроміс: вузьке горло тримає стебла, а широка основа дає стійкість.'},
+scissors:{ua:'Ножиці',f:'Два леза працюють як пара клинів на важелях; конструкцію з шарніром приписують римлянам.'},
+'teddy bear':{ua:'Ведмедик',f:'Названий на честь президента Теодора «Тедді» Рузвельта, який 1902 року відмовився стріляти в привʼязаного ведмедя.'},
+'hair drier':{ua:'Фен',f:'Сушить не лише теплом, а й потоком повітря, який прискорює випаровування. Надто гаряче повітря пошкоджує кератин волосся.'},
+toothbrush:{ua:'Зубна щітка',f:'Щетинисту щітку винайшли в Китаї у XV столітті. Стоматологи радять мʼяку щетину: жорстка стирає емаль і травмує ясна.'}
+};
+function uaName(cls){ return (KB[cls]&&KB[cls].ua)||UAOBJ[cls]||cls; }
+function say(text,queue){ try{ if(!queue)speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text); u.lang='uk-UA'; u.rate=1;
+  const v=(speechSynthesis.getVoices()||[]).find(x=>/^uk/i.test(x.lang)); if(v)u.voice=v;
+  speechSynthesis.speak(u); }catch(e){} }
+/* Вікіпедія (UA), з розвʼязанням англійської назви через міжмовні звʼязки */
+async function wikiSummary(title){
+  const r=await fetch('https://uk.wikipedia.org/api/rest_v1/page/summary/'+encodeURIComponent(title));
+  if(!r.ok) throw 0; const j=await r.json();
+  if(!j.extract||j.type==='disambiguation') throw 0;
+  return {title:j.title,extract:j.extract,url:(j.content_urls&&j.content_urls.desktop&&j.content_urls.desktop.page)||('https://uk.wikipedia.org/wiki/'+encodeURIComponent(j.title))};
+}
+async function wikiSearch(term){
+  const r=await fetch('https://uk.wikipedia.org/w/api.php?action=query&list=search&srsearch='+encodeURIComponent(term)+'&srlimit=1&format=json&origin=*');
+  const j=await r.json(); const hit=j&&j.query&&j.query.search&&j.query.search[0]; if(!hit) throw 0;
+  return wikiSummary(hit.title);
+}
+async function wikiViaEN(term){
+  const r=await fetch('https://en.wikipedia.org/w/api.php?action=query&titles='+encodeURIComponent(term)+'&prop=langlinks&lllang=uk&redirects=1&format=json&origin=*');
+  const j=await r.json(); const pages=(j&&j.query&&j.query.pages)||{};
+  for(const k in pages){ const ll=pages[k].langlinks; if(ll&&ll[0]&&ll[0]['*']) return wikiSummary(ll[0]['*']); }
+  throw 0;
+}
+/* Ідентифікація обʼєкта по тапу */
+const IDENT=(()=>{
+  let mnet=null, seq=0, wikiUrl='', lastText='';
+  async function initModel(){ try{ if(window.mobilenet) mnet=await mobilenet.load({version:2,alpha:1.0}); }catch(e){} }
+  function crop(bbox){
+    const [x,y,w,h]=bbox, pad=0.12;
+    const sx=Math.max(0,x-w*pad), sy=Math.max(0,y-h*pad);
+    const sw=Math.min((video.videoWidth||1)-sx,w*(1+pad*2)), sh=Math.min((video.videoHeight||1)-sy,h*(1+pad*2));
+    const c=document.createElement('canvas'); const side=224; c.width=side; c.height=side;
+    const g=c.getContext('2d'); g.fillStyle='#000'; g.fillRect(0,0,side,side);
+    const s=Math.min(side/sw,side/sh);
+    g.drawImage(video,sx,sy,sw,sh,(side-sw*s)/2,(side-sh*s)/2,sw*s,sh*s);
+    return c;
+  }
+  function open(name,thumb){
+    $('oc-name').textContent=name; $('oc-thumb').src=thumb;
+    $('oc-sub').innerHTML='<span class="tagp acc">розпізнаю…</span>';
+    $('oc-text').innerHTML='<span class="spin"></span>шукаю інформацію…';
+    $('objcard').classList.add('show');
+  }
+  function fill(name,text,src,acc){
+    $('oc-name').textContent=name; $('oc-text').textContent=text;
+    $('oc-sub').innerHTML=`<span class="tagp src">${src}</span>`+(acc?`<span class="tagp acc">${acc}</span>`:'');
+    $('oc-wiki').style.display=wikiUrl?'':'none';
+  }
+  async function identify(det){
+    const id=++seq, cls=det.class, base=uaName(cls), kb=KB[cls];
+    wikiUrl=''; lastText='';
+    let thumb='', cropCanvas=null, blob=null;
+    try{ cropCanvas=crop(det.bbox); thumb=cropCanvas.toDataURL('image/jpeg',0.8); }catch(e){}
+    open(base,thumb);
+    say(base);                                  // миттєва назва голосом
+    let fine=null;
+    if(mnet&&cropCanvas){ try{ const r=await mnet.classify(cropCanvas,3);
+      if(r&&r[0]&&r[0].probability>0.28) fine=String(r[0].className).split(',')[0].trim(); }catch(e){} }
+    if(id!==seq) return;
+    let name=base, text=(kb&&kb.f)||'', src='офлайн', acc=fine?('уточнено: '+fine):'';
+    if(navigator.onLine){
+      let w=null;
+      if(fine){ try{ w=await wikiViaEN(fine); }catch(e){} }
+      if(!w){ try{ w=await wikiSearch(base); }catch(e){} }
+      if(w){ name=w.title; text=w.extract; src='Вікіпедія'; wikiUrl=w.url; }
+    }
+    if(id!==seq) return;
+    if(!text) text='Опису для цього обʼєкта поки немає.';
+    lastText=name+'. '+text;
+    fill(name,text,src,acc);
+    say(text,true);                             // факти — у чергу після назви
+    try{ if(cropCanvas) cropCanvas.toBlob(b=>{ if(b) DB.add({ts:Date.now(),type:'discovery',label:name,group:groupOf(cls),score:Math.round((det.score||0)*100),note:text.slice(0,400),thumb:b}); },'image/jpeg',0.8); }catch(e){}
+  }
+  function close(){ seq++; $('objcard').classList.remove('show'); try{speechSynthesis.cancel();}catch(e){} }
+  return {initModel,identify,close,replay:()=>lastText&&say(lastText),url:()=>wikiUrl};
+})();
+$('oc-close').onclick=()=>{ IDENT.close(); primary=null; };
+$('oc-speak').onclick=()=>IDENT.replay();
+$('oc-wiki').onclick=()=>{ const u=IDENT.url(); if(u) window.open(u,'_blank','noopener'); };
+
 /* ── старт ── */
 async function boot(){
   loadSettings();
@@ -1023,6 +1229,7 @@ async function boot(){
   $('loading').style.display='none'; $('app').style.display='flex';
   COMP.init();
   MP.init();                 // MediaPipe вантажиться у фоні (моделі зʼявляться за кілька секунд)
+  IDENT.initModel();         // модель уточнення класу (MobileNet) — у фоні
   await requestWakeLock();
   running=true; fpsT=performance.now(); detectLoop(); requestAnimationFrame(render);
 }
