@@ -10,6 +10,7 @@
 :root{
   --accent:#6AD582;
   --hot:#DAFFC7;
+  --far:#2E7A4E;
   --deep:#00311E;
   --panel:#0d3b25;
   --amber:#FFC13C;
@@ -39,74 +40,82 @@ video{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 .chips{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap;justify-content:flex-end}
 .chip{background:rgba(4,14,9,.72);border:1px solid rgba(106,213,130,.18);
   border-radius:999px;padding:5px 11px;font-size:10.5px;letter-spacing:.11em;
-  color:var(--ink);display:flex;align-items:center;gap:6px;backdrop-filter:blur(8px)}
-.dot{width:5px;height:5px;border-radius:50%;background:var(--accent);
-  box-shadow:0 0 7px var(--accent)}
-.chip b{color:var(--hot);font-weight:600;font-variant-numeric:tabular-nums}
+  color:var(--ink);display:flex;align-items:center;gap:6px;backdrop-filter:blur(6px)}
+.chip b{color:var(--hot);font-weight:700}
+.chip.lock b{color:var(--amber)}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--accent);
+  box-shadow:0 0 8px var(--accent);animation:pulse 1.9s infinite}
+@keyframes pulse{50%{opacity:.28}}
 
-/* ---------- right rail ---------- */
-#rail{position:absolute;z-index:3;right:14px;top:calc(env(safe-area-inset-top) + 74px);
-  display:flex;flex-direction:column;gap:9px;align-items:flex-end}
-.btn{pointer-events:auto;background:rgba(6,17,11,.82);border:1px solid rgba(106,213,130,.16);
-  color:var(--ink);border-radius:999px;padding:11px 17px;font-family:var(--mono);
-  font-size:12px;letter-spacing:.1em;display:flex;align-items:center;gap:8px;
-  backdrop-filter:blur(10px);transition:.14s;cursor:pointer}
-.btn:active{transform:scale(.96)}
-.btn.on{background:var(--accent);color:#03150c;border-color:var(--accent);
-  font-weight:700;box-shadow:0 0 22px rgba(106,213,130,.34)}
-.btn.amber{border-color:rgba(255,193,60,.4);color:var(--amber)}
-.btn:focus-visible{outline:2px solid var(--hot);outline-offset:2px}
+#rail{position:absolute;z-index:3;right:16px;top:calc(env(safe-area-inset-top) + 64px);
+  display:flex;flex-direction:column;gap:14px;align-items:flex-end}
+.btn{pointer-events:auto;background:rgba(4,14,9,.72);border:1px solid rgba(106,213,130,.20);
+  color:var(--ink);border-radius:18px;height:58px;padding:0 22px;font-family:var(--mono);
+  font-size:13px;letter-spacing:.13em;display:flex;align-items:center;gap:10px;
+  backdrop-filter:blur(6px);transition:border-color .18s,color .18s,background .18s}
+.btn.on{border-color:rgba(106,213,130,.55);color:var(--hot);background:rgba(0,49,30,.7)}
+.btn.amber{border-color:rgba(255,193,60,.55);color:var(--amber)}
+
+#lockline{position:absolute;z-index:3;left:16px;bottom:calc(env(safe-area-inset-bottom) + 78px);
+  font-size:11px;letter-spacing:.09em;color:var(--ink);opacity:.85;
+  text-shadow:0 0 10px rgba(0,0,0,.9);max-width:64vw}
+#lockline em{color:var(--amber);font-style:normal}
 
 /* ---------- sheet ---------- */
 #sheet{position:absolute;z-index:4;left:0;right:0;bottom:0;
-  background:linear-gradient(180deg,rgba(5,11,8,.5),rgba(3,8,6,.97) 22%);
-  border-top:1px solid rgba(106,213,130,.16);backdrop-filter:blur(18px);
-  padding:14px 16px calc(env(safe-area-inset-bottom) + 14px);
-  transform:translateY(calc(100% - 62px));transition:transform .26s cubic-bezier(.3,.8,.3,1)}
+  background:linear-gradient(180deg,rgba(5,11,8,.86),rgba(5,11,8,.97));
+  border-top:1px solid rgba(106,213,130,.16);backdrop-filter:blur(14px);
+  padding:0 16px calc(env(safe-area-inset-bottom) + 14px);
+  transform:translateY(calc(100% - 58px));transition:transform .3s cubic-bezier(.22,.9,.24,1)}
 #sheet.open{transform:translateY(0)}
-#grip{pointer-events:auto;display:flex;align-items:center;gap:10px;height:34px;cursor:pointer}
-#grip .bar{width:34px;height:3px;border-radius:2px;background:rgba(106,213,130,.4)}
-#grip .lbl{font-size:11px;letter-spacing:.16em;color:var(--ink)}
-#grip .lbl em{color:var(--amber);font-style:normal}
-.presets{display:flex;gap:7px;margin:6px 0 14px;flex-wrap:wrap}
-.pre{pointer-events:auto;flex:1;min-width:88px;background:transparent;
-  border:1px solid rgba(106,213,130,.22);color:var(--accent);border-radius:8px;
-  padding:9px 6px;font-family:var(--mono);font-size:10.5px;letter-spacing:.09em;cursor:pointer}
-.pre:active{background:rgba(106,213,130,.14)}
-.rows{display:grid;grid-template-columns:1fr;gap:11px;
-  max-height:44vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
-.row{pointer-events:auto;display:grid;grid-template-columns:78px 1fr 52px;
-  align-items:center;gap:10px}
-.row label{font-size:10px;letter-spacing:.1em;color:var(--ink)}
-.row output{font-size:11px;text-align:right;color:var(--hot);font-variant-numeric:tabular-nums}
-input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:22px;
-  background:transparent;margin:0}
-input[type=range]::-webkit-slider-runnable-track{height:2px;background:rgba(106,213,130,.2)}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;
-  border-radius:50%;background:var(--accent);margin-top:-6.5px;
-  box-shadow:0 0 10px rgba(106,213,130,.6)}
-input[type=range]::-moz-range-track{height:2px;background:rgba(106,213,130,.2)}
-input[type=range]::-moz-range-thumb{width:15px;height:15px;border:0;border-radius:50%;
+#grip{pointer-events:auto;height:58px;display:flex;align-items:center;gap:14px;cursor:pointer}
+#grip .bar{width:56px;height:3px;border-radius:2px;background:var(--accent);opacity:.6}
+#grip .lbl{font-size:11.5px;letter-spacing:.16em;color:var(--ink)}
+#grip em{color:var(--amber);font-style:normal}
+.presets{display:flex;gap:7px;overflow-x:auto;padding:2px 0 12px;scrollbar-width:none}
+.presets::-webkit-scrollbar{display:none}
+.pre{pointer-events:auto;flex:0 0 auto;background:rgba(0,49,30,.5);
+  border:1px solid rgba(106,213,130,.22);color:var(--ink);border-radius:999px;
+  padding:9px 15px;font-family:var(--mono);font-size:10.5px;letter-spacing:.11em;cursor:pointer}
+.pre.hot{border-color:rgba(255,193,60,.5);color:var(--amber)}
+.rows{max-height:38vh;overflow-y:auto;display:flex;flex-direction:column;gap:2px;
+  -webkit-overflow-scrolling:touch}
+.row{pointer-events:auto;display:grid;grid-template-columns:96px 1fr 46px;
+  align-items:center;gap:11px;padding:7px 0}
+.row label{font-size:10.5px;letter-spacing:.1em;color:var(--ink)}
+.row output{font-size:11px;color:var(--hot);text-align:right;font-variant-numeric:tabular-nums}
+.row.grp label{color:var(--amber)}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:22px;background:0 0}
+input[type=range]::-webkit-slider-runnable-track{height:2px;background:rgba(106,213,130,.26)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:17px;height:17px;
+  margin-top:-8px;border-radius:50%;background:var(--accent);
+  box-shadow:0 0 12px rgba(106,213,130,.6)}
+input[type=range]::-moz-range-track{height:2px;background:rgba(106,213,130,.26)}
+input[type=range]::-moz-range-thumb{width:17px;height:17px;border:0;border-radius:50%;
   background:var(--accent)}
-.toggles{display:flex;gap:7px;margin-top:13px;flex-wrap:wrap}
-.tg{pointer-events:auto;background:transparent;border:1px solid rgba(106,213,130,.22);
-  color:var(--ink);border-radius:999px;padding:8px 13px;font-family:var(--mono);
-  font-size:10.5px;letter-spacing:.09em;cursor:pointer}
-.tg.on{background:rgba(106,213,130,.16);color:var(--hot);border-color:var(--accent)}
+.divider{height:1px;background:rgba(106,213,130,.14);margin:10px 0 4px}
+.divider span{position:relative;top:-7px;background:var(--bg);padding-right:9px;
+  font-size:9.5px;letter-spacing:.2em;color:var(--amber)}
+.toggles{display:flex;gap:7px;flex-wrap:wrap;padding:12px 0 4px}
+.tg{pointer-events:auto;background:rgba(4,14,9,.6);border:1px solid rgba(106,213,130,.2);
+  color:var(--ink);border-radius:999px;padding:9px 14px;font-family:var(--mono);
+  font-size:10px;letter-spacing:.12em;cursor:pointer}
+.tg.on{border-color:rgba(106,213,130,.6);color:var(--hot);background:rgba(0,49,30,.72)}
 
 /* ---------- boot ---------- */
-#boot{position:fixed;inset:0;z-index:20;background:var(--bg);
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:28px}
-#boot h1{margin:0;font-size:26px;letter-spacing:.16em;color:var(--hot);font-weight:800}
-#boot h1 span{color:var(--accent);font-weight:400;letter-spacing:.24em;font-size:15px}
-#boot p{margin:0;max-width:290px;text-align:center;font-size:11.5px;line-height:1.75;
-  color:var(--ink);letter-spacing:.04em}
+#boot{position:absolute;inset:0;z-index:9;background:var(--bg);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;
+  padding:32px;text-align:center}
+#boot h1{margin:0;font-size:30px;font-weight:800;letter-spacing:.16em;color:var(--hot)}
+#boot h1 span{color:var(--accent);font-weight:400;font-size:19px;letter-spacing:.26em}
+#boot p{margin:0;max-width:340px;font-size:12px;line-height:1.85;color:var(--ink);
+  letter-spacing:.04em}
 #go{pointer-events:auto;background:var(--accent);color:#03150c;border:0;border-radius:999px;
   padding:16px 44px;font-family:var(--mono);font-size:14px;font-weight:700;letter-spacing:.14em;
   cursor:pointer;box-shadow:0 0 34px rgba(106,213,130,.36)}
 #boot.hide{display:none}
 #err{color:var(--red);font-size:11px;text-align:center;max-width:300px;line-height:1.6}
-@media (prefers-reduced-motion:reduce){#sheet{transition:none}.btn{transition:none}}
+@media (prefers-reduced-motion:reduce){#sheet{transition:none}.btn{transition:none}.dot{animation:none}}
 </style>
 </head>
 <body>
@@ -123,6 +132,8 @@ input[type=range]::-moz-range-thumb{width:15px;height:15px;border:0;border-radiu
     <div class="chip"><i class="dot"></i>LIVE</div>
     <div class="chip"><b id="cFps">--</b>FPS</div>
     <div class="chip"><b id="cLines">0</b>ЛІНІЙ</div>
+    <div class="chip lock"><b id="cKf">0</b>КАРКАС</div>
+    <div class="chip lock"><b id="c3d">0</b>% 3D</div>
     <div class="chip"><b id="cMs">--</b>MS</div>
   </div>
 </div>
@@ -134,9 +145,12 @@ input[type=range]::-moz-range-thumb{width:15px;height:15px;border:0;border-radiu
   <button class="btn amber" id="bShot">⚡ КАДР</button>
 </div>
 
+<div id="lockline">Фіксація спить</div>
+
 <div id="sheet">
   <div id="grip"><div class="bar"></div><div class="lbl">НАСТРОЙКА <em id="gripHint">— тицяй</em></div></div>
   <div class="presets">
+    <button class="pre hot" data-pre="wire3d">КАРКАС 3D</button>
     <button class="pre" data-pre="max">МАКС КОНТРАСТ</button>
     <button class="pre" data-pre="clean">ЧИСТІ ЛІНІЇ</button>
     <button class="pre" data-pre="wire">ТІЛЬКИ КАРКАС</button>
@@ -144,15 +158,20 @@ input[type=range]::-moz-range-thumb{width:15px;height:15px;border:0;border-radiu
   </div>
   <div class="rows" id="rows"></div>
   <div class="toggles">
+    <button class="tg on" data-tg="lock">ФІКСАЦІЯ</button>
+    <button class="tg on" data-tg="verts">ВЕРШИНИ</button>
+    <button class="tg on" data-tg="rigid">ЖОРСТКІСТЬ</button>
     <button class="tg on" data-tg="nms">NMS</button>
     <button class="tg on" data-tg="hyst">ГІСТЕРЕЗИС</button>
+    <button class="tg" data-tg="flow">ПОТІК</button>
     <button class="tg" data-tg="dbg">СИРА МАСКА</button>
   </div>
 </div>
 
 <div id="boot">
   <h1>DICH <span>//EDGE</span></h1>
-  <p>Локальна нормалізація → Scharr → NMS → гістерезис → векторні контури. База постеризована на N рівнів.</p>
+  <p>Локальна нормалізація → Scharr → NMS → гістерезис → контури.
+     Далі: компенсація руху камери, граф вершин, гібридна глибина — і лінії залипають на об'єкті.</p>
   <button id="go">ПУСК</button>
   <div id="err"></div>
 </div>
@@ -164,646 +183,1489 @@ input[type=range]::-moz-range-thumb{width:15px;height:15px;border:0;border-radiu
    ПАРАМЕТРИ
    ============================================================ */
 const P = {
-  gain:      3.4,   // підсилення локального контрасту
-  radius:    14,    // радіус локального середнього (proc px)
-  levels:    4,     // рівні постеризації бази
-  tHigh:     0.19,  // сильний порог
-  tLow:      0.07,  // слабкий порог (гістерезис)
-  preblur:   1,     // згладжування перед Scharr (0..3)
-  temporal:  0.35,  // темпоральне згладжування 0..0.85
-  minLen:    16,    // мін. довжина полілінії (proc px)
-  eps:       1.15,  // RDP: спрощення
-  procW:     240,   // ширина CPU-буфера
-  glow:      1.0,   // товщина світіння
-  showBase:  1,
-  boxes:     false,
-  nms:       true,
-  hyst:      true,
-  dbg:       false
+  /* детектор */
+  gain:      3.4,
+  radius:    14,
+  levels:    4,
+  tHigh:     0.19,
+  tLow:      0.07,
+  preblur:   1,
+  temporal:  0.35,
+  minLen:    16,
+  res:       200,
+  /* фіксація */
+  inertia:   0.22,   // EMA α у фокусі
+  mem:       14,     // maxMiss у фокусі, кадрів
+  weld:      7,      // радіус зварки, proc px
+  extrude:   9,      // об'єм
+  focus:     0.34,   // радіус зони фокусу, частка min(w,h)
+  /* тумблери */
+  lock:  true,  verts: true, rigid: true,
+  nms:   true,  hyst:  true, flow:  false, dbg: false,
+  showBase: 1,  boxes: false
 };
 
-const SPECS = [
-  ['gain',     'КОНТРАСТ',  0.5, 9,    0.1, v=>v.toFixed(1)+'×'],
-  ['radius',   'РАДІУС',    2,   40,   1,   v=>v+'px'],
-  ['levels',   'РІВНІ',     2,   6,    1,   v=>v|0],
-  ['tHigh',    'ПОРІГ ▲',   0.02,0.6,  0.005,v=>v.toFixed(3)],
-  ['tLow',     'ПОРІГ ▼',   0.01,0.4,  0.005,v=>v.toFixed(3)],
-  ['preblur',  'ЗГЛАДЖ',    0,   3,    1,   v=>v|0],
-  ['temporal', 'ТЕМПОРАЛ',  0,   0.85, 0.05,v=>v.toFixed(2)],
-  ['minLen',   'МІН.ДОВЖ',  4,   80,   1,   v=>v|0],
-  ['eps',      'ДЕТАЛЬ',    0.3, 4,    0.05,v=>v.toFixed(2)],
-  ['procW',    'РОЗДІЛ',    160, 420,  20,  v=>(v|0)+'w'],
-  ['glow',     'СВІТІННЯ',  0,   2.4,  0.1, v=>v.toFixed(1)]
+const ROWS = [
+  { k:'gain',    l:'КОНТРАСТ',  min:1,    max:8,    st:0.1  },
+  { k:'radius',  l:'РАДІУС',    min:3,    max:40,   st:1    },
+  { k:'levels',  l:'РІВНІ',     min:2,    max:8,    st:1    },
+  { k:'tHigh',   l:'ПОРІГ ▲',   min:0.04, max:0.6,  st:0.01 },
+  { k:'tLow',    l:'ПОРІГ ▼',   min:0.01, max:0.3,  st:0.01 },
+  { k:'preblur', l:'РОЗМИТТЯ',  min:0,    max:3,    st:1    },
+  { k:'temporal',l:'ЧАС',       min:0,    max:0.85, st:0.05 },
+  { k:'minLen',  l:'МІН ДОВЖ',  min:4,    max:60,   st:1    },
+  { k:'res',     l:'РОЗДІЛ',    min:120,  max:320,  st:20   },
+  { g:'ФІКСАЦІЯ' },
+  { k:'inertia', l:'ІНЕРЦІЯ',   min:0.05, max:0.60, st:0.01 },
+  { k:'mem',     l:'ПАМʼЯТЬ',   min:2,    max:30,   st:1    },
+  { k:'weld',    l:'ЗВАРКА',    min:3,    max:14,   st:1    },
+  { k:'extrude', l:'ОБʼЄМ',     min:0,    max:20,   st:1    },
+  { k:'focus',   l:'ФОКУС',     min:0.18, max:0.50, st:0.01 }
 ];
 
 const PRESETS = {
-  max:   {gain:6.5, levels:3,  tHigh:0.24, tLow:0.09, preblur:1, temporal:0.3,  eps:1.0,  showBase:1, glow:1.3},
-  clean: {gain:3.2, levels:4,  tHigh:0.20, tLow:0.075,preblur:2, temporal:0.5,  eps:1.6,  showBase:1, glow:0.9, minLen:24},
-  wire:  {gain:4.2, levels:4,  tHigh:0.17, tLow:0.06, preblur:1, temporal:0.4,  eps:1.2,  showBase:0, glow:1.6},
-  soft:  {gain:2.0, levels:6,  tHigh:0.13, tLow:0.05, preblur:2, temporal:0.6,  eps:2.2,  showBase:1, glow:0.7, minLen:20}
+  max:    { gain:5.2, radius:10, levels:3, tHigh:0.14, tLow:0.05, preblur:0, temporal:0.30, minLen:12 },
+  clean:  { gain:3.0, radius:16, levels:4, tHigh:0.22, tLow:0.09, preblur:1, temporal:0.45, minLen:22 },
+  wire:   { gain:3.8, radius:22, levels:2, tHigh:0.26, tLow:0.10, preblur:2, temporal:0.55, minLen:30 },
+  soft:   { gain:2.2, radius:20, levels:5, tHigh:0.16, tLow:0.06, preblur:2, temporal:0.60, minLen:18 },
+  wire3d: { gain:3.0, radius:16, levels:4, tHigh:0.22, tLow:0.09, preblur:1, temporal:0.45, minLen:22,
+            lock:true, mem:20, rigid:true, verts:true, extrude:12, inertia:0.16, focus:0.34 }
 };
 
 /* ============================================================
    DOM
    ============================================================ */
-const video = document.getElementById('v');
-const glc   = document.getElementById('gl');
-const ovc   = document.getElementById('ov');
-const prc   = document.getElementById('proc');
-const octx  = ovc.getContext('2d');
-const pctx  = prc.getContext('2d', {willReadFrequently:true});
+const vid  = document.getElementById('v');
+const glc  = document.getElementById('gl');
+const ovc  = document.getElementById('ov');
+const prc  = document.getElementById('proc');
+const octx = ovc.getContext('2d');
+const pctx = prc.getContext('2d', { willReadFrequently:true });
+
+let facing = 'environment';
+let running = false;
+let stream = null;
 
 /* ============================================================
-   WEBGL: постеризована зелена база
+   WEBGL — постеризована база
    ============================================================ */
 const VS = `
-attribute vec2 a;
-varying vec2 uv;
-void main(){ uv = a*0.5+0.5; gl_Position = vec4(a,0.0,1.0); }`;
-
-const FS_LUMA = `
-precision mediump float;
-varying vec2 uv;
-uniform sampler2D tex;
-uniform vec2 crop;
+attribute vec2 aPos;
+varying vec2 vUv;
 void main(){
-  vec2 t = (uv-0.5)*crop + 0.5;
-  t.y = 1.0 - t.y;
-  vec3 c = texture2D(tex, t).rgb;
-  float l = dot(c, vec3(0.299,0.587,0.114));
-  gl_FragColor = vec4(l,l,l,1.0);
+  vUv = vec2((aPos.x + 1.0) * 0.5, 1.0 - (aPos.y + 1.0) * 0.5);
+  gl_Position = vec4(aPos, 0.0, 1.0);
 }`;
 
-const FS_BLUR = `
+const FS = `
 precision mediump float;
-varying vec2 uv;
-uniform sampler2D tex;
-uniform vec2 dir;
+varying vec2 vUv;
+uniform sampler2D uTex;
+uniform vec2  uTexel;
+uniform vec2  uScale;
+uniform float uGain;
+uniform float uRadius;
+uniform float uLevels;
+uniform float uShow;
+uniform float uMirror;
+
+float lum(vec3 c){ return dot(c, vec3(0.299, 0.587, 0.114)); }
+
 void main(){
-  float s = texture2D(tex,uv).r*0.2270;
-  s += (texture2D(tex,uv-dir).r      + texture2D(tex,uv+dir).r)      * 0.1946;
-  s += (texture2D(tex,uv-dir*2.0).r  + texture2D(tex,uv+dir*2.0).r)  * 0.1216;
-  s += (texture2D(tex,uv-dir*3.0).r  + texture2D(tex,uv+dir*3.0).r)  * 0.0540;
-  s += (texture2D(tex,uv-dir*4.0).r  + texture2D(tex,uv+dir*4.0).r)  * 0.0162;
-  gl_FragColor = vec4(s,s,s,1.0);
+  vec2 uv = (vUv - 0.5) * uScale + 0.5;
+  if (uMirror > 0.5) uv.x = 1.0 - uv.x;
+  float l = lum(texture2D(uTex, uv).rgb);
+  float mean = 0.0;
+  for (int i = 0; i < 16; i++){
+    float fi  = float(i);
+    float ang = fi * 2.39996;
+    float rad = sqrt((fi + 0.5) / 16.0) * uRadius;
+    vec2  o   = vec2(cos(ang), sin(ang)) * rad * uTexel;
+    mean += lum(texture2D(uTex, clamp(uv + o, vec2(0.001), vec2(0.999))).rgb);
+  }
+  mean /= 16.0;
+  float n = clamp(0.5 + (l - mean) * uGain, 0.0, 1.0);
+  float q = floor(n * uLevels) / max(uLevels - 1.0, 1.0);
+  q = clamp(q, 0.0, 1.0);
+  vec3 col = mix(vec3(0.012, 0.034, 0.023), vec3(0.145, 0.40, 0.245), q);
+  gl_FragColor = vec4(col * uShow, 1.0);
 }`;
 
-const FS_MAIN = `
-precision mediump float;
-varying vec2 uv;
-uniform sampler2D vtex;
-uniform sampler2D mtex;
-uniform vec2  crop;
-uniform float gain;
-uniform float levels;
-uniform float base;
-vec3 ramp(float t){
-  vec3 c0 = vec3(0.012,0.031,0.020);
-  vec3 c1 = vec3(0.000,0.192,0.118);
-  vec3 c2 = vec3(0.051,0.231,0.145);
-  vec3 c3 = vec3(0.416,0.835,0.510);
-  vec3 c4 = vec3(0.855,1.000,0.780);
-  if(t < 0.25) return mix(c0,c1, t/0.25);
-  if(t < 0.50) return mix(c1,c2,(t-0.25)/0.25);
-  if(t < 0.75) return mix(c2,c3,(t-0.50)/0.25);
-  return mix(c3,c4,(t-0.75)/0.25);
-}
-void main(){
-  vec2 t = (uv-0.5)*crop + 0.5;
-  t.y = 1.0 - t.y;
-  vec3 c = texture2D(vtex, t).rgb;
-  float l = dot(c, vec3(0.299,0.587,0.114));
-  float m = texture2D(mtex, uv).r;
-  float v = clamp((l-m)*gain + 0.5, 0.0, 1.0);
-  float q = clamp(floor(v*levels)/max(levels-1.0,1.0), 0.0, 1.0);
-  gl_FragColor = vec4(ramp(q)*base, 1.0);
-}`;
+let gl = null, prog = null, tex = null, U = {};
 
-let gl, quad, pLuma, pBlur, pMain, texV, fbA, fbB, fbC;
-let fboW = 2, fboH = 2;
-
-function sh(type, src){
+function shader(type, src){
   const s = gl.createShader(type);
   gl.shaderSource(s, src); gl.compileShader(s);
-  if(!gl.getShaderParameter(s, gl.COMPILE_STATUS))
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS))
     throw new Error('shader: ' + gl.getShaderInfoLog(s));
   return s;
 }
-function prog(fs){
-  const p = gl.createProgram();
-  gl.attachShader(p, sh(gl.VERTEX_SHADER, VS));
-  gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs));
-  gl.linkProgram(p);
-  if(!gl.getProgramParameter(p, gl.LINK_STATUS))
-    throw new Error('link: ' + gl.getProgramInfoLog(p));
-  const loc = {}; p.u = n => (loc[n] !== undefined ? loc[n] : (loc[n] = gl.getUniformLocation(p,n)));
-  p.a = gl.getAttribLocation(p, 'a');
-  return p;
-}
-function makeTex(w, h){
-  const t = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D, t);
-  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,w,h,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
-  const f = gl.createFramebuffer();
-  gl.bindFramebuffer(gl.FRAMEBUFFER, f);
-  gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,t,0);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-  return {tex:t, fb:f, w, h};
-}
+
 function initGL(){
-  gl = glc.getContext('webgl', {antialias:false, depth:false, alpha:false,
-                               preserveDrawingBuffer:true});
-  if(!gl) throw new Error('WebGL недоступний');
-  quad = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+  gl = glc.getContext('webgl', { antialias:false, preserveDrawingBuffer:true, alpha:false })
+    || glc.getContext('experimental-webgl', { antialias:false, preserveDrawingBuffer:true });
+  if (!gl) throw new Error('WebGL не завівся');
+
+  prog = gl.createProgram();
+  gl.attachShader(prog, shader(gl.VERTEX_SHADER, VS));
+  gl.attachShader(prog, shader(gl.FRAGMENT_SHADER, FS));
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS))
+    throw new Error('link: ' + gl.getProgramInfoLog(prog));
+  gl.useProgram(prog);
+
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
-  pLuma = prog(FS_LUMA); pBlur = prog(FS_BLUR); pMain = prog(FS_MAIN);
-  texV = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D, texV);
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
-}
-function bindQuad(p){
-  gl.bindBuffer(gl.ARRAY_BUFFER, quad);
-  gl.enableVertexAttribArray(p.a);
-  gl.vertexAttribPointer(p.a, 2, gl.FLOAT, false, 0, 0);
-}
-function pass(p, target, setup){
-  gl.useProgram(p);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, target ? target.fb : null);
-  gl.viewport(0, 0, target ? target.w : glc.width, target ? target.h : glc.height);
-  bindQuad(p);
-  setup(p);
-  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  const loc = gl.getAttribLocation(prog, 'aPos');
+  gl.enableVertexAttribArray(loc);
+  gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+
+  ['uTex','uTexel','uScale','uGain','uRadius','uLevels','uShow','uMirror']
+    .forEach(n => { U[n] = gl.getUniformLocation(prog, n); });
+
+  tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.uniform1i(U.uTex, 0);
 }
 
 /* ============================================================
-   CPU: буфери
+   КАМЕРА / РОЗМІРИ
    ============================================================ */
-let pw=1, ph=1, np=1;
-let L,M,Nf,PV,S,MAG,MAG2,DIR,EDG,STK;
-let crop = [1,1], srcRect = [0,0,1,1];
-
-function allocProc(w, h){
-  pw=w; ph=h; np=w*h;
-  prc.width=w; prc.height=h;
-  L=new Float32Array(np); M=new Float32Array(np); Nf=new Float32Array(np);
-  PV=new Float32Array(np); S=new Float32Array(np);
-  MAG=new Float32Array(np); MAG2=new Float32Array(np);
-  DIR=new Uint8Array(np); EDG=new Uint8Array(np); STK=new Int32Array(np);
+async function startCam(){
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = await navigator.mediaDevices.getUserMedia({
+    audio:false,
+    video:{ facingMode:facing, width:{ ideal:1280 }, height:{ ideal:720 } }
+  });
+  vid.srcObject = stream;
+  await vid.play().catch(() => {});
+  await new Promise(res => {
+    if (vid.videoWidth) return res();
+    vid.onloadedmetadata = () => res();
+  });
 }
 
-/* box blur, розділений на дві осі, зі скользящим вікном — O(n) */
-const tmpA = {buf:null};
-function blurH(src, dst, w, h, r){
-  const div = 1/(2*r+1);
-  for(let y=0; y<h; y++){
-    const row = y*w;
-    let acc = 0;
-    for(let k=-r; k<=r; k++){
-      const x = k<0 ? 0 : (k>w-1 ? w-1 : k);
-      acc += src[row+x];
-    }
-    dst[row] = acc*div;
-    for(let x=1; x<w; x++){
-      const add = x+r     > w-1 ? w-1 : x+r;
-      const sub = x-r-1   < 0   ? 0   : x-r-1;
-      acc += src[row+add] - src[row+sub];
-      dst[row+x] = acc*div;
-    }
-  }
-}
-function blurV(src, dst, w, h, r){
-  const div = 1/(2*r+1);
-  for(let x=0; x<w; x++){
-    let acc = 0;
-    for(let k=-r; k<=r; k++){
-      const y = k<0 ? 0 : (k>h-1 ? h-1 : k);
-      acc += src[y*w+x];
-    }
-    dst[x] = acc*div;
-    for(let y=1; y<h; y++){
-      const add = (y+r   > h-1 ? h-1 : y+r)*w   + x;
-      const sub = (y-r-1 < 0   ? 0   : y-r-1)*w + x;
-      acc += src[add] - src[sub];
-      dst[y*w+x] = acc*div;
-    }
-  }
-}
-function boxBlur(src, dst, w, h, r){
-  if(r < 1){ dst.set(src); return; }
-  if(!tmpA.buf || tmpA.buf.length < w*h) tmpA.buf = new Float32Array(w*h);
-  blurH(src, tmpA.buf, w, h, r);
-  blurV(tmpA.buf, dst, w, h, r);
+/* «cover»: який прямокутник відео лізе в кадр */
+function cover(vw, vh, cw, ch){
+  const cr = cw / ch;
+  let sw, sh;
+  if (vw / vh > cr) { sh = vh; sw = vh * cr; }
+  else              { sw = vw; sh = vw / cr; }
+  return { sx:(vw - sw) / 2, sy:(vh - sh) / 2, sw, sh };
 }
 
-/* ---------- Scharr + NMS + гістерезис ---------- */
-const OFF = [[-1,1],[0,0],[0,0],[0,0]]; // заповнюється в processFrame
+let pw = 0, ph = 0;   // proc розміри
+let B  = null;        // буфери
 
-function detect(){
-  const w=pw, h=ph;
-  MAG.fill(0);
-  for(let y=1; y<h-1; y++){
-    const r = y*w;
-    for(let x=1; x<w-1; x++){
-      const i = r+x;
-      const a=S[i-w-1], b=S[i-w], c=S[i-w+1];
-      const d=S[i-1],              f=S[i+1];
-      const g=S[i+w-1], hh=S[i+w], k=S[i+w+1];
-      const gx = (3*a + 10*d + 3*g - 3*c - 10*f - 3*k) * 0.0625;
-      const gy = (3*a + 10*b + 3*c - 3*g - 10*hh - 3*k) * 0.0625;
-      MAG[i] = Math.sqrt(gx*gx + gy*gy);
-      // сектор напрямку градієнта: 0=гориз 1=45° 2=верт 3=135°
-      let aa = Math.atan2(gy, gx) * 57.29577951308232;
-      if(aa < 0) aa += 180;
-      DIR[i] = (aa < 22.5 || aa >= 157.5) ? 0 : (aa < 67.5 ? 1 : (aa < 112.5 ? 2 : 3));
-    }
-  }
-  // non-maximum suppression по напрямку градієнта → лінія в 1px
-  if(P.nms){
-    MAG2.fill(0);
-    for(let y=2; y<h-2; y++){
-      const r = y*w;
-      for(let x=2; x<w-2; x++){
-        const i = r+x, m = MAG[i];
-        if(m <= 0) continue;
-        let o;
-        switch(DIR[i]){
-          case 0: o = 1;     break;
-          case 1: o = -w+1;  break;
-          case 2: o = w;     break;
-          default:o = w+1;
-        }
-        // строга нерівність з одного боку — інакше на рівних магнітудах
-        // (ідеально осьовий край) виживають обидва пікселі і лінія виходить 2px
-        if(m > MAG[i-o] && m >= MAG[i+o]) MAG2[i] = m;
-      }
-    }
-  } else {
-    MAG2.set(MAG);
-  }
-  // гістерезисний порог
-  EDG.fill(0);
-  const tH=P.tHigh, tL=Math.min(P.tLow, P.tHigh);
-  let sp = 0;
-  for(let i=0; i<np; i++){
-    if(MAG2[i] >= tH){ EDG[i]=1; if(sp < np) STK[sp++]=i; }
-  }
-  if(P.hyst){
-    while(sp > 0){
-      const i = STK[--sp];
-      const nb = [i-w-1,i-w,i-w+1,i-1,i+1,i+w-1,i+w,i+w+1];
-      for(let n=0; n<8; n++){
-        const j = nb[n];
-        if(EDG[j] === 0 && MAG2[j] >= tL){ EDG[j]=1; if(sp < np) STK[sp++]=j; }
-      }
-    }
-  }
-  // край кадру завжди чистий — щоб трасування не вилітало за межі
-  for(let x=0; x<w; x++){ EDG[x]=0; EDG[(h-1)*w+x]=0; EDG[w+x]=0; EDG[(h-2)*w+x]=0; }
-  for(let y=0; y<h; y++){ EDG[y*w]=0; EDG[y*w+w-1]=0; EDG[y*w+1]=0; EDG[y*w+w-2]=0; }
+function allocBuffers(w, h){
+  const n = w * h;
+  B = {
+    n, gray:new Float32Array(n), integ:new Float64Array((w + 1) * (h + 1)),
+    norm:new Float32Array(n), normS:new Float32Array(n),
+    bl:new Float32Array(n), tm:new Float32Array(n),
+    mag:new Float32Array(n), gx:new Float32Array(n), gy:new Float32Array(n),
+    sup:new Float32Array(n), edge:new Uint8Array(n),
+    deg:new Uint8Array(n), seen:new Uint8Array(n),
+    stack:new Int32Array(n),
+    pyrA:makePyr(w, h), pyrB:makePyr(w, h)
+  };
+  B.normSeeded = false;
+  pyrCur = B.pyrA; pyrPrev = B.pyrB;
+  resetTracks();
 }
 
-/* ---------- трасування поліліній ---------- */
-let N4, ND, N8;
-function buildOffsets(){
-  N4 = [-pw, 1, pw, -1];
-  ND = [-pw-1, -pw+1, pw+1, pw-1];
-  N8 = [-pw-1,-pw,-pw+1,-1,1,pw-1,pw,pw+1];
-}
-let VIS;
-function degree(i){
-  let c = 0;
-  for(let n=0; n<8; n++) if(EDG[i+N8[n]]) c++;
-  return c;
-}
-function walk(seed){
-  const pts = [seed];
-  VIS[seed] = 1;
-  let cur = seed;
-  for(let step=0; step<4000; step++){
-    let next = -1;
-    for(let n=0; n<4; n++){ const j = cur+N4[n]; if(EDG[j] && !VIS[j]){ next=j; break; } }
-    if(next < 0) for(let n=0; n<4; n++){ const j = cur+ND[n]; if(EDG[j] && !VIS[j]){ next=j; break; } }
-    if(next < 0) break;
-    VIS[next] = 1; pts.push(next); cur = next;
+function makePyr(w, h){
+  const lv = [];
+  let cw = w, chh = h;
+  for (let l = 0; l < 3; l++){
+    lv.push({ w:cw, h:chh,
+      I:new Float32Array(cw * chh),
+      gx:new Float32Array(cw * chh),
+      gy:new Float32Array(cw * chh) });
+    cw = Math.max(8, cw >> 1); chh = Math.max(8, chh >> 1);
   }
-  return pts;
-}
-function trace(){
-  if(!VIS || VIS.length !== np) VIS = new Uint8Array(np);
-  else VIS.fill(0);
-  const raw = [];
-  // 1) від кінців та розгалужень (deg !== 2)
-  for(let i=0; i<np; i++){
-    if(!EDG[i] || VIS[i]) continue;
-    const d = degree(i);
-    if(d === 2) continue;
-    VIS[i] = 1;
-    for(let n=0; n<8; n++){
-      const j = i+N8[n];
-      if(EDG[j] && !VIS[j]){
-        const seg = walk(j); seg.unshift(i);
-        if(seg.length >= 3) raw.push(seg);
-      }
-    }
-  }
-  // 2) залишок — замкнені петлі
-  for(let i=0; i<np; i++){
-    if(!EDG[i] || VIS[i]) continue;
-    const seg = walk(i);
-    if(seg.length >= 6) raw.push(seg);
-  }
-  return raw;
+  return lv;
 }
 
-/* ---------- Ramer–Douglas–Peucker ---------- */
-function rdp(pts, eps){
-  if(pts.length < 3) return pts;
-  const keep = new Uint8Array(pts.length);
-  keep[0] = keep[pts.length-1] = 1;
-  const stack = [[0, pts.length-1]];
-  const e2 = eps*eps;
-  while(stack.length){
-    const [a, b] = stack.pop();
-    if(b - a < 2) continue;
-    const ax=pts[a][0], ay=pts[a][1], bx=pts[b][0], by=pts[b][1];
-    const dx=bx-ax, dy=by-ay, len2=dx*dx+dy*dy;
-    let bi=-1, bd=-1;
-    for(let i=a+1; i<b; i++){
-      const px=pts[i][0]-ax, py=pts[i][1]-ay;
-      let d2;
-      if(len2 === 0){ d2 = px*px+py*py; }
-      else {
-        let t = (px*dx+py*dy)/len2;
-        t = t<0 ? 0 : (t>1 ? 1 : t);
-        const cx=px-t*dx, cy=py-t*dy;
-        d2 = cx*cx+cy*cy;
-      }
-      if(d2 > bd){ bd=d2; bi=i; }
-    }
-    if(bd > e2 && bi > 0){ keep[bi]=1; stack.push([a,bi],[bi,b]); }
-  }
-  const out = [];
-  for(let i=0; i<pts.length; i++) if(keep[i]) out.push(pts[i]);
-  return out;
-}
-
-/* ============================================================
-   ОБРОБКА КАДРУ
-   ============================================================ */
-let lines = [], boxes = [];
-
-function processFrame(){
-  pctx.drawImage(video, srcRect[0], srcRect[1], srcRect[2], srcRect[3], 0, 0, pw, ph);
-  let img;
-  try { img = pctx.getImageData(0, 0, pw, ph); } catch(e){ return; }
-  const d = img.data;
-
-  for(let i=0, j=0; i<np; i++, j+=4){
-    L[i] = (d[j]*0.299 + d[j+1]*0.587 + d[j+2]*0.114) * 0.00392156862745098;
-  }
-  boxBlur(L, M, pw, ph, P.radius|0);
-
-  const g = P.gain;
-  for(let i=0; i<np; i++){
-    let v = (L[i]-M[i])*g + 0.5;
-    Nf[i] = v<0 ? 0 : (v>1 ? 1 : v);
-  }
-  const a = P.temporal;
-  if(a > 0.001){ for(let i=0; i<np; i++) Nf[i] = Nf[i]*(1-a) + PV[i]*a; }
-  PV.set(Nf);
-
-  boxBlur(Nf, S, pw, ph, P.preblur|0);
-  detect();
-
-  const raw = trace();
-  const sx = ovc.width/pw, sy = ovc.height/ph;
-  lines = []; boxes = [];
-  const minL = P.minLen;
-
-  for(let r=0; r<raw.length; r++){
-    const seg = raw[r];
-    if(seg.length < minL) continue;
-    const pts = new Array(seg.length);
-    for(let i=0; i<seg.length; i++){
-      const idx = seg[i];
-      pts[i] = [idx % pw, (idx/pw)|0];
-    }
-    const simp = rdp(pts, P.eps);
-    if(simp.length < 2) continue;
-
-    let minx=1e9, miny=1e9, maxx=-1e9, maxy=-1e9;
-    for(let i=0; i<simp.length; i++){
-      const p = simp[i];
-      if(p[0]<minx) minx=p[0]; if(p[0]>maxx) maxx=p[0];
-      if(p[1]<miny) miny=p[1]; if(p[1]>maxy) maxy=p[1];
-    }
-    const f = simp[0], l = simp[simp.length-1];
-    const closed = Math.abs(f[0]-l[0]) <= 2 && Math.abs(f[1]-l[1]) <= 2 && seg.length > 14;
-
-    lines.push({pts:simp, len:seg.length, closed, sx, sy});
-
-    if(P.boxes && closed){
-      const w = (maxx-minx), h = (maxy-miny);
-      if(w > pw*0.08 && h > ph*0.06) boxes.push({x:minx*sx, y:miny*sy, w:w*sx, h:h*sy, len:seg.length});
-    }
-  }
-  boxes.sort((A,B) => B.len - A.len);
-  boxes = boxes.slice(0, 6);
-}
-
-/* ============================================================
-   МАЛЮВАННЯ ВЕКТОРІВ
-   ============================================================ */
-function drawLines(){
-  octx.clearRect(0, 0, ovc.width, ovc.height);
-  if(!lines.length) return;
-  const dpr = Math.min(devicePixelRatio || 1, 2);
-  const gw = P.glow;
-
-  // довгі контури — це справжні границі, короткі — текстура. Розділяємо по яскравості.
-  let maxLen = 1;
-  for(let i=0; i<lines.length; i++) if(lines[i].len > maxLen) maxLen = lines[i].len;
-
-  const strong = new Path2D(), weak = new Path2D();
-  for(let i=0; i<lines.length; i++){
-    const ln = lines[i], pts = ln.pts;
-    const p = (ln.len / maxLen) > 0.28 ? strong : weak;
-    p.moveTo(pts[0][0]*ln.sx, pts[0][1]*ln.sy);
-    for(let k=1; k<pts.length; k++) p.lineTo(pts[k][0]*ln.sx, pts[k][1]*ln.sy);
-    if(ln.closed) p.closePath();
-  }
-
-  octx.lineJoin = 'round';
-  octx.lineCap  = 'round';
-
-  // слабкі — тільки тонка глуха лінія
-  octx.strokeStyle = 'rgba(106,213,130,0.30)';
-  octx.lineWidth = 1.0*dpr;
-  octx.stroke(weak);
-
-  // сильні — три шари: широке гало, тіло, гарячий сердечник
-  if(gw > 0.01){
-    octx.strokeStyle = 'rgba(106,213,130,0.13)';
-    octx.lineWidth = 7.0*dpr*gw;
-    octx.stroke(strong);
-    octx.strokeStyle = 'rgba(106,213,130,0.34)';
-    octx.lineWidth = 3.2*dpr*gw;
-    octx.stroke(strong);
-  }
-  octx.strokeStyle = '#DAFFC7';
-  octx.lineWidth = 1.25*dpr;
-  octx.stroke(strong);
-
-  // бокси: кутові засічки, без рамки
-  if(P.boxes && boxes.length){
-    octx.strokeStyle = '#6AD582';
-    octx.lineWidth = 2*dpr;
-    const t = 14*dpr;
-    for(let i=0; i<boxes.length; i++){
-      const b = boxes[i];
-      const c = [[b.x,b.y,1,1],[b.x+b.w,b.y,-1,1],[b.x,b.y+b.h,1,-1],[b.x+b.w,b.y+b.h,-1,-1]];
-      octx.beginPath();
-      for(let k=0; k<4; k++){
-        const [x,y,dx,dy] = c[k];
-        octx.moveTo(x, y); octx.lineTo(x+t*dx, y);
-        octx.moveTo(x, y); octx.lineTo(x, y+t*dy);
-      }
-      octx.stroke();
-      octx.fillStyle = 'rgba(4,14,9,0.8)';
-      octx.fillRect(b.x, b.y-19*dpr, 62*dpr, 16*dpr);
-      octx.fillStyle = '#DAFFC7';
-      octx.font = (10*dpr)+'px ui-monospace, monospace';
-      octx.fillText('CONTOUR ' + b.len, b.x+4*dpr, b.y-7*dpr);
-    }
-  }
-}
-
-/* режим «сира маска» — показує EDG як є, до трасування */
-function drawRawMask(){
-  octx.clearRect(0, 0, ovc.width, ovc.height);
-  const w = pw, h = ph, sx = ovc.width/w, sy = ovc.height/h;
-  octx.fillStyle = '#DAFFC7';
-  const s = Math.max(sx, sy);
-  for(let y=0; y<h; y++){
-    const r = y*w;
-    for(let x=0; x<w; x++) if(EDG[r+x]) octx.fillRect(x*sx, y*sy, s, s);
-  }
-}
-
-/* ============================================================
-   РОЗМІРИ / КРОП
-   ============================================================ */
 function resize(){
-  const dpr = Math.min(devicePixelRatio || 1, 2);
-  const W = innerWidth, H = innerHeight;
-  glc.width = Math.round(W*dpr); glc.height = Math.round(H*dpr);
-  ovc.width = Math.round(W*dpr); ovc.height = Math.round(H*dpr);
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const cw = window.innerWidth, ch = window.innerHeight;
 
-  fboW = Math.max(2, Math.round(glc.width/4));
-  fboH = Math.max(2, Math.round(glc.height/4));
-  if(gl){
-    [fbA,fbB,fbC].forEach(f => { if(f){ gl.deleteTexture(f.tex); gl.deleteFramebuffer(f.fb); } });
-    fbA = makeTex(fboW, fboH); fbB = makeTex(fboW, fboH); fbC = makeTex(fboW, fboH);
+  glc.width  = Math.round(cw * dpr); glc.height = Math.round(ch * dpr);
+  ovc.width  = Math.round(cw * dpr); ovc.height = Math.round(ch * dpr);
+  if (gl) gl.viewport(0, 0, glc.width, glc.height);
+
+  const nw = Math.round(P.res);
+  const nh = Math.max(60, Math.round(nw * ch / cw));
+  if (nw !== pw || nh !== ph){
+    pw = nw; ph = nh;
+    prc.width = pw; prc.height = ph;
+    allocBuffers(pw, ph);
+  }
+}
+
+/* ============================================================
+   ДЕТЕКТОР
+   ============================================================ */
+function grabGray(){
+  if (!vid.videoWidth) return false;
+  const c = cover(vid.videoWidth, vid.videoHeight, pw, ph);
+  pctx.save();
+  if (facing === 'user'){ pctx.translate(pw, 0); pctx.scale(-1, 1); }
+  pctx.drawImage(vid, c.sx, c.sy, c.sw, c.sh, 0, 0, pw, ph);
+  pctx.restore();
+  const d = pctx.getImageData(0, 0, pw, ph).data;
+  const g = B.gray;
+  for (let i = 0, j = 0; i < B.n; i++, j += 4)
+    g[i] = (d[j] * 0.299 + d[j + 1] * 0.587 + d[j + 2] * 0.114) / 255;
+  return true;
+}
+
+/* локальне середнє через інтегральне зображення — O(n) незалежно від радіуса */
+function localMean(src, dst, r){
+  const I = B.integ, W = pw + 1;
+  for (let x = 0; x <= pw; x++) I[x] = 0;
+  for (let y = 0; y < ph; y++){
+    let run = 0;
+    const ro = y * pw, io = (y + 1) * W;
+    I[io] = 0;
+    for (let x = 0; x < pw; x++){
+      run += src[ro + x];
+      I[io + x + 1] = I[io - W + x + 1] + run;
+    }
+  }
+  for (let y = 0; y < ph; y++){
+    const y0 = Math.max(0, y - r), y1 = Math.min(ph - 1, y + r);
+    const a = y0 * W, b = (y1 + 1) * W, ro = y * pw;
+    for (let x = 0; x < pw; x++){
+      const x0 = Math.max(0, x - r), x1 = Math.min(pw - 1, x + r);
+      const area = (x1 - x0 + 1) * (y1 - y0 + 1);
+      dst[ro + x] = (I[b + x1 + 1] - I[b + x0] - I[a + x1 + 1] + I[a + x0]) / area;
+    }
+  }
+}
+
+function normalize(){
+  localMean(B.gray, B.bl, Math.round(P.radius));
+  const g = B.gray, m = B.bl, o = B.norm, k = P.gain;
+  for (let i = 0; i < B.n; i++){
+    let v = 0.5 + (g[i] - m[i]) * k;
+    o[i] = v < 0 ? 0 : v > 1 ? 1 : v;
+  }
+  const s = B.normS, t = P.temporal;
+  if (!B.normSeeded){ s.set(o); B.normSeeded = true; }
+  else for (let i = 0; i < B.n; i++) s[i] = s[i] * t + o[i] * (1 - t);
+}
+
+function box3(src, dst){
+  for (let y = 0; y < ph; y++){
+    const ro = y * pw;
+    for (let x = 0; x < pw; x++){
+      const xm = x > 0 ? x - 1 : 0, xp = x < pw - 1 ? x + 1 : pw - 1;
+      dst[ro + x] = (src[ro + xm] + src[ro + x] + src[ro + xp]) / 3;
+    }
+  }
+  for (let x = 0; x < pw; x++){
+    for (let y = 0; y < ph; y++){
+      const ym = y > 0 ? y - 1 : 0, yp = y < ph - 1 ? y + 1 : ph - 1;
+      B.tm[y * pw + x] = (dst[ym * pw + x] + dst[y * pw + x] + dst[yp * pw + x]) / 3;
+    }
+  }
+  dst.set(B.tm);
+}
+
+function scharr(src){
+  const gx = B.gx, gy = B.gy, mg = B.mag;
+  gx.fill(0); gy.fill(0); mg.fill(0);
+  for (let y = 1; y < ph - 1; y++){
+    const r0 = (y - 1) * pw, r1 = y * pw, r2 = (y + 1) * pw;
+    for (let x = 1; x < pw - 1; x++){
+      const a = src[r0 + x - 1], b = src[r0 + x], c = src[r0 + x + 1];
+      const d = src[r1 + x - 1],                 f = src[r1 + x + 1];
+      const g = src[r2 + x - 1], h = src[r2 + x], i = src[r2 + x + 1];
+      const sx = (-3 * a + 3 * c - 10 * d + 10 * f - 3 * g + 3 * i) / 32;
+      const sy = (-3 * a - 10 * b - 3 * c + 3 * g + 10 * h + 3 * i) / 32;
+      const k = r1 + x;
+      gx[k] = sx; gy[k] = sy;
+      mg[k] = Math.sqrt(sx * sx + sy * sy);
+    }
+  }
+}
+
+function suppress(){
+  const mg = B.mag, gx = B.gx, gy = B.gy, o = B.sup;
+  if (!P.nms){ o.set(mg); return; }
+  o.fill(0);
+  for (let y = 1; y < ph - 1; y++){
+    for (let x = 1; x < pw - 1; x++){
+      const k = y * pw + x, m = mg[k];
+      if (m < 1e-4) continue;
+      const ax = Math.abs(gx[k]), ay = Math.abs(gy[k]);
+      let d1, d2;
+      if (ax > 2.414 * ay)      { d1 = 1;       d2 = -1; }
+      else if (ay > 2.414 * ax) { d1 = pw;      d2 = -pw; }
+      else if (gx[k] * gy[k] > 0){ d1 = pw + 1; d2 = -pw - 1; }
+      else                      { d1 = pw - 1;  d2 = -pw + 1; }
+      if (m >= mg[k + d1] && m >= mg[k + d2]) o[k] = m;
+    }
+  }
+}
+
+function hysteresis(){
+  const s = B.sup, e = B.edge, st = B.stack;
+  e.fill(0);
+  const hi = P.tHigh, lo = P.hyst ? P.tLow : P.tHigh;
+  let sp = 0;
+  for (let i = 0; i < B.n; i++) if (s[i] >= hi){ e[i] = 1; st[sp++] = i; }
+  if (!P.hyst) return;
+  const nb = [1, -1, pw, -pw, pw + 1, pw - 1, -pw + 1, -pw - 1];
+  while (sp > 0){
+    const k = st[--sp];
+    const x = k % pw, y = (k - x) / pw;
+    if (x < 1 || y < 1 || x > pw - 2 || y > ph - 2) continue;
+    for (let d = 0; d < 8; d++){
+      const j = k + nb[d];
+      if (!e[j] && s[j] >= lo){ e[j] = 1; if (sp < B.n) st[sp++] = j; }
+    }
+  }
+}
+
+/* ---- трасування контурів → відрізки ---- */
+const SEG = { x0:null, y0:null, x1:null, y1:null, mx:null, my:null, an:null, ln:null, cnt:0, cap:0 };
+function segCap(c){
+  if (SEG.cap >= c) return;
+  SEG.cap = c;
+  SEG.x0 = new Float32Array(c); SEG.y0 = new Float32Array(c);
+  SEG.x1 = new Float32Array(c); SEG.y1 = new Float32Array(c);
+  SEG.mx = new Float32Array(c); SEG.my = new Float32Array(c);
+  SEG.an = new Float32Array(c); SEG.ln = new Float32Array(c);
+}
+segCap(1400);
+
+const polyX = new Float32Array(4096), polyY = new Float32Array(4096);
+const simpX = new Float32Array(4096), simpY = new Float32Array(4096);
+const rdpStack = new Int32Array(4096);
+const rdpKeep  = new Uint8Array(4096);
+
+function rdp(np, eps){
+  if (np < 3){ for (let i = 0; i < np; i++){ simpX[i] = polyX[i]; simpY[i] = polyY[i]; } return np; }
+  const keep = rdpKeep;
+  keep.fill(0, 0, np);
+  keep[0] = 1; keep[np - 1] = 1;
+  let sp = 0;
+  rdpStack[sp++] = 0; rdpStack[sp++] = np - 1;
+  const e2 = eps * eps;
+  while (sp > 0){
+    const b = rdpStack[--sp], a = rdpStack[--sp];
+    if (b - a < 2) continue;
+    const ax = polyX[a], ay = polyY[a], bx = polyX[b], by = polyY[b];
+    const dx = bx - ax, dy = by - ay;
+    const dd = dx * dx + dy * dy;
+    let best = -1, bd = -1;
+    for (let i = a + 1; i < b; i++){
+      const px = polyX[i] - ax, py = polyY[i] - ay;
+      let t = dd > 1e-9 ? (px * dx + py * dy) / dd : 0;
+      t = t < 0 ? 0 : t > 1 ? 1 : t;
+      const ex = px - dx * t, ey = py - dy * t;
+      const d2 = ex * ex + ey * ey;
+      if (d2 > bd){ bd = d2; best = i; }
+    }
+    if (bd > e2 && best > 0){
+      keep[best] = 1;
+      rdpStack[sp++] = a; rdpStack[sp++] = best;
+      rdpStack[sp++] = best; rdpStack[sp++] = b;
+    }
+  }
+  let m = 0;
+  for (let i = 0; i < np; i++) if (keep[i]){ simpX[m] = polyX[i]; simpY[m] = polyY[i]; m++; }
+  return m;
+}
+
+function pushSeg(x0, y0, x1, y1){
+  if (SEG.cnt >= SEG.cap) return;
+  const dx = x1 - x0, dy = y1 - y0;
+  const L = Math.sqrt(dx * dx + dy * dy);
+  if (L < 3.5) return;
+  const i = SEG.cnt++;
+  SEG.x0[i] = x0; SEG.y0[i] = y0; SEG.x1[i] = x1; SEG.y1[i] = y1;
+  SEG.mx[i] = (x0 + x1) * 0.5; SEG.my[i] = (y0 + y1) * 0.5;
+  SEG.an[i] = Math.atan2(dy, dx); SEG.ln[i] = L;
+}
+
+function traceContours(){
+  SEG.cnt = 0;
+  const e = B.edge, deg = B.deg, seen = B.seen;
+  seen.fill(0);
+  const nb = [1, -1, pw, -pw, pw + 1, -pw - 1, pw - 1, -pw + 1];
+
+  for (let y = 1; y < ph - 1; y++){
+    for (let x = 1; x < pw - 1; x++){
+      const k = y * pw + x;
+      if (!e[k]){ deg[k] = 0; continue; }
+      let c = 0;
+      for (let d = 0; d < 8; d++) if (e[k + nb[d]]) c++;
+      deg[k] = c;
+    }
   }
 
-  const w = Math.round(P.procW), hh = Math.max(2, Math.round(w * H / W));
-  if(w !== pw || hh !== ph){ allocProc(w, hh); buildOffsets(); }
-  computeCrop();
+  const walk = (start) => {
+    let np = 0, k = start;
+    while (np < 4090){
+      const x = k % pw, y = (k - x) / pw;
+      polyX[np] = x; polyY[np] = y; np++;
+      seen[k] = 1;
+      let nx = -1;
+      for (let d = 0; d < 8; d++){
+        const j = k + nb[d];
+        if (j < 0 || j >= B.n) continue;
+        if (e[j] && !seen[j]){ nx = j; if (d < 4) break; }
+      }
+      if (nx < 0) break;
+      k = nx;
+    }
+    if (np < 2) return;
+    let L = 0;
+    for (let i = 1; i < np; i++)
+      L += Math.hypot(polyX[i] - polyX[i - 1], polyY[i] - polyY[i - 1]);
+    if (L < P.minLen) return;
+    const m = rdp(np, 1.25);
+    for (let i = 1; i < m; i++) pushSeg(simpX[i - 1], simpY[i - 1], simpX[i], simpY[i]);
+  };
+
+  for (let y = 1; y < ph - 1; y++)
+    for (let x = 1; x < pw - 1; x++){
+      const k = y * pw + x;
+      if (e[k] && !seen[k] && deg[k] === 1) walk(k);
+    }
+  for (let y = 1; y < ph - 1; y++)
+    for (let x = 1; x < pw - 1; x++){
+      const k = y * pw + x;
+      if (e[k] && !seen[k]) walk(k);
+    }
 }
-function computeCrop(){
-  const vw = video.videoWidth || 16, vh = video.videoHeight || 9;
-  const dAsp = innerWidth/innerHeight, vAsp = vw/vh;
-  let cx = 1, cy = 1;
-  if(vAsp > dAsp) cx = dAsp/vAsp; else cy = vAsp/dAsp;
-  crop = [cx, cy];
-  const sw = vw*cx, sh = vh*cy;
-  srcRect = [(vw-sw)/2, (vh-sh)/2, sw, sh];
+
+/* ============================================================
+   ШАР A — КОМПЕНСАЦІЯ РУХУ КАМЕРИ (LK + RANSAC similarity)
+   ============================================================ */
+let pyrCur = null, pyrPrev = null, pyrReady = false;
+
+function buildPyr(pyr, src){
+  const L0 = pyr[0];
+  L0.I.set(src);
+  for (let l = 1; l < pyr.length; l++){
+    const a = pyr[l - 1], b = pyr[l];
+    for (let y = 0; y < b.h; y++){
+      const sy = Math.min(a.h - 1, y * 2), sy1 = Math.min(a.h - 1, y * 2 + 1);
+      for (let x = 0; x < b.w; x++){
+        const sx = Math.min(a.w - 1, x * 2), sx1 = Math.min(a.w - 1, x * 2 + 1);
+        b.I[y * b.w + x] = (a.I[sy * a.w + sx] + a.I[sy * a.w + sx1] +
+                            a.I[sy1 * a.w + sx] + a.I[sy1 * a.w + sx1]) * 0.25;
+      }
+    }
+  }
+  for (let l = 0; l < pyr.length; l++){
+    const p = pyr[l], w = p.w, h = p.h, I = p.I;
+    p.gx.fill(0); p.gy.fill(0);
+    for (let y = 1; y < h - 1; y++)
+      for (let x = 1; x < w - 1; x++){
+        const k = y * w + x;
+        p.gx[k] = (I[k + 1] - I[k - 1]) * 0.5;
+        p.gy[k] = (I[k + w] - I[k - w]) * 0.5;
+      }
+  }
+}
+
+function samp(a, w, h, x, y){
+  if (x < 0) x = 0; if (y < 0) y = 0;
+  if (x > w - 1.001) x = w - 1.001;
+  if (y > h - 1.001) y = h - 1.001;
+  const x0 = x | 0, y0 = y | 0;
+  const fx = x - x0, fy = y - y0;
+  const k = y0 * w + x0;
+  const a0 = a[k], a1 = a[k + 1], a2 = a[k + w], a3 = a[k + w + 1];
+  return a0 + (a1 - a0) * fx + (a2 - a0) * fy + (a0 - a1 - a2 + a3) * fx * fy;
+}
+
+/* сідований PRNG — щоб RANSAC був відтворюваний */
+let rngState = 0x9E3779B9 >>> 0;
+function rnd(){
+  let x = rngState;
+  x ^= x << 13; x >>>= 0;
+  x ^= x >>> 17;
+  x ^= x << 5;  x >>>= 0;
+  rngState = x;
+  return x / 4294967296;
+}
+
+const FLOW = { x:new Float32Array(300), y:new Float32Array(300),
+               u:new Float32Array(300), v:new Float32Array(300),
+               ok:new Uint8Array(300), inl:new Uint8Array(300), cnt:0 };
+let flowBudget = 110;
+
+function pickPoints(){
+  const p = pyrPrev[0], w = p.w, h = p.h, gx = p.gx, gy = p.gy;
+  const gcx = 16, gcy = 12;
+  const cw = Math.floor((w - 24) / gcx), ch = Math.floor((h - 24) / gcy);
+  if (cw < 3 || ch < 3){ FLOW.cnt = 0; return; }
+  const cand = [];
+  for (let cy = 0; cy < gcy; cy++)
+    for (let cx = 0; cx < gcx; cx++){
+      let bs = 0, bx = -1, by = -1;
+      const x0 = 12 + cx * cw, y0 = 12 + cy * ch;
+      for (let y = y0; y < y0 + ch; y += 3)
+        for (let x = x0; x < x0 + cw; x += 3){
+          let sxx = 0, syy = 0, sxy = 0;
+          for (let j = -1; j <= 1; j++)
+            for (let i = -1; i <= 1; i++){
+              const k = (y + j) * w + (x + i);
+              const a = gx[k], b = gy[k];
+              sxx += a * a; syy += b * b; sxy += a * b;
+            }
+          const tr = sxx + syy, dt = sxx * syy - sxy * sxy;
+          const disc = Math.max(0, tr * tr * 0.25 - dt);
+          const lam = tr * 0.5 - Math.sqrt(disc);
+          if (lam > bs){ bs = lam; bx = x; by = y; }
+        }
+      if (bx >= 0 && bs > 1.4e-4) cand.push({ s:bs, x:bx, y:by });
+    }
+  cand.sort((a, b) => b.s - a.s);
+  const n = Math.min(flowBudget, cand.length, FLOW.x.length);
+  for (let i = 0; i < n; i++){ FLOW.x[i] = cand[i].x; FLOW.y[i] = cand[i].y; }
+  FLOW.cnt = n;
+}
+
+const tI = new Float32Array(49), tGx = new Float32Array(49), tGy = new Float32Array(49);
+
+function lkTrack(){
+  const nl = pyrPrev.length;
+  for (let i = 0; i < FLOW.cnt; i++){
+    let u = 0, v = 0, ok = 1;
+    for (let l = nl - 1; l >= 0; l--){
+      const pp = pyrPrev[l], pc = pyrCur[l];
+      const sc = 1 / (1 << l);
+      const tx = FLOW.x[i] * sc, ty = FLOW.y[i] * sc;
+      if (tx < 4 || ty < 4 || tx > pp.w - 5 || ty > pp.h - 5){ if (l === 0) ok = 0; continue; }
+      let sxx = 0, syy = 0, sxy = 0, m = 0;
+      for (let j = -3; j <= 3; j++)
+        for (let k = -3; k <= 3; k++, m++){
+          const X = tx + k, Y = ty + j;
+          tI[m]  = samp(pp.I,  pp.w, pp.h, X, Y);
+          const a = samp(pp.gx, pp.w, pp.h, X, Y);
+          const b = samp(pp.gy, pp.w, pp.h, X, Y);
+          tGx[m] = a; tGy[m] = b;
+          sxx += a * a; syy += b * b; sxy += a * b;
+        }
+      const det = sxx * syy - sxy * sxy;
+      if (Math.abs(det) < 1e-7){ if (l === 0) ok = 0; continue; }
+      const i00 =  syy / det, i01 = -sxy / det, i11 =  sxx / det;
+      for (let it = 0; it < 4; it++){
+        let bx = 0, by = 0; m = 0;
+        for (let j = -3; j <= 3; j++)
+          for (let k = -3; k <= 3; k++, m++){
+            const d = tI[m] - samp(pc.I, pc.w, pc.h, tx + u + k, ty + v + j);
+            bx += tGx[m] * d; by += tGy[m] * d;
+          }
+        const du = i00 * bx + i01 * by, dv = i01 * bx + i11 * by;
+        u += du; v += dv;
+        if (du * du + dv * dv < 9e-4) break;
+        if (Math.abs(u) > 40 || Math.abs(v) > 40){ ok = 0; break; }
+      }
+      if (l > 0){ u *= 2; v *= 2; }
+    }
+    FLOW.u[i] = u; FLOW.v[i] = v; FLOW.ok[i] = ok;
+  }
+}
+
+const M = { ax:1, ay:0, bx:0, by:0 };
+let inlierRatio = 0, transMag = 0, transDX = 0, transDY = 0, gmeLost = true, sCum = 1;
+/* sCum — лише телеметрія масштабу; еталонні довжини ребер адаптуються самі */
+
+function fitSimilarity(){
+  const idx = [];
+  for (let i = 0; i < FLOW.cnt; i++) if (FLOW.ok[i]) idx.push(i);
+  FLOW.inl.fill(0);
+  M.ax = 1; M.ay = 0; M.bx = 0; M.by = 0;
+  inlierRatio = 0; transMag = 0; gmeLost = true;
+  if (idx.length < 8) return;
+
+  let bestCnt = 0, bA = 1, bB = 0, bC = 0, bD = 0;
+  for (let it = 0; it < 40; it++){
+    const p = idx[(rnd() * idx.length) | 0], q = idx[(rnd() * idx.length) | 0];
+    if (p === q) continue;
+    const z1x = FLOW.x[p], z1y = FLOW.y[p], z2x = FLOW.x[q], z2y = FLOW.y[q];
+    const w1x = z1x + FLOW.u[p], w1y = z1y + FLOW.v[p];
+    const w2x = z2x + FLOW.u[q], w2y = z2y + FLOW.v[q];
+    const dzx = z2x - z1x, dzy = z2y - z1y;
+    const dn = dzx * dzx + dzy * dzy;
+    if (dn < 64) continue;
+    const dwx = w2x - w1x, dwy = w2y - w1y;
+    const ax = (dwx * dzx + dwy * dzy) / dn;
+    const ay = (dwy * dzx - dwx * dzy) / dn;
+    if (!isFinite(ax) || !isFinite(ay)) continue;
+    const s = Math.hypot(ax, ay);
+    if (s < 0.75 || s > 1.35) continue;
+    const bx = w1x - (ax * z1x - ay * z1y);
+    const by = w1y - (ay * z1x + ax * z1y);
+    let c = 0;
+    for (let n = 0; n < idx.length; n++){
+      const j = idx[n];
+      const px = ax * FLOW.x[j] - ay * FLOW.y[j] + bx;
+      const py = ay * FLOW.x[j] + ax * FLOW.y[j] + by;
+      const ex = px - (FLOW.x[j] + FLOW.u[j]);
+      const ey = py - (FLOW.y[j] + FLOW.v[j]);
+      if (ex * ex + ey * ey < 1.44) c++;
+    }
+    if (c > bestCnt){ bestCnt = c; bA = ax; bB = ay; bC = bx; bD = by; }
+  }
+
+  inlierRatio = bestCnt / idx.length;
+  if (inlierRatio < 0.25 || bestCnt < 6) return;
+
+  /* перефіт МНК на інлаєрах */
+  let cnt = 0, mzx = 0, mzy = 0, mwx = 0, mwy = 0;
+  for (let n = 0; n < idx.length; n++){
+    const j = idx[n];
+    const px = bA * FLOW.x[j] - bB * FLOW.y[j] + bC;
+    const py = bB * FLOW.x[j] + bA * FLOW.y[j] + bD;
+    const wx = FLOW.x[j] + FLOW.u[j], wy = FLOW.y[j] + FLOW.v[j];
+    if ((px - wx) ** 2 + (py - wy) ** 2 < 1.44){
+      FLOW.inl[j] = 1;
+      mzx += FLOW.x[j]; mzy += FLOW.y[j]; mwx += wx; mwy += wy; cnt++;
+    }
+  }
+  if (cnt < 6) return;
+  mzx /= cnt; mzy /= cnt; mwx /= cnt; mwy /= cnt;
+  let num_r = 0, num_i = 0, den = 0, fx = 0, fy = 0;
+  for (let j = 0; j < FLOW.cnt; j++){
+    if (!FLOW.inl[j]) continue;
+    const zx = FLOW.x[j] - mzx, zy = FLOW.y[j] - mzy;
+    const wx = FLOW.x[j] + FLOW.u[j] - mwx, wy = FLOW.y[j] + FLOW.v[j] - mwy;
+    num_r += wx * zx + wy * zy;
+    num_i += wy * zx - wx * zy;
+    den   += zx * zx + zy * zy;
+    fx += FLOW.u[j]; fy += FLOW.v[j];
+  }
+  if (den < 1e-6) return;
+  const ax = num_r / den, ay = num_i / den;
+  const s = Math.hypot(ax, ay);
+  if (!isFinite(s) || s < 0.7 || s > 1.4) return;
+  M.ax = ax; M.ay = ay;
+  M.bx = mwx - (ax * mzx - ay * mzy);
+  M.by = mwy - (ay * mzx + ax * mzy);
+  sCum = s;
+  fx /= cnt; fy /= cnt;
+  transDX = fx; transDY = fy;
+  transMag = Math.hypot(fx, fy);
+  gmeLost = false;
+}
+
+/* ============================================================
+   ШАР B — ГРАФ ВЕРШИН І ТРЕКИ
+   ============================================================ */
+let VX, VY, VVx, VVy, VD, VDw, VConf, VMiss, VPin, VAlive, vCnt;
+let EA, EB, EConf, EMiss, EAge, ELen, EAlive, eCnt;
+let EMx, EMy, EAng, ECur;                 // кеш геометрії на кадр
+let vFree, vFreeN = 0, eFree, eFreeN = 0; // фрі-листи замість лінійного пошуку
+const MAXV = 900, MAXE = 1400;
+
+function resetTracks(){
+  VX = new Float32Array(MAXV); VY = new Float32Array(MAXV);
+  VVx = new Float32Array(MAXV); VVy = new Float32Array(MAXV);
+  VD = new Float32Array(MAXV); VDw = new Float32Array(MAXV);
+  VConf = new Int16Array(MAXV); VMiss = new Int16Array(MAXV);
+  VPin = new Int16Array(MAXV); VAlive = new Uint8Array(MAXV);
+  EA = new Int32Array(MAXE); EB = new Int32Array(MAXE);
+  EConf = new Int16Array(MAXE); EMiss = new Int16Array(MAXE);
+  EAge = new Int32Array(MAXE); ELen = new Float32Array(MAXE);
+  EAlive = new Uint8Array(MAXE);
+  EMx = new Float32Array(MAXE); EMy = new Float32Array(MAXE);
+  EAng = new Float32Array(MAXE); ECur = new Float32Array(MAXE);
+  vFree = new Int32Array(MAXV); eFree = new Int32Array(MAXE);
+  vFreeN = 0; eFreeN = 0;
+  vCnt = 0; eCnt = 0;
+  pyrReady = false;
+  frameNo = 0;
+}
+
+let frameNo = 0;
+
+/* просторовий хеш */
+const HCELL = 16;
+let hHead = null, hNext = null, hcw = 0, hch = 0;
+function hashEdges(){
+  hcw = Math.ceil(pw / HCELL) + 1; hch = Math.ceil(ph / HCELL) + 1;
+  const cells = hcw * hch;
+  if (!hHead || hHead.length < cells) hHead = new Int32Array(cells);
+  if (!hNext || hNext.length < MAXE)  hNext = new Int32Array(MAXE);
+  hHead.fill(-1, 0, cells);
+  for (let e = 0; e < eCnt; e++){
+    if (!EAlive[e]) continue;
+    const a = EA[e], b = EB[e];
+    const ax = VX[a], ay = VY[a], bx = VX[b], by = VY[b];
+    const mx = (ax + bx) * 0.5, my = (ay + by) * 0.5;
+    const dx = bx - ax, dy = by - ay;
+    EMx[e] = mx; EMy[e] = my;
+    EAng[e] = Math.atan2(dy, dx);
+    ECur[e] = Math.sqrt(dx * dx + dy * dy);
+    const cx = Math.min(hcw - 1, Math.max(0, (mx / HCELL) | 0));
+    const cy = Math.min(hch - 1, Math.max(0, (my / HCELL) | 0));
+    const c = cy * hcw + cx;
+    hNext[e] = hHead[c]; hHead[c] = e;
+  }
+}
+
+let vHead = null, vNext = null;
+function hashVerts(){
+  const cells = hcw * hch;
+  if (!vHead || vHead.length < cells) vHead = new Int32Array(cells);
+  if (!vNext || vNext.length < MAXV)  vNext = new Int32Array(MAXV);
+  vHead.fill(-1, 0, cells);
+  for (let v = 0; v < vCnt; v++){
+    if (!VAlive[v]) continue;
+    const cx = Math.min(hcw - 1, Math.max(0, (VX[v] / HCELL) | 0));
+    const cy = Math.min(hch - 1, Math.max(0, (VY[v] / HCELL) | 0));
+    const c = cy * hcw + cx;
+    vNext[v] = vHead[c]; vHead[c] = v;
+  }
+}
+
+let fcx = 0, fcy = 0, fr = 0;
+function updFocus(){
+  fcx = pw * 0.5; fcy = ph * 0.5;
+  fr = P.focus * Math.min(pw, ph);
+}
+function inFocus(x, y){
+  const dx = x - fcx, dy = y - fcy;
+  return dx * dx + dy * dy < fr * fr;
+}
+
+function killVertex(v){
+  if (!VAlive[v]) return;
+  VAlive[v] = 0; VPin[v] = 0;
+  if (vFreeN < MAXV) vFree[vFreeN++] = v;
+}
+
+function newVertex(x, y){
+  let v;
+  if (vFreeN > 0) v = vFree[--vFreeN];
+  else if (vCnt < MAXV) v = vCnt++;
+  else return -1;
+  VX[v] = x; VY[v] = y; VVx[v] = 0; VVy[v] = 0;
+  VD[v] = 0.5; VDw[v] = 0;
+  VConf[v] = 1; VMiss[v] = 0; VPin[v] = 0; VAlive[v] = 1;
+  return v;
+}
+
+function weldOrNew(x, y){
+  const r = P.weld, r2 = r * r;
+  const cx = Math.min(hcw - 1, Math.max(0, (x / HCELL) | 0));
+  const cy = Math.min(hch - 1, Math.max(0, (y / HCELL) | 0));
+  let best = -1, bd = r2;
+  for (let j = -1; j <= 1; j++)
+    for (let i = -1; i <= 1; i++){
+      const gxx = cx + i, gyy = cy + j;
+      if (gxx < 0 || gyy < 0 || gxx >= hcw || gyy >= hch) continue;
+      for (let v = vHead[gyy * hcw + gxx]; v !== -1; v = vNext[v]){
+        if (!VAlive[v] || VPin[v] >= 6) continue;
+        const dx = VX[v] - x, dy = VY[v] - y;
+        const d = dx * dx + dy * dy;
+        if (d < bd){ bd = d; best = v; }
+      }
+    }
+  if (best >= 0) return best;
+  const v = newVertex(x, y);
+  if (v >= 0){                              // одразу в хеш — щоб сусідній
+    const c = cy * hcw + cx;                // відрізок цього ж кадру зварився
+    vNext[v] = vHead[c]; vHead[c] = v;
+  }
+  return v;
+}
+
+function newEdge(a, b, len){
+  if (a < 0 || b < 0 || a === b) return -1;
+  let e;
+  if (eFreeN > 0) e = eFree[--eFreeN];
+  else if (eCnt < MAXE) e = eCnt++;
+  else return -1;
+  EA[e] = a; EB[e] = b; EConf[e] = 1; EMiss[e] = 0; EAge[e] = 0;
+  ELen[e] = len; EAlive[e] = 1;
+  VPin[a]++; VPin[b]++;
+  return e;
+}
+
+function killEdge(e){
+  if (!EAlive[e]) return;
+  EAlive[e] = 0;
+  const a = EA[e], b = EB[e];
+  if (VAlive[a] && VPin[a] > 0) VPin[a]--;
+  if (VAlive[b] && VPin[b] > 0) VPin[b]--;
+  if (eFreeN < MAXE) eFree[eFreeN++] = e;
+}
+
+function warpTracks(){
+  const ax = M.ax, ay = M.ay, bx = M.bx, by = M.by;
+  const idn = (ax === 1 && ay === 0 && bx === 0 && by === 0);
+  for (let v = 0; v < vCnt; v++){
+    if (!VAlive[v]) continue;
+    let x = VX[v], y = VY[v];
+    if (!idn){
+      const nx = ax * x - ay * y + bx;
+      const ny = ay * x + ax * y + by;
+      x = nx; y = ny;
+    }
+    const vm = VVx[v] * VVx[v] + VVy[v] * VVy[v];
+    if (vm > 0.16){ x += VVx[v] * 0.35; y += VVy[v] * 0.35; }  // < 0.4 px = шум, не рух
+    VVx[v] *= 0.5; VVy[v] *= 0.5;
+    VX[v] = x; VY[v] = y;
+  }
+  /* геть за кадр — вбити */
+  for (let v = 0; v < vCnt; v++){
+    if (!VAlive[v]) continue;
+    if (VX[v] < -20 || VY[v] < -20 || VX[v] > pw + 20 || VY[v] > ph + 20) killVertex(v);
+  }
+  for (let e = 0; e < eCnt; e++)
+    if (EAlive[e] && (!VAlive[EA[e]] || !VAlive[EB[e]])) killEdge(e);
+}
+
+function angDiff(a, b){
+  let d = Math.abs(a - b) % Math.PI;
+  if (d > Math.PI * 0.5) d = Math.PI - d;
+  return d;
+}
+
+const matchedSeg = new Uint8Array(1400);
+const matchedEdge = new Uint8Array(MAXE);
+const pairBuf = new Float64Array(30000);   // [cost, seg, edge] × 10000
+let   pairN = 0;
+const pairOrder = new Int32Array(10000);
+const BUCKN = 64, BSCALE = BUCKN / 30;     // бакетний сорт замість O(n log n)
+const bBin = new Int32Array(10000);
+const bCnt = new Int32Array(BUCKN + 1);
+
+function associate(){
+  matchedSeg.fill(0, 0, SEG.cnt);
+  matchedEdge.fill(0, 0, eCnt);
+  pairN = 0;
+
+  const gateA = 0.314;                       // 18°
+  const gateBase = 14, gateD2Base = gateBase * gateBase;
+  for (let s = 0; s < SEG.cnt; s++){
+    const mx = SEG.mx[s], my = SEG.my[s], an = SEG.an[s], ln = SEG.ln[s];
+    const cx = Math.min(hcw - 1, Math.max(0, (mx / HCELL) | 0));
+    const cy = Math.min(hch - 1, Math.max(0, (my / HCELL) | 0));
+    for (let j = -1; j <= 1; j++)
+      for (let i = -1; i <= 1; i++){
+        const gxx = cx + i, gyy = cy + j;
+        if (gxx < 0 || gyy < 0 || gxx >= hcw || gyy >= hch) continue;
+        for (let e = hHead[gyy * hcw + gxx]; e !== -1; e = hNext[e]){
+          if (!EAlive[e]) continue;
+          const dx = EMx[e] - mx, dy = EMy[e] - my;
+          const d2 = dx * dx + dy * dy;
+          if (d2 > gateD2Base) continue;
+          /* впевнений трек вимагає ближчого збігу — менше підмін сусіднім контуром */
+          const cf = EConf[e] / 12;
+          const g = gateBase - 5 * cf;
+          if (d2 > g * g) continue;
+          const da = angDiff(an, EAng[e]);
+          if (da > gateA) continue;
+          const el = ECur[e];
+          const ratio = el > 0.5 ? ln / el : 99;
+          if (ratio < 0.55 || ratio > 1.8) continue;
+          const cost = Math.sqrt(d2) + 0.55 * da * 57.3 * 0.25 + 0.8 * Math.abs(ln - el) / Math.max(el, 1) * 6;
+          if (pairN < 10000){ const w = pairN * 3; pairBuf[w] = cost; pairBuf[w + 1] = s; pairBuf[w + 2] = e; pairN++; }
+        }
+      }
+  }
+
+  const np = pairN, co = pairBuf, order = pairOrder;
+  bCnt.fill(0);
+  for (let i = 0; i < np; i++){
+    let b = (co[i * 3] * BSCALE) | 0;
+    if (b < 0) b = 0; else if (b >= BUCKN) b = BUCKN - 1;
+    bBin[i] = b; bCnt[b]++;
+  }
+  let acc = 0;
+  for (let b = 0; b < BUCKN; b++){ const c = bCnt[b]; bCnt[b] = acc; acc += c; }
+  for (let i = 0; i < np; i++) order[bCnt[bBin[i]]++] = i;
+
+  const aF = P.inertia, aO = 0.5;
+  for (let n = 0; n < np; n++){
+    const i = order[n] * 3;
+    const s = co[i + 1], e = co[i + 2];
+    if (matchedSeg[s] || matchedEdge[e]) continue;
+    if (!EAlive[e]) continue;
+    matchedSeg[s] = 1; matchedEdge[e] = 1;
+
+    const a = EA[e], b = EB[e];
+    /* який кінець детекції до якої вершини */
+    const d1 = (SEG.x0[s] - VX[a]) ** 2 + (SEG.y0[s] - VY[a]) ** 2
+             + (SEG.x1[s] - VX[b]) ** 2 + (SEG.y1[s] - VY[b]) ** 2;
+    const d2 = (SEG.x0[s] - VX[b]) ** 2 + (SEG.y0[s] - VY[b]) ** 2
+             + (SEG.x1[s] - VX[a]) ** 2 + (SEG.y1[s] - VY[a]) ** 2;
+    let oax, oay, obx, oby;
+    if (d1 <= d2){ oax = SEG.x0[s]; oay = SEG.y0[s]; obx = SEG.x1[s]; oby = SEG.y1[s]; }
+    else         { oax = SEG.x1[s]; oay = SEG.y1[s]; obx = SEG.x0[s]; oby = SEG.y0[s]; }
+
+    const stick = 1 - 0.6 * (EConf[e] / 12);   // чим довіреніший трек, тим в'язкіший
+    const fa = inFocus(VX[a], VY[a]) ? aF * stick : aO;
+    const fb = inFocus(VX[b], VY[b]) ? aF * stick : aO;
+    const nax = VX[a] + (oax - VX[a]) * fa, nay = VY[a] + (oay - VY[a]) * fa;
+    const nbx = VX[b] + (obx - VX[b]) * fb, nby = VY[b] + (oby - VY[b]) * fb;
+    VVx[a] = VVx[a] * 0.5 + (nax - VX[a]) * 0.5; VVy[a] = VVy[a] * 0.5 + (nay - VY[a]) * 0.5;
+    VVx[b] = VVx[b] * 0.5 + (nbx - VX[b]) * 0.5; VVy[b] = VVy[b] * 0.5 + (nby - VY[b]) * 0.5;
+    VX[a] = nax; VY[a] = nay; VX[b] = nbx; VY[b] = nby;
+
+    if (EConf[e] < 12) EConf[e]++;
+    EMiss[e] = 0; EAge[e]++;
+    if (VConf[a] < 12) VConf[a]++;
+    if (VConf[b] < 12) VConf[b]++;
+    VMiss[a] = 0; VMiss[b] = 0;
+    const obsL = Math.sqrt((nbx - nax) ** 2 + (nby - nay) ** 2);
+    if (EAge[e] < 3) ELen[e] = obsL;
+    else ELen[e] += (obsL - ELen[e]) * 0.05;   // тягнеться за зумом/перспективою без дрейфу
+  }
+
+  /* незматчені ребра — coasting / смерть */
+  const memF = Math.round(P.mem), memO = 4;
+  for (let e = 0; e < eCnt; e++){
+    if (!EAlive[e] || matchedEdge[e]) continue;
+    EMiss[e]++;
+    const mx = (VX[EA[e]] + VX[EB[e]]) * 0.5, my = (VY[EA[e]] + VY[EB[e]]) * 0.5;
+    let lim = inFocus(mx, my) ? memF : memO;
+    if (gmeLost) lim = Math.max(2, lim >> 1);
+    if (EMiss[e] > lim || EConf[e] <= 0) killEdge(e);
+    else if (EMiss[e] % 3 === 0 && EConf[e] > 0) EConf[e]--;
+  }
+
+  /* незматчені детекції — народження зі зваркою */
+  hashVerts();
+  for (let s = 0; s < SEG.cnt; s++){
+    if (matchedSeg[s]) continue;
+    if (eFreeN === 0 && eCnt >= MAXE) break;
+    const a = weldOrNew(SEG.x0[s], SEG.y0[s]);
+    const b = weldOrNew(SEG.x1[s], SEG.y1[s]);
+    newEdge(a, b, SEG.ln[s]);
+  }
+
+  /* прибрати осиротілі вершини */
+  for (let v = 0; v < vCnt; v++){
+    if (!VAlive[v]) continue;
+    if (VPin[v] === 0){ VMiss[v]++; if (VMiss[v] > 2) killVertex(v); }
+  }
+}
+
+function rigidity(){
+  if (!P.rigid) return;
+  for (let it = 0; it < 3; it++){
+    for (let e = 0; e < eCnt; e++){
+      if (!EAlive[e] || EConf[e] < 5) continue;
+      const a = EA[e], b = EB[e];
+      if (!inFocus(VX[a], VY[a]) || !inFocus(VX[b], VY[b])) continue;
+      const dx = VX[b] - VX[a], dy = VY[b] - VY[a];
+      const L = Math.sqrt(dx * dx + dy * dy);
+      if (L < 0.5) continue;
+      const target = ELen[e];
+      const err = (L - target) / L * 0.35;
+      const cx = dx * err * 0.5, cy = dy * err * 0.5;
+      VX[a] += cx; VY[a] += cy;
+      VX[b] -= cx; VY[b] -= cy;
+    }
+  }
+}
+
+const weldRemap = new Int32Array(MAXV);
+function weldPass(){
+  hashVerts();
+  const r2 = P.weld * P.weld;
+  const remap = weldRemap;
+  for (let i = 0; i < vCnt; i++) remap[i] = i;
+  for (let v = 0; v < vCnt; v++){
+    if (!VAlive[v] || remap[v] !== v) continue;
+    const cx = Math.min(hcw - 1, Math.max(0, (VX[v] / HCELL) | 0));
+    const cy = Math.min(hch - 1, Math.max(0, (VY[v] / HCELL) | 0));
+    for (let j = -1; j <= 1; j++)
+      for (let i = -1; i <= 1; i++){
+        const gxx = cx + i, gyy = cy + j;
+        if (gxx < 0 || gyy < 0 || gxx >= hcw || gyy >= hch) continue;
+        for (let u = vHead[gyy * hcw + gxx]; u !== -1; u = vNext[u]){
+          if (u === v || !VAlive[u] || remap[u] !== u) continue;
+          const dx = VX[u] - VX[v], dy = VY[u] - VY[v];
+          if (dx * dx + dy * dy > r2) continue;
+          const wv = VConf[v] + 1, wu = VConf[u] + 1, tw = wv + wu;
+          VX[v] = (VX[v] * wv + VX[u] * wu) / tw;
+          VY[v] = (VY[v] * wv + VY[u] * wu) / tw;
+          const dwT = VDw[v] + VDw[u];
+          if (dwT > 0) VD[v] = (VD[v] * VDw[v] + VD[u] * VDw[u]) / dwT;
+          VDw[v] = Math.min(40, dwT);
+          VConf[v] = Math.max(VConf[v], VConf[u]);
+          remap[u] = v; killVertex(u);
+        }
+      }
+  }
+  for (let e = 0; e < eCnt; e++){
+    if (!EAlive[e]) continue;
+    const a = remap[EA[e]], b = remap[EB[e]];
+    if (a === b){ EAlive[e] = 0; if (eFreeN < MAXE) eFree[eFreeN++] = e; continue; }
+    EA[e] = a; EB[e] = b;
+  }
+  for (let v = 0; v < vCnt; v++) VPin[v] = 0;
+  for (let e = 0; e < eCnt; e++){
+    if (!EAlive[e]) continue;
+    VPin[EA[e]]++; VPin[EB[e]]++;
+  }
+  for (let v = 0; v < vCnt; v++) if (VAlive[v] && VPin[v] === 0) killVertex(v);
+}
+
+/* ============================================================
+   ШАР C — ГЛИБИНА (гібрид)
+   ============================================================ */
+const PGW = 16, PGH = 12;
+const pField = new Float32Array(PGW * PGH);
+const pAcc   = new Float32Array(PGW * PGH);
+const pWgt   = new Float32Array(PGW * PGH);
+let depthConf = 0;
+
+function parallaxField(){
+  pAcc.fill(0); pWgt.fill(0);
+  if (gmeLost || transMag < 0.25) return 0;
+  const inv = 1 / Math.max(transMag, 0.5);
+  const tdx = transDX / Math.max(transMag, 1e-6), tdy = transDY / Math.max(transMag, 1e-6);
+  let used = 0;
+  for (let i = 0; i < FLOW.cnt; i++){
+    if (!FLOW.ok[i]) continue;
+    const x = FLOW.x[i], y = FLOW.y[i];
+    const px = M.ax * x - M.ay * y + M.bx;
+    const py = M.ay * x + M.ax * y + M.by;
+    const rx = (x + FLOW.u[i]) - px, ry = (y + FLOW.v[i]) - py;
+    let p = (rx * tdx + ry * tdy) * inv;
+    if (p < -1.5) p = -1.5; if (p > 1.5) p = 1.5;
+    const cx = Math.min(PGW - 1, Math.max(0, (x / pw * PGW) | 0));
+    const cy = Math.min(PGH - 1, Math.max(0, (y / ph * PGH) | 0));
+    const k = cy * PGW + cx;
+    pAcc[k] += 0.5 + 0.33 * p; pWgt[k] += 1; used++;
+  }
+  if (used < 6) return 0;
+  for (let k = 0; k < PGW * PGH; k++){
+    if (pWgt[k] > 0){
+      const v = pAcc[k] / pWgt[k];
+      pField[k] = pField[k] * 0.85 + v * 0.15;
+    }
+  }
+  const w = Math.min(1, transMag / 3) * inlierRatio;
+  return w;
+}
+
+function sampleField(x, y){
+  const fx = Math.min(PGW - 1.001, Math.max(0, x / pw * PGW - 0.5));
+  const fy = Math.min(PGH - 1.001, Math.max(0, y / ph * PGH - 0.5));
+  const x0 = fx | 0, y0 = fy | 0;
+  const tx = fx - x0, ty = fy - y0;
+  const k = y0 * PGW + x0;
+  const a = pField[k], b = pField[k + 1], c = pField[k + PGW], d = pField[k + PGW + 1];
+  return a + (b - a) * tx + (c - a) * ty + (a - b - c + d) * tx * ty;
+}
+
+const dSort  = new Float32Array(MAXV);
+const dFinal = new Float32Array(MAXV);
+const lenSumB = new Float32Array(MAXV);
+const lenNB   = new Float32Array(MAXV);
+
+function depth(){
+  const wFrame = parallaxField();
+
+  /* накопичення паралаксу */
+  if (wFrame > 0.01){
+    for (let v = 0; v < vCnt; v++){
+      if (!VAlive[v]) continue;
+      const raw = sampleField(VX[v], VY[v]);
+      const dw = VDw[v];
+      VD[v] = (VD[v] * dw + raw * wFrame) / (dw + wFrame);
+      VDw[v] = Math.min(40, dw + wFrame);
+    }
+  }
+
+  /* нормалізація паралаксної частини по перцентилях серед фокусу */
+  let m = 0;
+  for (let v = 0; v < vCnt; v++)
+    if (VAlive[v] && VDw[v] > 0.5 && inFocus(VX[v], VY[v])) dSort[m++] = VD[v];
+  let lo = 0.3, hi = 0.7;
+  if (m > 8){
+    const sub = dSort.subarray(0, m);
+    sub.sort((a, b) => a - b);
+    lo = sub[(m * 0.05) | 0]; hi = sub[Math.min(m - 1, (m * 0.95) | 0)];
+    if (hi - lo < 0.02){ lo -= 0.01; hi += 0.01; }
+  }
+  const span = hi - lo;
+
+  /* фолбек-пріор + змішування */
+  let maxLen = 1;
+  for (let e = 0; e < eCnt; e++)
+    if (EAlive[e]) maxLen = Math.max(maxLen, ELen[e]);
+
+  lenSumB.fill(0, 0, vCnt); lenNB.fill(0, 0, vCnt);
+  const lenSum = lenSumB, lenN = lenNB;
+  for (let e = 0; e < eCnt; e++){
+    if (!EAlive[e]) continue;
+    lenSum[EA[e]] += ELen[e]; lenN[EA[e]]++;
+    lenSum[EB[e]] += ELen[e]; lenN[EB[e]]++;
+  }
+
+  let confSum = 0, confN = 0;
+  for (let v = 0; v < vCnt; v++){
+    if (!VAlive[v]){ dFinal[v] = 0.5; continue; }
+    const dx = (VX[v] - fcx) / Math.max(fr, 1), dy = (VY[v] - fcy) / Math.max(fr, 1);
+    const rN = Math.min(1, Math.hypot(dx, dy));
+    const closure = Math.min(1, Math.max(0, (VPin[v] - 1) / 3));
+    const lenN2 = lenN[v] > 0 ? Math.min(1, (lenSum[v] / lenN[v]) / maxLen) : 0.3;
+    const pseudo = 0.55 * (1 - rN) + 0.30 * closure + 0.15 * lenN2;
+    const par = span > 1e-6 ? Math.min(1, Math.max(0, (VD[v] - lo) / span)) : 0.5;
+    const mix = Math.min(1, VDw[v] / 18);
+    dFinal[v] = pseudo * (1 - mix) + par * mix;
+    confSum += VDw[v]; confN++;
+  }
+  depthConf = confN > 0 ? (confSum / confN) / 40 : 0;
+}
+
+/* ============================================================
+   РЕНДЕР
+   ============================================================ */
+const dbgCan = document.createElement('canvas');
+const dbgCtx = dbgCan.getContext('2d');
+
+function lerpCol(t){
+  const r = Math.round(46  + (218 - 46)  * t);
+  const g = Math.round(122 + (255 - 122) * t);
+  const b = Math.round(78  + (199 - 78)  * t);
+  return r + ',' + g + ',' + b;
+}
+
+let lockStable = false;
+
+function drawOverlay(){
+  const W = ovc.width, H = ovc.height;
+  octx.setTransform(1, 0, 0, 1, 0, 0);
+  octx.clearRect(0, 0, W, H);
+  const sx = W / pw, sy = H / ph;
+
+  if (P.dbg){
+    if (dbgCan.width !== pw || dbgCan.height !== ph){ dbgCan.width = pw; dbgCan.height = ph; }
+    const im = dbgCtx.createImageData(pw, ph);
+    const d = im.data, e = B.edge;
+    for (let i = 0, j = 0; i < B.n; i++, j += 4){
+      const on = e[i] ? 255 : 0;
+      d[j] = on ? 218 : 0; d[j + 1] = on; d[j + 2] = on ? 199 : 0; d[j + 3] = on ? 235 : 0;
+    }
+    dbgCtx.putImageData(im, 0, 0);
+    octx.imageSmoothingEnabled = false;
+    octx.drawImage(dbgCan, 0, 0, W, H);
+    drawFocusRing(sx, sy);
+    return;
+  }
+
+  octx.lineCap = 'round'; octx.lineJoin = 'round';
+
+  /* --- фіксація вирубана: старе поводження, сирі детекції --- */
+  if (!P.lock){
+    octx.strokeStyle = 'rgba(218,255,199,.72)';
+    octx.lineWidth = 1.4;
+    octx.beginPath();
+    for (let s = 0; s < SEG.cnt; s++){
+      octx.moveTo(SEG.x0[s] * sx, SEG.y0[s] * sy);
+      octx.lineTo(SEG.x1[s] * sx, SEG.y1[s] * sy);
+    }
+    octx.stroke();
+    drawFocusRing(sx, sy);
+    return;
+  }
+
+  /* --- 1. поза фокусом: тускло, гасне --- */
+  octx.lineWidth = 1;
+  for (let e = 0; e < eCnt; e++){
+    if (!EAlive[e] || EConf[e] < 4) continue;
+    const a = EA[e], b = EB[e];
+    const mx = (VX[a] + VX[b]) * 0.5, my = (VY[a] + VY[b]) * 0.5;
+    if (inFocus(mx, my)) continue;
+    const al = 0.22 * Math.max(0, 1 - EMiss[e] / 5) * (EConf[e] / 12);
+    if (al < 0.012) continue;
+    octx.strokeStyle = 'rgba(106,213,130,' + al.toFixed(3) + ')';
+    octx.beginPath();
+    octx.moveTo(VX[a] * sx, VY[a] * sy);
+    octx.lineTo(VX[b] * sx, VY[b] * sy);
+    octx.stroke();
+  }
+
+  /* --- 2. екструзія: об'єм --- */
+  const EX = P.extrude;
+  if (EX > 0.5){
+    octx.lineWidth = 1;
+    octx.beginPath();
+    for (let e = 0; e < eCnt; e++){
+      if (!EAlive[e] || EConf[e] < 6) continue;
+      const a = EA[e], b = EB[e];
+      const mx = (VX[a] + VX[b]) * 0.5, my = (VY[a] + VY[b]) * 0.5;
+      if (!inFocus(mx, my)) continue;
+      let rx = mx - fcx, ry = my - fcy;
+      const rl = Math.hypot(rx, ry) || 1;
+      rx /= rl; ry /= rl;
+      const dA = (dFinal[a] - 0.5) * EX, dB = (dFinal[b] - 0.5) * EX;
+      const oax = (VX[a] + rx * dA) * sx, oay = (VY[a] + ry * dA) * sy;
+      const obx = (VX[b] + rx * dB) * sx, oby = (VY[b] + ry * dB) * sy;
+      octx.moveTo(oax, oay); octx.lineTo(obx, oby);
+    }
+    octx.strokeStyle = 'rgba(106,213,130,.14)';
+    octx.stroke();
+
+    octx.beginPath();
+    for (let e = 0; e < eCnt; e++){
+      if (!EAlive[e] || EConf[e] < 8) continue;
+      const a = EA[e], b = EB[e];
+      const mx = (VX[a] + VX[b]) * 0.5, my = (VY[a] + VY[b]) * 0.5;
+      if (!inFocus(mx, my)) continue;
+      let rx = mx - fcx, ry = my - fcy;
+      const rl = Math.hypot(rx, ry) || 1;
+      rx /= rl; ry /= rl;
+      const dA = (dFinal[a] - 0.5) * EX;
+      octx.moveTo(VX[a] * sx, VY[a] * sy);
+      octx.lineTo((VX[a] + rx * dA) * sx, (VY[a] + ry * dA) * sy);
+    }
+    octx.strokeStyle = 'rgba(106,213,130,.10)';
+    octx.stroke();
+  }
+
+  /* --- 3. основні ребра --- */
+  for (let e = 0; e < eCnt; e++){
+    if (!EAlive[e] || EConf[e] < 4) continue;
+    const a = EA[e], b = EB[e];
+    const mx = (VX[a] + VX[b]) * 0.5, my = (VY[a] + VY[b]) * 0.5;
+    if (!inFocus(mx, my)) continue;
+    const dm = (dFinal[a] + dFinal[b]) * 0.5;
+    octx.lineWidth = 1.1 + 1.5 * (1 - dm);
+    const al = 0.35 + 0.65 * (EConf[e] / 12);
+    octx.strokeStyle = 'rgba(' + lerpCol(dm) + ',' + al.toFixed(3) + ')';
+    octx.beginPath();
+    octx.moveTo(VX[a] * sx, VY[a] * sy);
+    octx.lineTo(VX[b] * sx, VY[b] * sy);
+    octx.stroke();
+  }
+
+  /* --- 4. вершини --- */
+  if (P.verts){
+    for (let v = 0; v < vCnt; v++){
+      if (!VAlive[v] || VPin[v] < 2 || VConf[v] < 6) continue;
+      if (!inFocus(VX[v], VY[v])) continue;
+      const d = dFinal[v];
+      const r = 2.0 + 1.2 * d;
+      octx.fillStyle = 'rgba(218,255,199,' + (0.35 + 0.5 * d).toFixed(3) + ')';
+      octx.beginPath();
+      octx.arc(VX[v] * sx, VY[v] * sy, r, 0, 6.2832);
+      octx.fill();
+    }
+  }
+
+  /* --- 5. боксі: компоненти графа --- */
+  if (P.boxes) drawBoxes(sx, sy);
+
+  /* --- дебаг потоку --- */
+  if (P.flow){
+    octx.lineWidth = 1;
+    for (let i = 0; i < FLOW.cnt; i++){
+      if (!FLOW.ok[i]) continue;
+      octx.strokeStyle = FLOW.inl[i] ? 'rgba(106,213,130,.85)' : 'rgba(223,47,46,.7)';
+      octx.beginPath();
+      octx.moveTo(FLOW.x[i] * sx, FLOW.y[i] * sy);
+      octx.lineTo((FLOW.x[i] + FLOW.u[i] * 3) * sx, (FLOW.y[i] + FLOW.v[i] * 3) * sy);
+      octx.stroke();
+    }
+  }
+
+  drawFocusRing(sx, sy);
+}
+
+const uf = new Int32Array(MAXV);
+function ufFind(a){ while (uf[a] !== a) { uf[a] = uf[uf[a]]; a = uf[a]; } return a; }
+
+function drawBoxes(sx, sy){
+  for (let v = 0; v < vCnt; v++) uf[v] = v;
+  for (let e = 0; e < eCnt; e++){
+    if (!EAlive[e] || EConf[e] < 6) continue;
+    const a = ufFind(EA[e]), b = ufFind(EB[e]);
+    if (a !== b) uf[a] = b;
+  }
+  const box = new Map();
+  for (let e = 0; e < eCnt; e++){
+    if (!EAlive[e] || EConf[e] < 6) continue;
+    const a = EA[e], b = EB[e];
+    const mx = (VX[a] + VX[b]) * 0.5, my = (VY[a] + VY[b]) * 0.5;
+    if (!inFocus(mx, my)) continue;
+    const r = ufFind(a);
+    let o = box.get(r);
+    if (!o){ o = { x0:1e9, y0:1e9, x1:-1e9, y1:-1e9, n:0 }; box.set(r, o); }
+    o.x0 = Math.min(o.x0, VX[a], VX[b]); o.y0 = Math.min(o.y0, VY[a], VY[b]);
+    o.x1 = Math.max(o.x1, VX[a], VX[b]); o.y1 = Math.max(o.y1, VY[a], VY[b]);
+    o.n++;
+  }
+  octx.lineWidth = 1;
+  octx.strokeStyle = 'rgba(255,193,60,.42)';
+  octx.font = '600 9px ui-monospace,monospace';
+  octx.fillStyle = 'rgba(255,193,60,.7)';
+  box.forEach(o => {
+    if (o.n < 5) return;
+    const x = o.x0 * sx, y = o.y0 * sy;
+    const w = (o.x1 - o.x0) * sx, h = (o.y1 - o.y0) * sy;
+    if (w < 16 || h < 16) return;
+    const t = Math.min(12, w * 0.25, h * 0.25);
+    octx.beginPath();
+    octx.moveTo(x, y + t); octx.lineTo(x, y); octx.lineTo(x + t, y);
+    octx.moveTo(x + w - t, y); octx.lineTo(x + w, y); octx.lineTo(x + w, y + t);
+    octx.moveTo(x + w, y + h - t); octx.lineTo(x + w, y + h); octx.lineTo(x + w - t, y + h);
+    octx.moveTo(x + t, y + h); octx.lineTo(x, y + h); octx.lineTo(x, y + h - t);
+    octx.stroke();
+    octx.fillText(o.n + ' РЕБ', x + 3, y - 4);
+  });
+}
+
+function drawFocusRing(sx, sy){
+  const cx = fcx * sx, cy = fcy * sy, r = fr * ((sx + sy) * 0.5);
+  octx.save();
+  octx.setLineDash([5, 7]);
+  octx.lineWidth = 1;
+  octx.strokeStyle = 'rgba(106,213,130,.18)';
+  octx.beginPath(); octx.arc(cx, cy, r, 0, 6.2832); octx.stroke();
+  octx.setLineDash([]);
+  const t = r * 0.18;
+  octx.lineWidth = 1.6;
+  octx.strokeStyle = lockStable ? 'rgba(255,193,60,.92)' : 'rgba(255,193,60,.32)';
+  for (let q = 0; q < 4; q++){
+    const a0 = q * Math.PI / 2 - 0.22, a1 = q * Math.PI / 2 + 0.22;
+    octx.beginPath(); octx.arc(cx, cy, r, a0, a1); octx.stroke();
+  }
+  if (lockStable && P.lock){
+    octx.font = '700 10px ui-monospace,monospace';
+    octx.fillStyle = 'rgba(255,193,60,.95)';
+    octx.fillText('ФІКС', cx - r + t * 0.2, cy + r + 16);
+  }
+  octx.restore();
 }
 
 /* ============================================================
    ЦИКЛ
    ============================================================ */
-let facing = 'environment', stream = null, running = false;
-let frames = 0, fpsT = 0, lastMs = 0, procAcc = 0;
-
-function render(){
-  if(!running) return;
-  requestAnimationFrame(render);
-  if(video.readyState < 2) return;
-
-  // --- GPU: база
-  gl.bindTexture(gl.TEXTURE_2D, texV);
-  try {
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
-  } catch(e){ return; }
-
-  pass(pLuma, fbA, p => {
-    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texV);
-    gl.uniform1i(p.u('tex'), 0);
-    gl.uniform2f(p.u('crop'), crop[0], crop[1]);
-  });
-  const rr = Math.max(1, P.radius/4);
-  pass(pBlur, fbB, p => {
-    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, fbA.tex);
-    gl.uniform1i(p.u('tex'), 0);
-    gl.uniform2f(p.u('dir'), rr/fboW, 0);
-  });
-  pass(pBlur, fbC, p => {
-    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, fbB.tex);
-    gl.uniform1i(p.u('tex'), 0);
-    gl.uniform2f(p.u('dir'), 0, rr/fboH);
-  });
-  pass(pMain, null, p => {
-    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texV);
-    gl.uniform1i(p.u('vtex'), 0);
-    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, fbC.tex);
-    gl.uniform1i(p.u('mtex'), 1);
-    gl.uniform2f(p.u('crop'), crop[0], crop[1]);
-    gl.uniform1f(p.u('gain'), P.gain);
-    gl.uniform1f(p.u('levels'), Math.round(P.levels));
-    gl.uniform1f(p.u('base'), P.showBase ? 1.0 : 0.06);
-  });
-
-  // --- CPU: вектори
-  const t0 = performance.now();
-  processFrame();
-  if(P.dbg) drawRawMask(); else drawLines();
-  procAcc = procAcc*0.9 + (performance.now()-t0)*0.1;
-
-  frames++;
-  const now = performance.now();
-  if(now - fpsT > 500){
-    document.getElementById('cFps').textContent = Math.round(frames*1000/(now-fpsT));
-    document.getElementById('cLines').textContent = lines.length;
-    document.getElementById('cMs').textContent = procAcc.toFixed(1);
-    frames = 0; fpsT = now;
-  }
+let fpsT = 0, fpsN = 0, msEma = 0, degrade = 0, degradeT = 0;
+const HINT = {
+  off:   'Фіксація вирубана — сирі контури',
+  seek:  'Шурупаю форму, погоди',
+  hold:  'Зафіксував, тримаю',
+  lost:  'Загубив кадр, шукаю заново',
+  still: 'Стій — воду телефоном вбік, дай паралакс',
+  slow:  'Тормозить, скидаю красоту'
+};
+let lastHint = '';
+function hint(t, amber){
+  if (t === lastHint) return;
+  lastHint = t;
+  document.getElementById('lockline').innerHTML = amber ? '<em>' + t + '</em>' : t;
 }
 
-/* ============================================================
-   КАМЕРА
-   ============================================================ */
-async function startCam(){
-  if(stream) stream.getTracks().forEach(t => t.stop());
-  stream = await navigator.mediaDevices.getUserMedia({
-    audio:false,
-    video:{ facingMode:{ideal:facing}, width:{ideal:1280}, height:{ideal:720} }
-  });
-  video.srcObject = stream;
-  await video.play();
-  await new Promise(r => {
-    if(video.videoWidth) return r();
-    video.onloadedmetadata = r;
-  });
-  computeCrop();
+function render(){
+  if (!running) return;
+  const t0 = performance.now();
+
+  /* база на GPU */
+  if (vid.readyState >= 2 && gl){
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, vid);
+    const c = cover(vid.videoWidth || 2, vid.videoHeight || 2, glc.width, glc.height);
+    gl.uniform2f(U.uTexel, 1 / Math.max(1, vid.videoWidth), 1 / Math.max(1, vid.videoHeight));
+    gl.uniform2f(U.uScale, c.sw / Math.max(1, vid.videoWidth), c.sh / Math.max(1, vid.videoHeight));
+    gl.uniform1f(U.uGain, P.gain);
+    gl.uniform1f(U.uRadius, P.radius);
+    gl.uniform1f(U.uLevels, Math.round(P.levels));
+    gl.uniform1f(U.uShow, P.showBase ? 1 : 0);
+    gl.uniform1f(U.uMirror, facing === 'user' ? 1 : 0);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+
+  /* CPU пайплайн */
+  if (grabGray()){
+    updFocus();
+    normalize();
+    if (P.preblur > 0){
+      B.bl.set(B.normS);
+      for (let i = 0; i < Math.round(P.preblur); i++) box3(B.bl, B.bl);
+      scharr(B.bl);
+    } else scharr(B.normS);
+    suppress();
+    hysteresis();
+    traceContours();
+
+    if (P.lock){
+      const tmp = pyrPrev; pyrPrev = pyrCur; pyrCur = tmp;
+      buildPyr(pyrCur, B.gray);
+      if (pyrReady){
+        pickPoints();
+        lkTrack();
+        fitSimilarity();
+      } else { pyrReady = true; }
+      warpTracks();
+      hashEdges();
+      associate();
+      rigidity();
+      frameNo++;
+      if (frameNo % 6 === 0) weldPass();
+      depth();
+    }
+    drawOverlay();
+  }
+
+  /* HUD */
+  const ms = performance.now() - t0;
+  msEma = msEma ? msEma * 0.9 + ms * 0.1 : ms;
+  fpsN++;
+  const now = performance.now();
+  if (now - fpsT > 500){
+    document.getElementById('cFps').textContent = Math.round(fpsN * 1000 / (now - fpsT));
+    fpsT = now; fpsN = 0;
+    document.getElementById('cMs').textContent = msEma.toFixed(1);
+    document.getElementById('cLines').textContent = SEG.cnt;
+    let live = 0, cs = 0, cn = 0;
+    for (let v = 0; v < vCnt; v++) if (VAlive[v] && VPin[v] > 0) live++;
+    for (let e = 0; e < eCnt; e++)
+      if (EAlive[e]){
+        const mx = (VX[EA[e]] + VX[EB[e]]) * 0.5, my = (VY[EA[e]] + VY[EB[e]]) * 0.5;
+        if (inFocus(mx, my)){ cs += EConf[e]; cn++; }
+      }
+    document.getElementById('cKf').textContent = live;
+    document.getElementById('c3d').textContent = Math.round(depthConf * 100);
+    lockStable = cn > 20 && cs / cn > 8;
+
+    if (!P.lock) hint(HINT.off, false);
+    else if (degrade > 0) hint(HINT.slow, true);
+    else if (gmeLost) hint(HINT.lost, true);
+    else if (!lockStable) hint(HINT.seek, false);
+    else if (depthConf < 0.12) hint(HINT.still, true);
+    else hint(HINT.hold, false);
+
+    /* адаптивна деградація */
+    if (msEma > 26){
+      degradeT++;
+      if (degradeT >= 2 && degrade < 3){
+        degrade++;
+        if (degrade === 1) P.extrude = 0;
+        if (degrade === 2) flowBudget = 60;
+        if (degrade === 3){ P.res = Math.max(120, Math.round(P.res * 0.8)); resize(); syncRows(); }
+        degradeT = 0;
+      }
+    } else if (msEma < 19){
+      degradeT = 0;
+    }
+  }
+
+  requestAnimationFrame(render);
 }
 
 /* ============================================================
@@ -812,32 +1674,41 @@ async function startCam(){
 function buildRows(){
   const box = document.getElementById('rows');
   box.innerHTML = '';
-  for(const [key, label, min, max, step, fmt] of SPECS){
-    const row = document.createElement('div'); row.className = 'row';
-    const lb = document.createElement('label'); lb.textContent = label; lb.id = 'lb_'+key;
-    const inp = document.createElement('input');
-    inp.type='range'; inp.min=min; inp.max=max; inp.step=step; inp.value=P[key];
-    inp.setAttribute('aria-labelledby','lb_'+key);
-    const out = document.createElement('output'); out.textContent = fmt(P[key]);
+  ROWS.forEach(r => {
+    if (r.g){
+      const d = document.createElement('div');
+      d.className = 'divider';
+      d.innerHTML = '<span>' + r.g + '</span>';
+      box.appendChild(d);
+      return;
+    }
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = '<label>' + r.l + '</label>' +
+      '<input type="range" min="' + r.min + '" max="' + r.max + '" step="' + r.st + '" data-k="' + r.k + '">' +
+      '<output></output>';
+    const inp = row.querySelector('input'), out = row.querySelector('output');
+    inp.value = P[r.k];
+    out.textContent = fmt(P[r.k], r.st);
     inp.addEventListener('input', () => {
-      P[key] = parseFloat(inp.value);
-      out.textContent = fmt(P[key]);
-      if(key === 'procW'){
-        const w = Math.round(P.procW), h = Math.max(2, Math.round(w*innerHeight/innerWidth));
-        allocProc(w, h); buildOffsets(); computeCrop();
-      }
+      P[r.k] = parseFloat(inp.value);
+      out.textContent = fmt(P[r.k], r.st);
+      if (r.k === 'res') resize();
+      if (r.k === 'temporal') B.normSeeded = false;
     });
-    row.append(lb, inp, out); box.append(row);
-    inp.dataset.key = key;
-  }
-}
-function syncRows(){
-  document.querySelectorAll('#rows input').forEach(inp => {
-    const key = inp.dataset.key;
-    const spec = SPECS.find(s => s[0] === key);
-    inp.value = P[key];
-    inp.parentElement.querySelector('output').textContent = spec[5](P[key]);
+    box.appendChild(row);
   });
+}
+function fmt(v, st){ return st < 1 ? v.toFixed(2) : String(Math.round(v)); }
+
+function syncRows(){
+  document.querySelectorAll('#rows input[type=range]').forEach(inp => {
+    const k = inp.dataset.k;
+    inp.value = P[k];
+    const r = ROWS.find(z => z.k === k);
+    inp.parentElement.querySelector('output').textContent = fmt(P[k], r ? r.st : 1);
+  });
+  document.querySelectorAll('.tg').forEach(b => b.classList.toggle('on', !!P[b.dataset.tg]));
   document.getElementById('bBase').classList.toggle('on', !!P.showBase);
   document.getElementById('bBox').classList.toggle('on', !!P.boxes);
 }
@@ -845,24 +1716,34 @@ function syncRows(){
 document.getElementById('grip').addEventListener('click', () => {
   const s = document.getElementById('sheet');
   s.classList.toggle('open');
-  document.getElementById('gripHint').textContent = s.classList.contains('open') ? '— крути' : '— тицяй';
+  document.getElementById('gripHint').textContent =
+    s.classList.contains('open') ? '— крути' : '— тицяй';
 });
+
 document.querySelectorAll('.pre').forEach(b => b.addEventListener('click', () => {
   Object.assign(P, PRESETS[b.dataset.pre]);
-  syncRows();
+  degrade = 0; flowBudget = 110;
+  resize(); syncRows();
 }));
+
 document.querySelectorAll('.tg').forEach(b => b.addEventListener('click', () => {
-  const k = b.dataset.tg; P[k] = !P[k]; b.classList.toggle('on', P[k]);
+  const k = b.dataset.tg;
+  P[k] = !P[k];
+  b.classList.toggle('on', P[k]);
+  if (k === 'lock' && P.lock) resetTracks();
 }));
+
 document.getElementById('bBase').addEventListener('click', e => {
-  P.showBase = P.showBase ? 0 : 1; e.currentTarget.classList.toggle('on', !!P.showBase);
+  P.showBase = P.showBase ? 0 : 1;
+  e.currentTarget.classList.toggle('on', !!P.showBase);
 });
 document.getElementById('bBox').addEventListener('click', e => {
-  P.boxes = !P.boxes; e.currentTarget.classList.toggle('on', P.boxes);
+  P.boxes = !P.boxes;
+  e.currentTarget.classList.toggle('on', P.boxes);
 });
 document.getElementById('bCam').addEventListener('click', async () => {
   facing = facing === 'environment' ? 'user' : 'environment';
-  try { await startCam(); } catch(err){ console.warn(err); }
+  try { await startCam(); resetTracks(); } catch (err){ console.warn(err); }
 });
 document.getElementById('bShot').addEventListener('click', () => {
   const c = document.createElement('canvas');
@@ -892,7 +1773,7 @@ document.getElementById('go').addEventListener('click', async () => {
     document.getElementById('boot').classList.add('hide');
     running = true; fpsT = performance.now();
     render();
-  } catch(err){
+  } catch (err){
     errEl.textContent = 'Не пішло: ' + (err && err.message ? err.message : err) +
       ' — потрібен HTTPS (або localhost) і дозвіл на камеру.';
   }
