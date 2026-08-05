@@ -372,9 +372,10 @@ button:focus-visible{outline-color:var(--g)}
       <div class="scr-head"><h2>Опції</h2></div>
       <div class="scr-body">
         <div class="card">
-          <div class="card-h">Вигляд обличчя</div>
+          <div class="card-h">Вигляд</div>
           <div class="row"><div class="row-t"><div class="row-n">Стиль</div><div class="row-d">сітка або точки</div></div>
             <div class="seg"><button class="segb" id="fs-mesh" aria-pressed="true">Сітка</button><button class="segb" id="fs-dots" aria-pressed="false">Точки</button></div></div>
+          <div class="row"><div class="row-t"><div class="row-n">Каркас обʼєму</div><div class="row-d">3D-грані на обʼєкті у фокусі</div></div><button class="tgbtn" id="cb-toggle"></button></div>
         </div>
         <div class="card">
           <div class="card-h">Правила <span class="card-s">авто-тригери</span></div>
@@ -473,7 +474,79 @@ let model=null, facing='environment';
 let detections=[], present=false, appearSince=0, clearSince=0;
 let primary=null, lastInteraction=0, alertUntil=0, alertBox=null, priority='P0';
 let stream=null, wakeLock=null, detecting=false, lastDetT=0, fpsCount=0, fpsT=0, running=false;
-let bodyOn=true; let switching=false;
+let bodyOn=true; let switching=false; let autoPrimary=null;
+
+/* ── Каркас обʼєму (гібрид: Sobel-орієнтації + перспективний прайор) ── */
+let tiltBias=0;
+addEventListener('deviceorientation',e=>{ if(e&&e.beta!=null) tiltBias=Math.max(-1,Math.min(1,(e.beta-50)/50)); },{passive:true});
+const CUBOID=(()=>{
+  const S=96, BINS=36; let work=null,wctx=null,lastRun=0;
+  const sm={dx:0,dy:0,act:0};                 // згладжений вектор екструзії
+  function analyze(bbox){
+    const [x,y,w,h]=bbox; if(!video.videoWidth) return null;
+    if(!work){ work=document.createElement('canvas'); work.width=S; work.height=S;
+      wctx=work.getContext('2d',{willReadFrequently:true}); }
+    try{ wctx.drawImage(video,x,y,w,h,0,0,S,S); }catch(e){ return null; }
+    let px; try{ px=wctx.getImageData(0,0,S,S).data; }catch(e){ return null; }
+    const g=new Float32Array(S*S);
+    for(let i=0;i<S*S;i++) g[i]=(px[i*4]*0.299+px[i*4+1]*0.587+px[i*4+2]*0.114)/255;
+    const hist=new Float32Array(BINS); let total=0;
+    for(let yy=1;yy<S-1;yy++)for(let xx=1;xx<S-1;xx++){
+      const i=yy*S+xx;
+      const gx=(g[i-S+1]+2*g[i+1]+g[i+S+1])-(g[i-S-1]+2*g[i-1]+g[i+S-1]);
+      const gy=(g[i+S-1]+2*g[i+S]+g[i+S+1])-(g[i-S-1]+2*g[i-S]+g[i-S+1]);
+      const m=Math.hypot(gx,gy); if(m<0.30) continue;
+      let a=Math.atan2(gy,gx)+Math.PI/2;             // напрямок лінії ⟂ градієнту
+      a=((a%Math.PI)+Math.PI)%Math.PI;
+      hist[Math.min(BINS-1,Math.floor(a/Math.PI*BINS))]+=m; total+=m;
+    }
+    if(total<40) return null;
+    const sh=new Float32Array(BINS);                  // циклічне згладжування
+    for(let i=0;i<BINS;i++) sh[i]=hist[(i-1+BINS)%BINS]*0.25+hist[i]*0.5+hist[(i+1)%BINS]*0.25;
+    let best=-1,bv=0;                                 // найсильніший «косий» напрямок
+    for(let i=0;i<BINS;i++){ const deg=(i+0.5)/BINS*180;
+      if((deg>18&&deg<72)||(deg>108&&deg<162)){ if(sh[i]>bv){bv=sh[i];best=i;} } }
+    if(best<0) return null;
+    const conf=bv/total;                              // частка енергії косих ліній
+    const th=(best+0.5)/BINS*Math.PI;
+    let ux=Math.cos(th), uy=Math.sin(th);
+    // прайор перспективи: обʼєм «іде» до центру кадру (+ невеликий вплив нахилу)
+    const ocx=x+w/2, ocy=y+h/2;
+    let tx=(video.videoWidth/2-ocx), ty=(video.videoHeight/2-ocy)+tiltBias*h*0.25;
+    if(ux*tx+uy*ty<0){ ux=-ux; uy=-uy; }
+    const off=Math.min(1,Math.hypot(tx,ty)/Math.hypot(video.videoWidth/2,video.videoHeight/2));
+    const len=Math.min(w,h)*(0.18+0.34*off);
+    return {dx:ux*len, dy:uy*len, conf};
+  }
+  function update(now,bbox){
+    if(!bbox||!SETTINGS.cuboid){ sm.act+=(0-sm.act)*0.12; return; }
+    if(now-lastRun>110){ lastRun=now;
+      const r=analyze(bbox);
+      if(r&&r.conf>0.055){ sm.dx+=(r.dx-sm.dx)*0.18; sm.dy+=(r.dy-sm.dy)*0.18; sm.act+=(1-sm.act)*0.12; }
+      else sm.act+=(0-sm.act)*0.10;
+    }
+  }
+  function draw(f,bbox){
+    if(sm.act<0.06||!bbox) return;
+    const [x,y,w,h]=bbox, [cx,cy]=toCanvas(x,y,f), cw=w*f.s, ch=h*f.s, bx=mirrored()?cx-cw:cx;
+    const dx=sm.dx*f.s*(mirrored()?-1:1), dy=sm.dy*f.s;
+    const F=[[bx,cy],[bx+cw,cy],[bx+cw,cy+ch],[bx,cy+ch]];
+    const B=F.map(([a,b])=>[a+dx,b+dy]);
+    const A=sm.act, col=(al)=>`rgba(210,255,62,${al*A})`;
+    ctx.save(); ctx.lineJoin='round'; ctx.lineCap='round';
+    ctx.shadowColor='rgba(210,255,62,0.55)'; ctx.shadowBlur=8;
+    ctx.strokeStyle=col(0.32); ctx.lineWidth=1.1;      // задня грань
+    ctx.beginPath(); B.forEach(([a,b],i)=>i?ctx.lineTo(a,b):ctx.moveTo(a,b)); ctx.closePath(); ctx.stroke();
+    ctx.strokeStyle=col(0.5); ctx.lineWidth=1.2;       // ребра глибини
+    ctx.beginPath(); for(let i=0;i<4;i++){ ctx.moveTo(F[i][0],F[i][1]); ctx.lineTo(B[i][0],B[i][1]); } ctx.stroke();
+    ctx.strokeStyle=col(0.95); ctx.lineWidth=2;        // передня грань
+    ctx.beginPath(); F.forEach(([a,b],i)=>i?ctx.lineTo(a,b):ctx.moveTo(a,b)); ctx.closePath(); ctx.stroke();
+    ctx.shadowBlur=0; ctx.fillStyle=col(0.9);          // вершини
+    [...F,...B].forEach(([a,b],i)=>{ ctx.beginPath(); ctx.arc(a,b,i<4?3:2,0,6.283); ctx.fill(); });
+    ctx.restore();
+  }
+  return {update,draw};
+})();
 const vis={tint:0,videoMix:.85,edgeInt:1.0,glow:0,dim:1};
 const visTarget={tint:0,videoMix:.85,edgeInt:1.0,glow:0,dim:1};
 
@@ -631,6 +704,23 @@ function updateState(now){
     if(near){primary.cx=cand.cx;primary.cy=cand.cy;primary.bbox=cand.d.bbox;primary.score=cand.d.score;}else primary=null;
     if(primary&&now-lastInteraction>CFG.timings.focusIdle)primary=null;
   }
+  // авто-фокус (без тапу): домінантний обʼєкт = впевненість × розмір × центральність
+  if(detections.length){
+    const VW=video.videoWidth||1, VH=video.videoHeight||1, area=VW*VH;
+    const rank=d=>{ const[x,y,w,h]=d.bbox; const cx=x+w/2, cy=y+h/2;
+      const size=Math.min(1,(w*h)/area/0.30);
+      const cen=1-Math.min(1,Math.hypot(cx-VW/2,cy-VH/2)/Math.hypot(VW/2,VH/2));
+      return (d.score||0)*(0.35+0.65*size)*(0.45+0.55*cen); };
+    let bestD=null,bestV=0; for(const d of detections){ const v=rank(d); if(v>bestV){bestV=v;bestD=d;} }
+    let keep=null;
+    if(autoPrimary){ const same=detections.filter(d=>d.class===autoPrimary.class)
+      .map(d=>{const[x,y,w,h]=d.bbox;return{d,cx:x+w/2,cy:y+h/2};})
+      .sort((a,b)=>Math.hypot(a.cx-autoPrimary.cx,a.cy-autoPrimary.cy)-Math.hypot(b.cx-autoPrimary.cx,b.cy-autoPrimary.cy))[0];
+      if(same&&Math.hypot(same.cx-autoPrimary.cx,same.cy-autoPrimary.cy)<VW*0.3&&rank(same.d)*1.3>bestV) keep=same.d; }
+    const sel=keep||bestD;
+    if(sel){ const[x,y,w,h]=sel.bbox; autoPrimary={class:sel.class,score:sel.score,cx:x+w/2,cy:y+h/2,bbox:sel.bbox}; }
+  } else autoPrimary=null;
+
   priority=(now<alertUntil)?'P2':'P0';
   let state;
   if(now<alertUntil)state='ALERT';else if(primary&&present)state='FOCUS';else if(present)state='TRACKING';else state='IDLE';
@@ -677,6 +767,9 @@ function render(now){
     drawEntity(bx,cy,cw,ch,d,dim);
   });
   if(bodyOn&&hasPerson) drawBody(f);
+  const focusTarget=primary||autoPrimary;
+  CUBOID.update(now, focusTarget&&focusTarget.bbox);
+  if(focusTarget) CUBOID.draw(f, focusTarget.bbox);
   if(visTarget.dim<1||now<alertUntil){
     let box=null;
     if(now<alertUntil&&alertBox)box=alertBox;
@@ -799,7 +892,7 @@ canvas.addEventListener('pointerdown',e=>{
   if(hit) IDENT.identify(hit); else IDENT.close();
 });
 function waitVideoReady(){ return new Promise(res=>{ let n=0; const id=setInterval(()=>{ if((video.videoWidth&&video.readyState>=2)||++n>40){ clearInterval(id); res(); } },50); }); }
-$('btn-cam').addEventListener('click',async()=>{ switching=true; facing=facing==='environment'?'user':'environment'; primary=null; MP.reset(); try{ await startCamera(); await waitVideoReady(); }catch(e){} switching=false; });
+$('btn-cam').addEventListener('click',async()=>{ switching=true; facing=facing==='environment'?'user':'environment'; primary=null; autoPrimary=null; MP.reset(); try{ await startCamera(); await waitVideoReady(); }catch(e){} switching=false; });
 $('btn-body').addEventListener('click',()=>{bodyOn=!bodyOn; $('btn-body').classList.toggle('on',bodyOn); if(!bodyOn)faceBadge.classList.add('hide');});
 $('btn-alert').addEventListener('click',()=>{
   alertUntil=performance.now()+CFG.timings.alertHold;
@@ -939,10 +1032,10 @@ const RULES=[
   {id:'face',   name:'Обличчя', desc:'виявлено обличчя', cd:30000, test:()=>!!(MP.results.face&&MP.results.face.faceLandmarks&&MP.results.face.faceLandmarks.length)},
   {id:'night',  name:'Нічний рух людини', desc:'людина між 22:00 і 06:00', cd:60000, test:()=>{const h=new Date().getHours();return (h>=22||h<6)&&detections.some(d=>d.class==='person');}}
 ];
-const SETTINGS={ rules:{}, notif:{banner:true,sound:true,vibration:true,system:false}, retention:500, faceStyle:'mesh' };
+const SETTINGS={ rules:{}, notif:{banner:true,sound:true,vibration:true,system:false}, retention:500, faceStyle:'mesh', cuboid:true };
 const ruleFiredAt={};
 function loadSettings(){ try{ const s=JSON.parse(localStorage.getItem('dich_settings')||'{}');
-  if(s.notif)Object.assign(SETTINGS.notif,s.notif); if(s.rules)SETTINGS.rules=s.rules; if(s.retention)SETTINGS.retention=s.retention; if(s.faceStyle)SETTINGS.faceStyle=s.faceStyle; }catch(e){} }
+  if(s.notif)Object.assign(SETTINGS.notif,s.notif); if(s.rules)SETTINGS.rules=s.rules; if(s.retention)SETTINGS.retention=s.retention; if(s.faceStyle)SETTINGS.faceStyle=s.faceStyle; if(typeof s.cuboid==='boolean')SETTINGS.cuboid=s.cuboid; }catch(e){} }
 function saveSettings(){ try{ localStorage.setItem('dich_settings',JSON.stringify(SETTINGS)); }catch(e){} }
 const ruleOn=id=>!!SETTINGS.rules[id];
 function evalRules(now){
@@ -981,6 +1074,8 @@ function renderSettings(){
       SETTINGS.notif[key]=!SETTINGS.notif[key]; saveSettings(); renderSettings(); };
   }
   const rs=$('retention-sel'); if(rs){ rs.value=String(SETTINGS.retention); rs.onchange=()=>{ SETTINGS.retention=+rs.value; saveSettings(); }; }
+  const cb=$('cb-toggle');
+  if(cb){ cb.innerHTML=tgHTML(SETTINGS.cuboid); cb.onclick=()=>{ SETTINGS.cuboid=!SETTINGS.cuboid; saveSettings(); renderSettings(); }; }
   const fsM=$('fs-mesh'),fsD=$('fs-dots');
   if(fsM&&fsD){ fsM.setAttribute('aria-pressed',SETTINGS.faceStyle!=='dots'); fsD.setAttribute('aria-pressed',SETTINGS.faceStyle==='dots');
     fsM.onclick=()=>{ SETTINGS.faceStyle='mesh'; saveSettings(); renderSettings(); };
