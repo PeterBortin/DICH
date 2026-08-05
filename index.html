@@ -482,8 +482,28 @@ addEventListener('deviceorientation',e=>{ if(e&&e.beta!=null) tiltBias=Math.max(
 const CUBOID=(()=>{
   const S=96, BINS=36; let work=null,wctx=null,lastRun=0;
   const sm={dx:0,dy:0,act:0};                 // згладжений вектор екструзії
-  function analyze(bbox){
-    const [x,y,w,h]=bbox; if(!video.videoWidth) return null;
+  let cache=null, cacheKey='';
+  function clampBox(bbox){
+    const VW=video.videoWidth, VH=video.videoHeight; if(!VW||!VH) return null;
+    let [x,y,w,h]=bbox;
+    x=Math.max(0,Math.min(VW-4,x)); y=Math.max(0,Math.min(VH-4,y));
+    w=Math.max(4,Math.min(VW-x,w)); h=Math.max(4,Math.min(VH-y,h));
+    return [x,y,w,h];
+  }
+  // рівень 1: перспективний прайор — обʼєм «іде» до центру кадру (+ нахил пристрою)
+  function prior(bbox){
+    const VW=video.videoWidth||1, VH=video.videoHeight||1;
+    const [x,y,w,h]=bbox, ocx=x+w/2, ocy=y+h/2;
+    let tx=(VW/2-ocx), ty=(VH/2-ocy)+tiltBias*h*0.30;
+    let n=Math.hypot(tx,ty);
+    if(n<Math.min(VW,VH)*0.05){ tx=0.55; ty=-0.84; n=1; }   // майже по центру → лег. діагональ
+    const off=Math.min(1,n/Math.hypot(VW/2,VH/2));
+    return {ux:tx/n, uy:ty/n, len:Math.min(w,h)*(0.17+0.30*off)};
+  }
+  // рівень 2: домінантний «косий» напрямок ребер (Sobel-орієнтації)
+  function obliqueDir(bbox){
+    const b=clampBox(bbox); if(!b) return null;
+    const [x,y,w,h]=b;
     if(!work){ work=document.createElement('canvas'); work.width=S; work.height=S;
       wctx=work.getContext('2d',{willReadFrequently:true}); }
     try{ wctx.drawImage(video,x,y,w,h,0,0,S,S); }catch(e){ return null; }
@@ -495,36 +515,37 @@ const CUBOID=(()=>{
       const i=yy*S+xx;
       const gx=(g[i-S+1]+2*g[i+1]+g[i+S+1])-(g[i-S-1]+2*g[i-1]+g[i+S-1]);
       const gy=(g[i+S-1]+2*g[i+S]+g[i+S+1])-(g[i-S-1]+2*g[i-S]+g[i-S+1]);
-      const m=Math.hypot(gx,gy); if(m<0.30) continue;
-      let a=Math.atan2(gy,gx)+Math.PI/2;             // напрямок лінії ⟂ градієнту
+      const m=Math.hypot(gx,gy); if(m<0.28) continue;
+      let a=Math.atan2(gy,gx)+Math.PI/2;                 // напрямок лінії ⟂ градієнту
       a=((a%Math.PI)+Math.PI)%Math.PI;
       hist[Math.min(BINS-1,Math.floor(a/Math.PI*BINS))]+=m; total+=m;
     }
-    if(total<40) return null;
-    const sh=new Float32Array(BINS);                  // циклічне згладжування
+    if(total<30) return null;
+    const sh=new Float32Array(BINS);
     for(let i=0;i<BINS;i++) sh[i]=hist[(i-1+BINS)%BINS]*0.25+hist[i]*0.5+hist[(i+1)%BINS]*0.25;
-    let best=-1,bv=0;                                 // найсильніший «косий» напрямок
+    let mean=0; for(let i=0;i<BINS;i++) mean+=sh[i]; mean=mean/BINS||1e-6;
+    let best=-1,bv=0;
     for(let i=0;i<BINS;i++){ const deg=(i+0.5)/BINS*180;
-      if((deg>18&&deg<72)||(deg>108&&deg<162)){ if(sh[i]>bv){bv=sh[i];best=i;} } }
+      if((deg>16&&deg<74)||(deg>106&&deg<164)){ if(sh[i]>bv){bv=sh[i];best=i;} } }
     if(best<0) return null;
-    const conf=bv/total;                              // частка енергії косих ліній
     const th=(best+0.5)/BINS*Math.PI;
-    let ux=Math.cos(th), uy=Math.sin(th);
-    // прайор перспективи: обʼєм «іде» до центру кадру (+ невеликий вплив нахилу)
-    const ocx=x+w/2, ocy=y+h/2;
-    let tx=(video.videoWidth/2-ocx), ty=(video.videoHeight/2-ocy)+tiltBias*h*0.25;
-    if(ux*tx+uy*ty<0){ ux=-ux; uy=-uy; }
-    const off=Math.min(1,Math.hypot(tx,ty)/Math.hypot(video.videoWidth/2,video.videoHeight/2));
-    const len=Math.min(w,h)*(0.18+0.34*off);
-    return {dx:ux*len, dy:uy*len, conf};
+    return {ux:Math.cos(th), uy:Math.sin(th), strength:bv/mean};  // масштабо-незалежна метрика
   }
   function update(now,bbox){
     if(!bbox||!SETTINGS.cuboid){ sm.act+=(0-sm.act)*0.12; return; }
-    if(now-lastRun>110){ lastRun=now;
-      const r=analyze(bbox);
-      if(r&&r.conf>0.055){ sm.dx+=(r.dx-sm.dx)*0.18; sm.dy+=(r.dy-sm.dy)*0.18; sm.act+=(1-sm.act)*0.12; }
-      else sm.act+=(0-sm.act)*0.10;
+    const p=prior(bbox);
+    let ux=p.ux, uy=p.uy;
+    const key=Math.round(bbox[0])+':'+Math.round(bbox[1]);
+    if(now-lastRun>110){ lastRun=now; cache=obliqueDir(bbox); cacheKey=key; }
+    if(cache && cache.strength>1.45){                    // геометрія лише уточнює напрямок
+      let vx=cache.ux, vy=cache.uy;
+      if(vx*ux+vy*uy<0){ vx=-vx; vy=-vy; }
+      const wgt=Math.min(0.75,(cache.strength-1.45)/1.6);
+      ux=ux*(1-wgt)+vx*wgt; uy=uy*(1-wgt)+vy*wgt;
+      const n=Math.hypot(ux,uy)||1; ux/=n; uy/=n;
     }
+    sm.dx+=(ux*p.len-sm.dx)*0.15; sm.dy+=(uy*p.len-sm.dy)*0.15;
+    sm.act+=(1-sm.act)*0.10;                             // рівень 1 працює завжди
   }
   function draw(f,bbox){
     if(sm.act<0.06||!bbox) return;
