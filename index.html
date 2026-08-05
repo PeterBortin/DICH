@@ -131,8 +131,9 @@ input[type=range]::-moz-range-thumb{width:17px;height:17px;border:0;border-radiu
   <div class="chips">
     <div class="chip"><i class="dot"></i>LIVE</div>
     <div class="chip"><b id="cFps">--</b>FPS</div>
-    <div class="chip"><b id="cLines">0</b>ЛІНІЙ</div>
     <div class="chip lock"><b id="cKf">0</b>КАРКАС</div>
+    <div class="chip lock"><b id="cMem">0</b>ПАМʼЯТЬ</div>
+    <div class="chip"><b id="cDrift">0</b>ДРЕЙФ</div>
     <div class="chip lock"><b id="c3d">0</b>% 3D</div>
     <div class="chip"><b id="cMs">--</b>MS</div>
   </div>
@@ -142,6 +143,7 @@ input[type=range]::-moz-range-thumb{width:17px;height:17px;border:0;border-radiu
   <button class="btn" id="bCam">⟳ КАМЕРА</button>
   <button class="btn on" id="bBase">◆ БАЗА</button>
   <button class="btn" id="bBox">◉ БОКСИ</button>
+  <button class="btn" id="bForget">✕ ЗАБУТИ</button>
   <button class="btn amber" id="bShot">⚡ КАДР</button>
 </div>
 
@@ -159,6 +161,8 @@ input[type=range]::-moz-range-thumb{width:17px;height:17px;border:0;border-radiu
   <div class="rows" id="rows"></div>
   <div class="toggles">
     <button class="tg on" data-tg="lock">ФІКСАЦІЯ</button>
+    <button class="tg on" data-tg="memory">ПАМʼЯТЬ</button>
+    <button class="tg on" data-tg="arrows">СТРІЛКИ</button>
     <button class="tg on" data-tg="verts">ВЕРШИНИ</button>
     <button class="tg on" data-tg="rigid">ЖОРСТКІСТЬ</button>
     <button class="tg on" data-tg="nms">NMS</button>
@@ -170,8 +174,8 @@ input[type=range]::-moz-range-thumb{width:17px;height:17px;border:0;border-radiu
 
 <div id="boot">
   <h1>DICH <span>//EDGE</span></h1>
-  <p>Локальна нормалізація → Scharr → NMS → гістерезис → контури.
-     Далі: компенсація руху камери, граф вершин, гібридна глибина — і лінії залипають на об'єкті.</p>
+  <p>Контури залипають на об'єкті й лягають у світову памʼять: водиш камерою по частинах —
+     каркас накопичується. Те, що виїхало за кадр, живе до кнопки ЗАБУТИ.</p>
   <button id="go">ПУСК</button>
   <div id="err"></div>
 </div>
@@ -196,12 +200,15 @@ const P = {
   /* фіксація */
   inertia:   0.22,   // EMA α у фокусі
   mem:       14,     // maxMiss у фокусі, кадрів
-  weld:      7,      // радіус зварки, proc px
+  weld:      4,      // радіус зварки, proc px
   extrude:   9,      // об'єм
   focus:     0.34,   // радіус зони фокусу, частка min(w,h)
+  /* памʼять */
+  world:     6,      // межа світу в діагоналях кадру
   /* тумблери */
-  lock:  true,  verts: true, rigid: true,
-  nms:   true,  hyst:  true, flow:  false, dbg: false,
+  lock:  true,  verts: true,  rigid:  true,
+  memory:true,  arrows: true,
+  nms:   true,  hyst:  true,  flow:  false,  dbg: false,
   showBase: 1,  boxes: false
 };
 
@@ -218,9 +225,11 @@ const ROWS = [
   { g:'ФІКСАЦІЯ' },
   { k:'inertia', l:'ІНЕРЦІЯ',   min:0.05, max:0.60, st:0.01 },
   { k:'mem',     l:'ПАМʼЯТЬ',   min:2,    max:30,   st:1    },
-  { k:'weld',    l:'ЗВАРКА',    min:3,    max:14,   st:1    },
+  { k:'weld',    l:'ЗВАРКА',    min:2,    max:12,   st:1    },
   { k:'extrude', l:'ОБʼЄМ',     min:0,    max:20,   st:1    },
-  { k:'focus',   l:'ФОКУС',     min:0.18, max:0.50, st:0.01 }
+  { k:'focus',   l:'ФОКУС',     min:0.18, max:0.50, st:0.01 },
+  { g:'ПАМʼЯТЬ' },
+  { k:'world',   l:'СВІТ',      min:2,    max:12,   st:1    }
 ];
 
 const PRESETS = {
@@ -229,7 +238,8 @@ const PRESETS = {
   wire:   { gain:3.8, radius:22, levels:2, tHigh:0.26, tLow:0.10, preblur:2, temporal:0.55, minLen:30 },
   soft:   { gain:2.2, radius:20, levels:5, tHigh:0.16, tLow:0.06, preblur:2, temporal:0.60, minLen:18 },
   wire3d: { gain:3.0, radius:16, levels:4, tHigh:0.22, tLow:0.09, preblur:1, temporal:0.45, minLen:22,
-            lock:true, mem:20, rigid:true, verts:true, extrude:12, inertia:0.16, focus:0.34 }
+            lock:true, mem:20, rigid:true, verts:true, extrude:12, inertia:0.10, focus:0.34, weld:3,
+            memory:true, arrows:true, world:6 }
 };
 
 /* ============================================================
@@ -782,8 +792,7 @@ function lkTrack(){
 }
 
 const M = { ax:1, ay:0, bx:0, by:0 };
-let inlierRatio = 0, transMag = 0, transDX = 0, transDY = 0, gmeLost = true, sCum = 1;
-/* sCum — лише телеметрія масштабу; еталонні довжини ребер адаптуються самі */
+let inlierRatio = 0, transMag = 0, transDX = 0, transDY = 0, gmeLost = true;
 
 function fitSimilarity(){
   const idx = [];
@@ -857,7 +866,6 @@ function fitSimilarity(){
   M.ax = ax; M.ay = ay;
   M.bx = mwx - (ax * mzx - ay * mzy);
   M.by = mwy - (ay * mzx + ax * mzy);
-  sCum = s;
   fx /= cnt; fy /= cnt;
   transDX = fx; transDY = fy;
   transMag = Math.hypot(fx, fy);
@@ -865,61 +873,154 @@ function fitSimilarity(){
 }
 
 /* ============================================================
-   ШАР B — ГРАФ ВЕРШИН І ТРЕКИ
+   ШАР B — СВІТОВА ПАМʼЯТЬ: ГРАФ У СВІТОВИХ КООРДИНАТАХ
+   ============================================================
+   Вершини живуть у СВІТОВИХ координатах, не в координатах кадру.
+   W — similarity світ→кадр, накопичується з покадрових M.
+   Кластер, що систематично не згоден зі світом, отримує власну
+   поправку L і відвʼязується (гібридна топологія).
+   Поза кадром треки дормантні: не набирають miss, живуть до ресету.
    ============================================================ */
-let VX, VY, VVx, VVy, VD, VDw, VConf, VMiss, VPin, VAlive, vCnt;
+
+const MAXV = 2600, MAXE = 3600, MAXC = 24;
+
+let VX, VY, VD, VDw, VConf, VMiss, VPin, VAlive, VCl, vCnt;
+let PX, PY;                                   // проєкція вершин у кадр
 let EA, EB, EConf, EMiss, EAge, ELen, EAlive, eCnt;
-let EMx, EMy, EAng, ECur;                 // кеш геометрії на кадр
-let vFree, vFreeN = 0, eFree, eFreeN = 0; // фрі-листи замість лінійного пошуку
-const MAXV = 900, MAXE = 1400;
+let EMx, EMy, EAng, ECur, EVis, EWas, EGrace, EHit;
+let vFree, vFreeN = 0, eFree, eFreeN = 0;
+let clCount = 0;
+let uf, clSize, clRoots;
+const ageHist = new Int32Array(64);
+
+/* світовий трансформ: p_кадр = W · p_світ */
+let Wax = 1, Way = 0, Wbx = 0, Wby = 0;
+let driftRes = 0, memTotal = 0, memOff = 0, memVis = 0, evicted = 0, rebases = 0;
+let frameNo = 0;
 
 function resetTracks(){
   VX = new Float32Array(MAXV); VY = new Float32Array(MAXV);
-  VVx = new Float32Array(MAXV); VVy = new Float32Array(MAXV);
+  PX = new Float32Array(MAXV); PY = new Float32Array(MAXV);
   VD = new Float32Array(MAXV); VDw = new Float32Array(MAXV);
   VConf = new Int16Array(MAXV); VMiss = new Int16Array(MAXV);
   VPin = new Int16Array(MAXV); VAlive = new Uint8Array(MAXV);
+  VCl = new Int16Array(MAXV); VCl.fill(-1);
   EA = new Int32Array(MAXE); EB = new Int32Array(MAXE);
   EConf = new Int16Array(MAXE); EMiss = new Int16Array(MAXE);
   EAge = new Int32Array(MAXE); ELen = new Float32Array(MAXE);
   EAlive = new Uint8Array(MAXE);
   EMx = new Float32Array(MAXE); EMy = new Float32Array(MAXE);
   EAng = new Float32Array(MAXE); ECur = new Float32Array(MAXE);
+  EVis = new Uint8Array(MAXE); EWas = new Uint8Array(MAXE);
+  EGrace = new Int16Array(MAXE); EHit = new Uint8Array(MAXE);
   vFree = new Int32Array(MAXV); eFree = new Int32Array(MAXE);
-  vFreeN = 0; eFreeN = 0;
-  vCnt = 0; eCnt = 0;
-  pyrReady = false;
-  frameNo = 0;
+  uf = new Int32Array(MAXV); clSize = new Int32Array(MAXV);
+  clRoots = new Int32Array(MAXV);
+  vFreeN = 0; eFreeN = 0; vCnt = 0; eCnt = 0; clCount = 0;
+  Wax = 1; Way = 0; Wbx = 0; Wby = 0;
+  driftRes = 0; memTotal = 0; memOff = 0; memVis = 0;
+  evicted = 0; rebases = 0;
+  pyrReady = false; frameNo = 0;
 }
 
-let frameNo = 0;
+/* ---------- світовий трансформ ---------- */
+function preComposeW(ax, ay, bx, by){          // W ← C ∘ W
+  const nax = ax * Wax - ay * Way;
+  const nay = ax * Way + ay * Wax;
+  const nbx = ax * Wbx - ay * Wby + bx;
+  const nby = ax * Wby + ay * Wbx + by;
+  Wax = nax; Way = nay; Wbx = nbx; Wby = nby;
+  const s = Wax * Wax + Way * Way;
+  if (!(s > 2.5e-3 && s < 400)){ Wax = 1; Way = 0; Wbx = 0; Wby = 0; }
+}
+function composeW(){ preComposeW(M.ax, M.ay, M.bx, M.by); }
+function worldScale(){ return Math.sqrt(Wax * Wax + Way * Way) || 1; }
 
-/* просторовий хеш */
-const HCELL = 16;
+function projectAll(){
+  for (let v = 0; v < vCnt; v++){
+    if (!VAlive[v]) continue;
+    const x = VX[v], y = VY[v];
+    PX[v] = Wax * x - Way * y + Wbx;
+    PY[v] = Way * x + Wax * y + Wby;
+  }
+}
+
+function refreshMids(){
+  for (let e = 0; e < eCnt; e++){
+    if (!EAlive[e] || !EVis[e]) continue;
+    const a = EA[e], b = EB[e];
+    EMx[e] = (PX[a] + PX[b]) * 0.5; EMy[e] = (PY[a] + PY[b]) * 0.5;
+  }
+}
+
+function unprojectTo(v, ix, iy){
+  const den = Wax * Wax + Way * Way;
+  if (den < 1e-9) return;
+  const dx = ix - Wbx, dy = iy - Wby;
+  VX[v] = (dx * Wax + dy * Way) / den;
+  VY[v] = (dy * Wax - dx * Way) / den;
+}
+
+/* Перебазування: коли W відʼїхав далеко, Float32 світових координат
+   починає губити точність. Складаємо W у самі координати й скидаємо. */
+function rebaseWorld(){
+  projectAll();
+  const sc = worldScale();
+  for (let v = 0; v < vCnt; v++){
+    if (!VAlive[v]) continue;
+    VX[v] = PX[v]; VY[v] = PY[v]; VCl[v] = VCl[v];
+  }
+  for (let e = 0; e < eCnt; e++) if (EAlive[e]) ELen[e] *= sc;
+  Wax = 1; Way = 0; Wbx = 0; Wby = 0;
+  rebases++;
+}
+function maybeRebase(){
+  const sc = worldScale();
+  if (Math.abs(Wbx) > 3000 || Math.abs(Wby) > 3000 || sc < 0.55 || sc > 1.9) rebaseWorld();
+}
+
+/* ---------- просторовий хеш (у координатах кадру, лише видиме) ---------- */
+const HCELL = 16, VIEWM = 30;
 let hHead = null, hNext = null, hcw = 0, hch = 0;
-function hashEdges(){
+let vHead = null, vNext = null;
+function cellX(x){ let c = (x / HCELL) | 0; if (c < 0) c = 0; else if (c >= hcw) c = hcw - 1; return c; }
+function cellY(y){ let c = (y / HCELL) | 0; if (c < 0) c = 0; else if (c >= hch) c = hch - 1; return c; }
+
+/* Геометрія ребер у кадрі + видимість + хеш. Дормантні ребра
+   (поза кадром) у хеш не потрапляють — тому вартість матчингу
+   не залежить від того, скільки всього накопичено. */
+function edgeGeom(){
   hcw = Math.ceil(pw / HCELL) + 1; hch = Math.ceil(ph / HCELL) + 1;
   const cells = hcw * hch;
   if (!hHead || hHead.length < cells) hHead = new Int32Array(cells);
   if (!hNext || hNext.length < MAXE)  hNext = new Int32Array(MAXE);
   hHead.fill(-1, 0, cells);
+  memTotal = 0; memOff = 0; memVis = 0;
+  const keepAll = !!P.memory;
   for (let e = 0; e < eCnt; e++){
     if (!EAlive[e]) continue;
     const a = EA[e], b = EB[e];
-    const ax = VX[a], ay = VY[a], bx = VX[b], by = VY[b];
+    const ax = PX[a], ay = PY[a], bx = PX[b], by = PY[b];
     const mx = (ax + bx) * 0.5, my = (ay + by) * 0.5;
     const dx = bx - ax, dy = by - ay;
     EMx[e] = mx; EMy[e] = my;
     EAng[e] = Math.atan2(dy, dx);
     ECur[e] = Math.sqrt(dx * dx + dy * dy);
-    const cx = Math.min(hcw - 1, Math.max(0, (mx / HCELL) | 0));
-    const cy = Math.min(hch - 1, Math.max(0, (my / HCELL) | 0));
-    const c = cy * hcw + cx;
+    const vis = (mx > -VIEWM && my > -VIEWM && mx < pw + VIEWM && my < ph + VIEWM) ? 1 : 0;
+    if (vis && !EWas[e]){ EMiss[e] = 0; EGrace[e] = 8; }   // повернувся в кадр — дати шанс
+    EWas[e] = vis; EVis[e] = vis;
+    memTotal++;
+    if (!vis){
+      if (keepAll) memOff++;          // рахуємо лише те, що справді лежить
+      else killEdge(e);               // ПАМʼЯТЬ вимкнена — старе поводження
+      continue;
+    }
+    memVis++;
+    const c = cellY(my) * hcw + cellX(mx);
     hNext[e] = hHead[c]; hHead[c] = e;
   }
 }
 
-let vHead = null, vNext = null;
 function hashVerts(){
   const cells = hcw * hch;
   if (!vHead || vHead.length < cells) vHead = new Int32Array(cells);
@@ -927,77 +1028,33 @@ function hashVerts(){
   vHead.fill(-1, 0, cells);
   for (let v = 0; v < vCnt; v++){
     if (!VAlive[v]) continue;
-    const cx = Math.min(hcw - 1, Math.max(0, (VX[v] / HCELL) | 0));
-    const cy = Math.min(hch - 1, Math.max(0, (VY[v] / HCELL) | 0));
-    const c = cy * hcw + cx;
+    const x = PX[v], y = PY[v];
+    if (x < -VIEWM || y < -VIEWM || x > pw + VIEWM || y > ph + VIEWM) continue;
+    const c = cellY(y) * hcw + cellX(x);
     vNext[v] = vHead[c]; vHead[c] = v;
   }
 }
 
+/* ---------- зона фокусу (координати кадру) ---------- */
 let fcx = 0, fcy = 0, fr = 0;
-function updFocus(){
-  fcx = pw * 0.5; fcy = ph * 0.5;
-  fr = P.focus * Math.min(pw, ph);
-}
-function inFocus(x, y){
-  const dx = x - fcx, dy = y - fcy;
-  return dx * dx + dy * dy < fr * fr;
-}
+function updFocus(){ fcx = pw * 0.5; fcy = ph * 0.5; fr = P.focus * Math.min(pw, ph); }
+function inFocus(x, y){ const dx = x - fcx, dy = y - fcy; return dx * dx + dy * dy < fr * fr; }
 
+/* ---------- життєвий цикл вершин і ребер ---------- */
 function killVertex(v){
   if (!VAlive[v]) return;
-  VAlive[v] = 0; VPin[v] = 0;
+  VAlive[v] = 0; VPin[v] = 0; VCl[v] = -1;
   if (vFreeN < MAXV) vFree[vFreeN++] = v;
 }
-
 function newVertex(x, y){
   let v;
   if (vFreeN > 0) v = vFree[--vFreeN];
   else if (vCnt < MAXV) v = vCnt++;
   else return -1;
-  VX[v] = x; VY[v] = y; VVx[v] = 0; VVy[v] = 0;
-  VD[v] = 0.5; VDw[v] = 0;
-  VConf[v] = 1; VMiss[v] = 0; VPin[v] = 0; VAlive[v] = 1;
+  VX[v] = x; VY[v] = y; VD[v] = 0.5; VDw[v] = 0;
+  VConf[v] = 1; VMiss[v] = 0; VPin[v] = 0; VAlive[v] = 1; VCl[v] = -1;
   return v;
 }
-
-function weldOrNew(x, y){
-  const r = P.weld, r2 = r * r;
-  const cx = Math.min(hcw - 1, Math.max(0, (x / HCELL) | 0));
-  const cy = Math.min(hch - 1, Math.max(0, (y / HCELL) | 0));
-  let best = -1, bd = r2;
-  for (let j = -1; j <= 1; j++)
-    for (let i = -1; i <= 1; i++){
-      const gxx = cx + i, gyy = cy + j;
-      if (gxx < 0 || gyy < 0 || gxx >= hcw || gyy >= hch) continue;
-      for (let v = vHead[gyy * hcw + gxx]; v !== -1; v = vNext[v]){
-        if (!VAlive[v] || VPin[v] >= 6) continue;
-        const dx = VX[v] - x, dy = VY[v] - y;
-        const d = dx * dx + dy * dy;
-        if (d < bd){ bd = d; best = v; }
-      }
-    }
-  if (best >= 0) return best;
-  const v = newVertex(x, y);
-  if (v >= 0){                              // одразу в хеш — щоб сусідній
-    const c = cy * hcw + cx;                // відрізок цього ж кадру зварився
-    vNext[v] = vHead[c]; vHead[c] = v;
-  }
-  return v;
-}
-
-function newEdge(a, b, len){
-  if (a < 0 || b < 0 || a === b) return -1;
-  let e;
-  if (eFreeN > 0) e = eFree[--eFreeN];
-  else if (eCnt < MAXE) e = eCnt++;
-  else return -1;
-  EA[e] = a; EB[e] = b; EConf[e] = 1; EMiss[e] = 0; EAge[e] = 0;
-  ELen[e] = len; EAlive[e] = 1;
-  VPin[a]++; VPin[b]++;
-  return e;
-}
-
 function killEdge(e){
   if (!EAlive[e]) return;
   EAlive[e] = 0;
@@ -1006,31 +1063,58 @@ function killEdge(e){
   if (VAlive[b] && VPin[b] > 0) VPin[b]--;
   if (eFreeN < MAXE) eFree[eFreeN++] = e;
 }
-
-function warpTracks(){
-  const ax = M.ax, ay = M.ay, bx = M.bx, by = M.by;
-  const idn = (ax === 1 && ay === 0 && bx === 0 && by === 0);
-  for (let v = 0; v < vCnt; v++){
-    if (!VAlive[v]) continue;
-    let x = VX[v], y = VY[v];
-    if (!idn){
-      const nx = ax * x - ay * y + bx;
-      const ny = ay * x + ax * y + by;
-      x = nx; y = ny;
-    }
-    const vm = VVx[v] * VVx[v] + VVy[v] * VVy[v];
-    if (vm > 0.16){ x += VVx[v] * 0.35; y += VVy[v] * 0.35; }  // < 0.4 px = шум, не рух
-    VVx[v] *= 0.5; VVy[v] *= 0.5;
-    VX[v] = x; VY[v] = y;
-  }
-  /* геть за кадр — вбити */
-  for (let v = 0; v < vCnt; v++){
-    if (!VAlive[v]) continue;
-    if (VX[v] < -20 || VY[v] < -20 || VX[v] > pw + 20 || VY[v] > ph + 20) killVertex(v);
-  }
-  for (let e = 0; e < eCnt; e++)
-    if (EAlive[e] && (!VAlive[EA[e]] || !VAlive[EB[e]])) killEdge(e);
+function newEdge(a, b, worldLen){
+  if (a < 0 || b < 0 || a === b) return -1;
+  let e;
+  if (eFreeN > 0) e = eFree[--eFreeN];
+  else if (eCnt < MAXE) e = eCnt++;
+  else return -1;
+  EA[e] = a; EB[e] = b; EConf[e] = 1; EMiss[e] = 0; EAge[e] = 0;
+  ELen[e] = worldLen; EAlive[e] = 1; EVis[e] = 1; EWas[e] = 1;
+  EGrace[e] = 0; EHit[e] = 1;
+  VPin[a]++; VPin[b]++;
+  return e;
 }
+
+function weldOrNew(ix, iy){
+  const r2 = P.weld * P.weld;
+  const cx = cellX(ix), cy = cellY(iy);
+  let best = -1, bd = r2;
+  for (let j = -1; j <= 1; j++)
+    for (let i = -1; i <= 1; i++){
+      const gx = cx + i, gy = cy + j;
+      if (gx < 0 || gy < 0 || gx >= hcw || gy >= hch) continue;
+      for (let v = vHead[gy * hcw + gx]; v !== -1; v = vNext[v]){
+        if (!VAlive[v] || VPin[v] >= 6) continue;
+        const dx = PX[v] - ix, dy = PY[v] - iy;
+        const d = dx * dx + dy * dy;
+        if (d < bd){ bd = d; best = v; }
+      }
+    }
+  if (best >= 0) return best;
+  const den = Wax * Wax + Way * Way;
+  if (den < 1e-9) return -1;
+  const dx = ix - Wbx, dy = iy - Wby;
+  const v = newVertex((dx * Wax + dy * Way) / den, (dy * Wax - dx * Way) / den);
+  if (v >= 0){
+    PX[v] = ix; PY[v] = iy;
+    const c = cy * hcw + cx;
+    vNext[v] = vHead[c]; vHead[c] = v;
+  }
+  return v;
+}
+
+/* ---------- асоціація (лише матчинг) ---------- */
+const matchedSeg = new Uint8Array(1400);
+const matchedEdge = new Uint8Array(MAXE);
+const pairBuf = new Float64Array(30000);
+let pairN = 0;
+const pairOrder = new Int32Array(10000);
+const BUCKN = 64, BSCALE = BUCKN / 30;
+const bBin = new Int32Array(10000);
+const bCnt = new Int32Array(BUCKN + 1);
+const MTseg = new Int32Array(4200), MTedge = new Int32Array(4200);
+let mtN = 0;
 
 function angDiff(a, b){
   let d = Math.abs(a - b) % Math.PI;
@@ -1038,46 +1122,45 @@ function angDiff(a, b){
   return d;
 }
 
-const matchedSeg = new Uint8Array(1400);
-const matchedEdge = new Uint8Array(MAXE);
-const pairBuf = new Float64Array(30000);   // [cost, seg, edge] × 10000
-let   pairN = 0;
-const pairOrder = new Int32Array(10000);
-const BUCKN = 64, BSCALE = BUCKN / 30;     // бакетний сорт замість O(n log n)
-const bBin = new Int32Array(10000);
-const bCnt = new Int32Array(BUCKN + 1);
-
 function associate(){
   matchedSeg.fill(0, 0, SEG.cnt);
   matchedEdge.fill(0, 0, eCnt);
-  pairN = 0;
+  for (let e = 0; e < eCnt; e++) EHit[e] = 0;
+  pairN = 0; mtN = 0;
 
-  const gateA = 0.314;                       // 18°
+  const gateA = 0.314;
   const gateBase = 14, gateD2Base = gateBase * gateBase;
   for (let s = 0; s < SEG.cnt; s++){
     const mx = SEG.mx[s], my = SEG.my[s], an = SEG.an[s], ln = SEG.ln[s];
-    const cx = Math.min(hcw - 1, Math.max(0, (mx / HCELL) | 0));
-    const cy = Math.min(hch - 1, Math.max(0, (my / HCELL) | 0));
+    const cx = cellX(mx), cy = cellY(my);
     for (let j = -1; j <= 1; j++)
       for (let i = -1; i <= 1; i++){
-        const gxx = cx + i, gyy = cy + j;
-        if (gxx < 0 || gyy < 0 || gxx >= hcw || gyy >= hch) continue;
-        for (let e = hHead[gyy * hcw + gxx]; e !== -1; e = hNext[e]){
+        const gx = cx + i, gy = cy + j;
+        if (gx < 0 || gy < 0 || gx >= hcw || gy >= hch) continue;
+        for (let e = hHead[gy * hcw + gx]; e !== -1; e = hNext[e]){
           if (!EAlive[e]) continue;
           const dx = EMx[e] - mx, dy = EMy[e] - my;
           const d2 = dx * dx + dy * dy;
           if (d2 > gateD2Base) continue;
-          /* впевнений трек вимагає ближчого збігу — менше підмін сусіднім контуром */
-          const cf = EConf[e] / 12;
-          const g = gateBase - 5 * cf;
-          if (d2 > g * g) continue;
+          /* Впевнений трек вимагає ближчого збігу — менше підмін сусіднім
+             контуром. Але ребро, що тільки-но вернулось у кадр після довгої
+             відсутності, судимо широким гейтом: ми якраз менш упевнені,
+             де воно тепер. */
+          if (EGrace[e] === 0){
+            const g = gateBase - 5 * (EConf[e] / 12);
+            if (d2 > g * g) continue;
+          }
           const da = angDiff(an, EAng[e]);
           if (da > gateA) continue;
           const el = ECur[e];
           const ratio = el > 0.5 ? ln / el : 99;
           if (ratio < 0.55 || ratio > 1.8) continue;
-          const cost = Math.sqrt(d2) + 0.55 * da * 57.3 * 0.25 + 0.8 * Math.abs(ln - el) / Math.max(el, 1) * 6;
-          if (pairN < 10000){ const w = pairN * 3; pairBuf[w] = cost; pairBuf[w + 1] = s; pairBuf[w + 2] = e; pairN++; }
+          const cost = Math.sqrt(d2) + 0.55 * da * 57.3 * 0.25
+                     + 0.8 * Math.abs(ln - el) / Math.max(el, 1) * 6;
+          if (pairN < 10000){
+            const w = pairN * 3;
+            pairBuf[w] = cost; pairBuf[w + 1] = s; pairBuf[w + 2] = e; pairN++;
+          }
         }
       }
   }
@@ -1093,84 +1176,163 @@ function associate(){
   for (let b = 0; b < BUCKN; b++){ const c = bCnt[b]; bCnt[b] = acc; acc += c; }
   for (let i = 0; i < np; i++) order[bCnt[bBin[i]]++] = i;
 
-  const aF = P.inertia, aO = 0.5;
   for (let n = 0; n < np; n++){
     const i = order[n] * 3;
     const s = co[i + 1], e = co[i + 2];
-    if (matchedSeg[s] || matchedEdge[e]) continue;
-    if (!EAlive[e]) continue;
-    matchedSeg[s] = 1; matchedEdge[e] = 1;
+    if (matchedSeg[s] || matchedEdge[e] || !EAlive[e]) continue;
+    matchedSeg[s] = 1; matchedEdge[e] = 1; EHit[e] = 1;
+    if (mtN < 4200){ MTseg[mtN] = s; MTedge[mtN] = e; mtN++; }
+  }
+}
 
+/* ---------- ЯКІР: підгонка моделі під кадр (проти дрейфу) ---------- */
+/* ДРЕЙФ — лише вимір: медіана розходження проєкції моделі зі свіжими
+   детекціями. Виправляти W не треба: треки перематчуються щокадру і їхні
+   світові координати підтягуються EMA, тому модель самовиправляється.
+   Спроба коригувати W додавала блукання по неспостережуваній калібровці
+   (W і світові координати визначені лише спільно) — виміряно, шкодить. */
+const driftBuf = new Float32Array(4200);
+function measureDrift(){
+  let n = 0;
+  for (let i = 0; i < mtN && n < 4200; i++){
+    const e = MTedge[i];
+    if (EConf[e] < 6) continue;
+    const s2 = MTseg[i];
+    const dx = EMx[e] - SEG.mx[s2], dy = EMy[e] - SEG.my[s2];
+    driftBuf[n++] = Math.sqrt(dx * dx + dy * dy);
+  }
+  if (n < 4){ driftRes = 0; return; }
+  const sub = driftBuf.subarray(0, n);
+  sub.sort();
+  driftRes = sub[n >> 1];
+}
+
+/* РУХОМІ ЧАСТИНИ. Світові координати статичної сцени стоять на місці,
+   а EMA веде треки рухомого обʼєкта — тому центроїд його кластера має
+   у світі ненульову швидкість. Це і є ознака «ця частина не статична».
+   Локальні similarity-поправки на кластер виміряно як марні: до 2 px/кадр
+   EMA веде обʼєкт і без них, а вище треки рвуться по гейту асоціації. */
+/* ---------- застосування матчів (EMA у кадрі → назад у світ) ---------- */
+function applyMatches(){
+  const aF = P.inertia, aO = 0.5, sc = worldScale();
+  for (let i = 0; i < mtN; i++){
+    const s = MTseg[i], e = MTedge[i];
+    if (!EAlive[e]) continue;
     const a = EA[e], b = EB[e];
-    /* який кінець детекції до якої вершини */
-    const d1 = (SEG.x0[s] - VX[a]) ** 2 + (SEG.y0[s] - VY[a]) ** 2
-             + (SEG.x1[s] - VX[b]) ** 2 + (SEG.y1[s] - VY[b]) ** 2;
-    const d2 = (SEG.x0[s] - VX[b]) ** 2 + (SEG.y0[s] - VY[b]) ** 2
-             + (SEG.x1[s] - VX[a]) ** 2 + (SEG.y1[s] - VY[a]) ** 2;
+    const d1 = (SEG.x0[s] - PX[a]) ** 2 + (SEG.y0[s] - PY[a]) ** 2
+             + (SEG.x1[s] - PX[b]) ** 2 + (SEG.y1[s] - PY[b]) ** 2;
+    const d2 = (SEG.x0[s] - PX[b]) ** 2 + (SEG.y0[s] - PY[b]) ** 2
+             + (SEG.x1[s] - PX[a]) ** 2 + (SEG.y1[s] - PY[a]) ** 2;
     let oax, oay, obx, oby;
     if (d1 <= d2){ oax = SEG.x0[s]; oay = SEG.y0[s]; obx = SEG.x1[s]; oby = SEG.y1[s]; }
     else         { oax = SEG.x1[s]; oay = SEG.y1[s]; obx = SEG.x0[s]; oby = SEG.y0[s]; }
 
-    const stick = 1 - 0.6 * (EConf[e] / 12);   // чим довіреніший трек, тим в'язкіший
-    const fa = inFocus(VX[a], VY[a]) ? aF * stick : aO;
-    const fb = inFocus(VX[b], VY[b]) ? aF * stick : aO;
-    const nax = VX[a] + (oax - VX[a]) * fa, nay = VY[a] + (oay - VY[a]) * fa;
-    const nbx = VX[b] + (obx - VX[b]) * fb, nby = VY[b] + (oby - VY[b]) * fb;
-    VVx[a] = VVx[a] * 0.5 + (nax - VX[a]) * 0.5; VVy[a] = VVy[a] * 0.5 + (nay - VY[a]) * 0.5;
-    VVx[b] = VVx[b] * 0.5 + (nbx - VX[b]) * 0.5; VVy[b] = VVy[b] * 0.5 + (nby - VY[b]) * 0.5;
-    VX[a] = nax; VY[a] = nay; VX[b] = nbx; VY[b] = nby;
+    const stick = 1 - 0.6 * (EConf[e] / 12);
+    const fa = inFocus(PX[a], PY[a]) ? aF * stick : aO;
+    const fb = inFocus(PX[b], PY[b]) ? aF * stick : aO;
+    const nax = PX[a] + (oax - PX[a]) * fa, nay = PY[a] + (oay - PY[a]) * fa;
+    const nbx = PX[b] + (obx - PX[b]) * fb, nby = PY[b] + (oby - PY[b]) * fb;
+    PX[a] = nax; PY[a] = nay; PX[b] = nbx; PY[b] = nby;
+    unprojectTo(a, nax, nay); unprojectTo(b, nbx, nby);
 
     if (EConf[e] < 12) EConf[e]++;
     EMiss[e] = 0; EAge[e]++;
     if (VConf[a] < 12) VConf[a]++;
     if (VConf[b] < 12) VConf[b]++;
     VMiss[a] = 0; VMiss[b] = 0;
-    const obsL = Math.sqrt((nbx - nax) ** 2 + (nby - nay) ** 2);
-    if (EAge[e] < 3) ELen[e] = obsL;
-    else ELen[e] += (obsL - ELen[e]) * 0.05;   // тягнеться за зумом/перспективою без дрейфу
+    const wL = Math.sqrt((nbx - nax) ** 2 + (nby - nay) ** 2) / sc;
+    if (EAge[e] < 3) ELen[e] = wL;
+    else ELen[e] += (wL - ELen[e]) * 0.05;
   }
+}
 
-  /* незматчені ребра — coasting / смерть */
+/* ---------- старіння: дормантне поза кадром ---------- */
+const BORD = 24;      // біля рамки контур не дотягує до minLen — детектор там сліпий
+function ageEdges(){
   const memF = Math.round(P.mem), memO = 4;
   for (let e = 0; e < eCnt; e++){
-    if (!EAlive[e] || matchedEdge[e]) continue;
+    if (!EAlive[e] || EHit[e]) continue;
+    if (!EVis[e]) continue;                    // дормант — памʼять не тане
+    const mx = EMx[e], my = EMy[e];
+    if (mx < BORD || my < BORD || mx > pw - BORD || my > ph - BORD) continue;
+    if (EGrace[e] > 0){ EGrace[e]--; continue; }
     EMiss[e]++;
-    const mx = (VX[EA[e]] + VX[EB[e]]) * 0.5, my = (VY[EA[e]] + VY[EB[e]]) * 0.5;
-    let lim = inFocus(mx, my) ? memF : memO;
+    let lim = inFocus(EMx[e], EMy[e]) ? memF : memO;
     if (gmeLost) lim = Math.max(2, lim >> 1);
     if (EMiss[e] > lim || EConf[e] <= 0) killEdge(e);
     else if (EMiss[e] % 3 === 0 && EConf[e] > 0) EConf[e]--;
   }
-
-  /* незматчені детекції — народження зі зваркою */
-  hashVerts();
-  for (let s = 0; s < SEG.cnt; s++){
-    if (matchedSeg[s]) continue;
-    if (eFreeN === 0 && eCnt >= MAXE) break;
-    const a = weldOrNew(SEG.x0[s], SEG.y0[s]);
-    const b = weldOrNew(SEG.x1[s], SEG.y1[s]);
-    newEdge(a, b, SEG.ln[s]);
-  }
-
-  /* прибрати осиротілі вершини */
   for (let v = 0; v < vCnt; v++){
     if (!VAlive[v]) continue;
-    if (VPin[v] === 0){ VMiss[v]++; if (VMiss[v] > 2) killVertex(v); }
+    if (VPin[v] === 0){ VCl[v] = -1; VMiss[v]++; if (VMiss[v] > 2) killVertex(v); }
   }
 }
 
+/* ---------- народження ---------- */
+function births(){
+  hashVerts();
+  const sc = worldScale();
+  let evictedThisFrame = false;
+  for (let s = 0; s < SEG.cnt; s++){
+    if (matchedSeg[s]) continue;
+    if (eFreeN === 0 && eCnt >= MAXE){
+      if (evictedThisFrame) break;
+      evictBatch(); evictedThisFrame = true;
+      if (eFreeN === 0) break;
+    }
+    const a = weldOrNew(SEG.x0[s], SEG.y0[s]);
+    const b = weldOrNew(SEG.x1[s], SEG.y1[s]);
+    newEdge(a, b, SEG.ln[s] / sc);
+  }
+}
+
+/* ---------- витіснення: забуваємо найменш підтверджене ---------- */
+function evictBatch(){
+  const lim = Math.sqrt(pw * pw + ph * ph) * P.world;
+  const lim2 = lim * lim;
+  let freed = 0;
+  for (let e = 0; e < eCnt; e++){
+    if (!EAlive[e] || EVis[e]) continue;
+    const dx = EMx[e] - fcx, dy = EMy[e] - fcy;
+    if (dx * dx + dy * dy > lim2){ killEdge(e); freed++; }
+  }
+  if (freed > (MAXE >> 5)){ evicted += freed; return freed; }
+  ageHist.fill(0);
+  let cand = 0;
+  for (let e = 0; e < eCnt; e++){
+    if (!EAlive[e] || EVis[e]) continue;
+    ageHist[Math.min(63, EAge[e])]++; cand++;
+  }
+  if (cand === 0){                      // усе видиме — рубаємо найслабше видиме
+    for (let e = 0; e < eCnt; e++){
+      if (!EAlive[e]) continue;
+      if (EAge[e] <= 1 && EConf[e] <= 2){ killEdge(e); freed++; }
+    }
+    evicted += freed; return freed;
+  }
+  const need = Math.max(1, MAXE >> 4);
+  let acc = 0, thr = 0;
+  for (let a = 0; a < 64; a++){ acc += ageHist[a]; thr = a; if (acc >= need) break; }
+  for (let e = 0; e < eCnt; e++){
+    if (!EAlive[e] || EVis[e]) continue;
+    if (EAge[e] <= thr){ killEdge(e); freed++; }
+  }
+  evicted += freed;
+  return freed;
+}
+
+/* ---------- жорсткість (у світових одиницях = жорсткість обʼєкта) ---------- */
 function rigidity(){
   if (!P.rigid) return;
   for (let it = 0; it < 3; it++){
     for (let e = 0; e < eCnt; e++){
-      if (!EAlive[e] || EConf[e] < 5) continue;
+      if (!EAlive[e] || !EVis[e] || EConf[e] < 5) continue;
       const a = EA[e], b = EB[e];
-      if (!inFocus(VX[a], VY[a]) || !inFocus(VX[b], VY[b])) continue;
+      if (!inFocus(PX[a], PY[a]) || !inFocus(PX[b], PY[b])) continue;
       const dx = VX[b] - VX[a], dy = VY[b] - VY[a];
       const L = Math.sqrt(dx * dx + dy * dy);
-      if (L < 0.5) continue;
-      const target = ELen[e];
-      const err = (L - target) / L * 0.35;
+      if (L < 0.3) continue;
+      const err = (L - ELen[e]) / L * 0.35;
       const cx = dx * err * 0.5, cy = dy * err * 0.5;
       VX[a] += cx; VY[a] += cy;
       VX[b] -= cx; VY[b] -= cy;
@@ -1178,6 +1340,7 @@ function rigidity(){
   }
 }
 
+/* ---------- зварка вершин ---------- */
 const weldRemap = new Int32Array(MAXV);
 function weldPass(){
   hashVerts();
@@ -1186,15 +1349,20 @@ function weldPass(){
   for (let i = 0; i < vCnt; i++) remap[i] = i;
   for (let v = 0; v < vCnt; v++){
     if (!VAlive[v] || remap[v] !== v) continue;
-    const cx = Math.min(hcw - 1, Math.max(0, (VX[v] / HCELL) | 0));
-    const cy = Math.min(hch - 1, Math.max(0, (VY[v] / HCELL) | 0));
+    const x = PX[v], y = PY[v];
+    if (x < -VIEWM || y < -VIEWM || x > pw + VIEWM || y > ph + VIEWM) continue;
+    const cx = cellX(x), cy = cellY(y);
     for (let j = -1; j <= 1; j++)
       for (let i = -1; i <= 1; i++){
-        const gxx = cx + i, gyy = cy + j;
-        if (gxx < 0 || gyy < 0 || gxx >= hcw || gyy >= hch) continue;
-        for (let u = vHead[gyy * hcw + gxx]; u !== -1; u = vNext[u]){
+        const gx = cx + i, gy = cy + j;
+        if (gx < 0 || gy < 0 || gx >= hcw || gy >= hch) continue;
+        for (let u = vHead[gy * hcw + gx]; u !== -1; u = vNext[u]){
           if (u === v || !VAlive[u] || remap[u] !== u) continue;
-          const dx = VX[u] - VX[v], dy = VY[u] - VY[v];
+          if (VCl[u] !== VCl[v]) continue;          // різні кластери не зварюємо
+          /* дві усталені вершини — це дві РІЗНІ ознаки геометрії. Зливати їх
+             означає посадити результат між ними, і він почне коливатись. */
+          if (VConf[u] >= 8 && VConf[v] >= 8) continue;
+          const dx = PX[u] - x, dy = PY[u] - y;
           if (dx * dx + dy * dy > r2) continue;
           const wv = VConf[v] + 1, wu = VConf[u] + 1, tw = wv + wu;
           VX[v] = (VX[v] * wv + VX[u] * wu) / tw;
@@ -1219,6 +1387,36 @@ function weldPass(){
     VPin[EA[e]]++; VPin[EB[e]]++;
   }
   for (let v = 0; v < vCnt; v++) if (VAlive[v] && VPin[v] === 0) killVertex(v);
+}
+
+/* ---------- кластери: компоненти звʼязності з успадкуванням id ---------- */
+function ufFind(a){ while (uf[a] !== a){ uf[a] = uf[uf[a]]; a = uf[a]; } return a; }
+
+const rootIdx = new Int32Array(MAXV);
+
+/* Кластери потрібні лише для двох речей: рамки в БОКСАХ і заборона
+   зварювати вершини різних компонент. Ніякого стану вони не несуть,
+   тому id можуть вільно перенумеровуватись. */
+function recluster(){
+  for (let v = 0; v < vCnt; v++) uf[v] = v;
+  for (let e = 0; e < eCnt; e++){
+    if (!EAlive[e] || EConf[e] < 5) continue;
+    const a = ufFind(EA[e]), b = ufFind(EB[e]);
+    if (a !== b) uf[a] = b;
+  }
+  clSize.fill(0, 0, vCnt);
+  rootIdx.fill(-1, 0, vCnt);
+  for (let v = 0; v < vCnt; v++)
+    if (VAlive[v] && VPin[v] > 0) clSize[ufFind(v)]++;
+  let nr = 0;
+  for (let v = 0; v < vCnt; v++) if (clSize[v] >= 5) clRoots[nr++] = v;
+  const sub = clRoots.subarray(0, nr);
+  sub.sort((a, b) => clSize[b] - clSize[a]);
+  const k = Math.min(MAXC, nr);
+  for (let i = 0; i < k; i++) rootIdx[clRoots[i]] = i;
+  for (let v = 0; v < vCnt; v++)
+    VCl[v] = (VAlive[v] && VPin[v] > 0) ? rootIdx[ufFind(v)] : -1;
+  clCount = k;
 }
 
 /* ============================================================
@@ -1282,7 +1480,9 @@ function depth(){
   if (wFrame > 0.01){
     for (let v = 0; v < vCnt; v++){
       if (!VAlive[v]) continue;
-      const raw = sampleField(VX[v], VY[v]);
+      const px = PX[v], py = PY[v];
+      if (px < 0 || py < 0 || px > pw || py > ph) continue;   // поза кадром паралаксу нема
+      const raw = sampleField(px, py);
       const dw = VDw[v];
       VD[v] = (VD[v] * dw + raw * wFrame) / (dw + wFrame);
       VDw[v] = Math.min(40, dw + wFrame);
@@ -1292,7 +1492,7 @@ function depth(){
   /* нормалізація паралаксної частини по перцентилях серед фокусу */
   let m = 0;
   for (let v = 0; v < vCnt; v++)
-    if (VAlive[v] && VDw[v] > 0.5 && inFocus(VX[v], VY[v])) dSort[m++] = VD[v];
+    if (VAlive[v] && VDw[v] > 0.5 && inFocus(PX[v], PY[v])) dSort[m++] = VD[v];
   let lo = 0.3, hi = 0.7;
   if (m > 8){
     const sub = dSort.subarray(0, m);
@@ -1318,7 +1518,7 @@ function depth(){
   let confSum = 0, confN = 0;
   for (let v = 0; v < vCnt; v++){
     if (!VAlive[v]){ dFinal[v] = 0.5; continue; }
-    const dx = (VX[v] - fcx) / Math.max(fr, 1), dy = (VY[v] - fcy) / Math.max(fr, 1);
+    const dx = (PX[v] - fcx) / Math.max(fr, 1), dy = (PY[v] - fcy) / Math.max(fr, 1);
     const rN = Math.min(1, Math.hypot(dx, dy));
     const closure = Math.min(1, Math.max(0, (VPin[v] - 1) / 3));
     const lenN2 = lenN[v] > 0 ? Math.min(1, (lenSum[v] / lenN[v]) / maxLen) : 0.3;
@@ -1332,10 +1532,49 @@ function depth(){
 }
 
 /* ============================================================
+   СТАДІЇ КАДРУ
+   ============================================================ */
+function detectStage(){
+  updFocus();
+  normalize();
+  if (P.preblur > 0){
+    B.bl.set(B.normS);
+    for (let i = 0; i < Math.round(P.preblur); i++) box3(B.bl, B.bl);
+    scharr(B.bl);
+  } else scharr(B.normS);
+  suppress();
+  hysteresis();
+  traceContours();
+}
+
+function lockStage(){
+  const tmp = pyrPrev; pyrPrev = pyrCur; pyrCur = tmp;
+  buildPyr(pyrCur, B.gray);
+  if (pyrReady){ pickPoints(); lkTrack(); fitSimilarity(); }
+  else { pyrReady = true; }
+  composeW();          // світ ← покадровий M
+  maybeRebase();       // страховка від втрати точності Float32
+  projectAll();
+  edgeGeom();          // видимість + геометрія + хеш (лише видиме)
+  associate();         // матчинг моделі з детекціями
+  measureDrift();      // діагностика: чи модель ще збігається з реальністю
+  applyMatches();      // EMA у кадрі → назад у світ
+  rigidity();
+  projectAll(); refreshMids();
+  ageEdges();          // поза кадром памʼять не тане
+  births();
+  frameNo++;
+  if (frameNo % 6 === 0){ weldPass(); recluster(); }
+  depth();
+}
+
+/* ============================================================
    РЕНДЕР
    ============================================================ */
 const dbgCan = document.createElement('canvas');
 const dbgCtx = dbgCan.getContext('2d');
+const dirBins = new Int32Array(16);
+let lockStable = false;
 
 function lerpCol(t){
   const r = Math.round(46  + (218 - 46)  * t);
@@ -1343,8 +1582,6 @@ function lerpCol(t){
   const b = Math.round(78  + (199 - 78)  * t);
   return r + ',' + g + ',' + b;
 }
-
-let lockStable = false;
 
 function drawOverlay(){
   const W = ovc.width, H = ovc.height;
@@ -1369,7 +1606,6 @@ function drawOverlay(){
 
   octx.lineCap = 'round'; octx.lineJoin = 'round';
 
-  /* --- фіксація вирубана: старе поводження, сирі детекції --- */
   if (!P.lock){
     octx.strokeStyle = 'rgba(218,255,199,.72)';
     octx.lineWidth = 1.4;
@@ -1386,91 +1622,94 @@ function drawOverlay(){
   /* --- 1. поза фокусом: тускло, гасне --- */
   octx.lineWidth = 1;
   for (let e = 0; e < eCnt; e++){
-    if (!EAlive[e] || EConf[e] < 4) continue;
-    const a = EA[e], b = EB[e];
-    const mx = (VX[a] + VX[b]) * 0.5, my = (VY[a] + VY[b]) * 0.5;
-    if (inFocus(mx, my)) continue;
+    if (!EAlive[e] || !EVis[e] || EConf[e] < 4) continue;
+    if (inFocus(EMx[e], EMy[e])) continue;
     const al = 0.22 * Math.max(0, 1 - EMiss[e] / 5) * (EConf[e] / 12);
     if (al < 0.012) continue;
+    const a = EA[e], b = EB[e];
     octx.strokeStyle = 'rgba(106,213,130,' + al.toFixed(3) + ')';
     octx.beginPath();
-    octx.moveTo(VX[a] * sx, VY[a] * sy);
-    octx.lineTo(VX[b] * sx, VY[b] * sy);
+    octx.moveTo(PX[a] * sx, PY[a] * sy);
+    octx.lineTo(PX[b] * sx, PY[b] * sy);
     octx.stroke();
   }
 
-  /* --- 2. екструзія: об'єм --- */
+  /* --- 2. екструзія: обʼєм --- */
   const EX = P.extrude;
   if (EX > 0.5){
     octx.lineWidth = 1;
     octx.beginPath();
     for (let e = 0; e < eCnt; e++){
-      if (!EAlive[e] || EConf[e] < 6) continue;
-      const a = EA[e], b = EB[e];
-      const mx = (VX[a] + VX[b]) * 0.5, my = (VY[a] + VY[b]) * 0.5;
+      if (!EAlive[e] || !EVis[e] || EConf[e] < 6) continue;
+      const mx = EMx[e], my = EMy[e];
       if (!inFocus(mx, my)) continue;
       let rx = mx - fcx, ry = my - fcy;
-      const rl = Math.hypot(rx, ry) || 1;
+      const rl = Math.sqrt(rx * rx + ry * ry) || 1;
       rx /= rl; ry /= rl;
+      const a = EA[e], b = EB[e];
       const dA = (dFinal[a] - 0.5) * EX, dB = (dFinal[b] - 0.5) * EX;
-      const oax = (VX[a] + rx * dA) * sx, oay = (VY[a] + ry * dA) * sy;
-      const obx = (VX[b] + rx * dB) * sx, oby = (VY[b] + ry * dB) * sy;
-      octx.moveTo(oax, oay); octx.lineTo(obx, oby);
+      octx.moveTo((PX[a] + rx * dA) * sx, (PY[a] + ry * dA) * sy);
+      octx.lineTo((PX[b] + rx * dB) * sx, (PY[b] + ry * dB) * sy);
     }
     octx.strokeStyle = 'rgba(106,213,130,.14)';
     octx.stroke();
 
     octx.beginPath();
     for (let e = 0; e < eCnt; e++){
-      if (!EAlive[e] || EConf[e] < 8) continue;
-      const a = EA[e], b = EB[e];
-      const mx = (VX[a] + VX[b]) * 0.5, my = (VY[a] + VY[b]) * 0.5;
+      if (!EAlive[e] || !EVis[e] || EConf[e] < 8) continue;
+      const mx = EMx[e], my = EMy[e];
       if (!inFocus(mx, my)) continue;
       let rx = mx - fcx, ry = my - fcy;
-      const rl = Math.hypot(rx, ry) || 1;
+      const rl = Math.sqrt(rx * rx + ry * ry) || 1;
       rx /= rl; ry /= rl;
+      const a = EA[e];
       const dA = (dFinal[a] - 0.5) * EX;
-      octx.moveTo(VX[a] * sx, VY[a] * sy);
-      octx.lineTo((VX[a] + rx * dA) * sx, (VY[a] + ry * dA) * sy);
+      octx.moveTo(PX[a] * sx, PY[a] * sy);
+      octx.lineTo((PX[a] + rx * dA) * sx, (PY[a] + ry * dA) * sy);
     }
     octx.strokeStyle = 'rgba(106,213,130,.10)';
     octx.stroke();
   }
 
-  /* --- 3. основні ребра --- */
-  for (let e = 0; e < eCnt; e++){
-    if (!EAlive[e] || EConf[e] < 4) continue;
-    const a = EA[e], b = EB[e];
-    const mx = (VX[a] + VX[b]) * 0.5, my = (VY[a] + VY[b]) * 0.5;
-    if (!inFocus(mx, my)) continue;
-    const dm = (dFinal[a] + dFinal[b]) * 0.5;
-    octx.lineWidth = 1.1 + 1.5 * (1 - dm);
-    const al = 0.35 + 0.65 * (EConf[e] / 12);
-    octx.strokeStyle = 'rgba(' + lerpCol(dm) + ',' + al.toFixed(3) + ')';
-    octx.beginPath();
-    octx.moveTo(VX[a] * sx, VY[a] * sy);
-    octx.lineTo(VX[b] * sx, VY[b] * sy);
-    octx.stroke();
+  /* --- 3. основні ребра. Пунктир = з памʼяті, детектор його зараз не бачить --- */
+  for (let pass = 0; pass < 2; pass++){
+    if (pass === 1) octx.setLineDash([4, 4]);
+    for (let e = 0; e < eCnt; e++){
+      if (!EAlive[e] || !EVis[e] || EConf[e] < 4) continue;
+      if (!inFocus(EMx[e], EMy[e])) continue;
+      const fromMem = EHit[e] ? 0 : 1;
+      if (fromMem !== pass) continue;
+      const a = EA[e], b = EB[e];
+      const dm = (dFinal[a] + dFinal[b]) * 0.5;
+      octx.lineWidth = 1.1 + 1.5 * (1 - dm);
+      let al = 0.35 + 0.65 * (EConf[e] / 12);
+      if (fromMem) al *= 0.55;
+      octx.strokeStyle = 'rgba(' + lerpCol(dm) + ',' + al.toFixed(3) + ')';
+      octx.beginPath();
+      octx.moveTo(PX[a] * sx, PY[a] * sy);
+      octx.lineTo(PX[b] * sx, PY[b] * sy);
+      octx.stroke();
+    }
+    if (pass === 1) octx.setLineDash([]);
   }
 
   /* --- 4. вершини --- */
   if (P.verts){
     for (let v = 0; v < vCnt; v++){
       if (!VAlive[v] || VPin[v] < 2 || VConf[v] < 6) continue;
-      if (!inFocus(VX[v], VY[v])) continue;
+      const x = PX[v], y = PY[v];
+      if (!inFocus(x, y)) continue;
       const d = dFinal[v];
-      const r = 2.0 + 1.2 * d;
       octx.fillStyle = 'rgba(218,255,199,' + (0.35 + 0.5 * d).toFixed(3) + ')';
       octx.beginPath();
-      octx.arc(VX[v] * sx, VY[v] * sy, r, 0, 6.2832);
+      octx.arc(x * sx, y * sy, 2.0 + 1.2 * d, 0, 6.2832);
       octx.fill();
     }
   }
 
-  /* --- 5. боксі: компоненти графа --- */
   if (P.boxes) drawBoxes(sx, sy);
+  if (P.arrows && P.memory) drawMemoryArrows(W, H);
 
-  /* --- дебаг потоку --- */
   if (P.flow){
     octx.lineWidth = 1;
     for (let i = 0; i < FLOW.cnt; i++){
@@ -1486,45 +1725,73 @@ function drawOverlay(){
   drawFocusRing(sx, sy);
 }
 
-const uf = new Int32Array(MAXV);
-function ufFind(a){ while (uf[a] !== a) { uf[a] = uf[uf[a]]; a = uf[a]; } return a; }
+/* Памʼять поза кадром: засічки на рамці в бік того, що там лежить.
+   Довжина і яскравість — за кількістю ребер у тому напрямку. */
+function drawMemoryArrows(W, H){
+  dirBins.fill(0);
+  let any = 0;
+  for (let e = 0; e < eCnt; e++){
+    if (!EAlive[e] || EVis[e] || EConf[e] < 5) continue;
+    const ang = Math.atan2(EMy[e] - fcy, EMx[e] - fcx);
+    let b = ((ang + Math.PI) / (2 * Math.PI) * 16) | 0;
+    if (b < 0) b = 0; else if (b > 15) b = 15;
+    dirBins[b]++; any++;
+  }
+  if (!any) return;
+  let mx = 1;
+  for (let i = 0; i < 16; i++) if (dirBins[i] > mx) mx = dirBins[i];
+  const ccx = W * 0.5, ccy = H * 0.5;
+  const inx = W * 0.5 - 20, iny = H * 0.5 - 20;
+  octx.lineCap = 'butt';
+  for (let i = 0; i < 16; i++){
+    const n = dirBins[i];
+    if (!n) continue;
+    const ang = -Math.PI + (i + 0.5) / 16 * 2 * Math.PI;
+    const dx = Math.cos(ang), dy = Math.sin(ang);
+    const tx = Math.abs(dx) > 1e-4 ? inx / Math.abs(dx) : 1e9;
+    const ty = Math.abs(dy) > 1e-4 ? iny / Math.abs(dy) : 1e9;
+    const t = Math.min(tx, ty);
+    const px = ccx + dx * t, py = ccy + dy * t;
+    const f = n / mx;
+    octx.strokeStyle = 'rgba(255,193,60,' + (0.22 + 0.55 * f).toFixed(3) + ')';
+    octx.lineWidth = 2.4;
+    octx.beginPath();
+    octx.moveTo(px, py);
+    octx.lineTo(px - dx * (9 + 24 * f), py - dy * (9 + 24 * f));
+    octx.stroke();
+  }
+  octx.lineCap = 'round';
+}
 
 function drawBoxes(sx, sy){
-  for (let v = 0; v < vCnt; v++) uf[v] = v;
-  for (let e = 0; e < eCnt; e++){
-    if (!EAlive[e] || EConf[e] < 6) continue;
-    const a = ufFind(EA[e]), b = ufFind(EB[e]);
-    if (a !== b) uf[a] = b;
-  }
   const box = new Map();
   for (let e = 0; e < eCnt; e++){
-    if (!EAlive[e] || EConf[e] < 6) continue;
+    if (!EAlive[e] || !EVis[e] || EConf[e] < 6) continue;
     const a = EA[e], b = EB[e];
-    const mx = (VX[a] + VX[b]) * 0.5, my = (VY[a] + VY[b]) * 0.5;
-    if (!inFocus(mx, my)) continue;
-    const r = ufFind(a);
-    let o = box.get(r);
-    if (!o){ o = { x0:1e9, y0:1e9, x1:-1e9, y1:-1e9, n:0 }; box.set(r, o); }
-    o.x0 = Math.min(o.x0, VX[a], VX[b]); o.y0 = Math.min(o.y0, VY[a], VY[b]);
-    o.x1 = Math.max(o.x1, VX[a], VX[b]); o.y1 = Math.max(o.y1, VY[a], VY[b]);
+    const cl = VCl[a];
+    if (cl < 0) continue;
+    let o = box.get(cl);
+    if (!o){ o = { x0:1e9, y0:1e9, x1:-1e9, y1:-1e9, n:0 }; box.set(cl, o); }
+    o.x0 = Math.min(o.x0, PX[a], PX[b]); o.y0 = Math.min(o.y0, PY[a], PY[b]);
+    o.x1 = Math.max(o.x1, PX[a], PX[b]); o.y1 = Math.max(o.y1, PY[a], PY[b]);
     o.n++;
   }
   octx.lineWidth = 1;
-  octx.strokeStyle = 'rgba(255,193,60,.42)';
   octx.font = '600 9px ui-monospace,monospace';
-  octx.fillStyle = 'rgba(255,193,60,.7)';
   box.forEach(o => {
     if (o.n < 5) return;
     const x = o.x0 * sx, y = o.y0 * sy;
     const w = (o.x1 - o.x0) * sx, h = (o.y1 - o.y0) * sy;
     if (w < 16 || h < 16) return;
     const t = Math.min(12, w * 0.25, h * 0.25);
+    octx.strokeStyle = 'rgba(106,213,130,.38)';
     octx.beginPath();
     octx.moveTo(x, y + t); octx.lineTo(x, y); octx.lineTo(x + t, y);
     octx.moveTo(x + w - t, y); octx.lineTo(x + w, y); octx.lineTo(x + w, y + t);
     octx.moveTo(x + w, y + h - t); octx.lineTo(x + w, y + h); octx.lineTo(x + w - t, y + h);
     octx.moveTo(x + t, y + h); octx.lineTo(x, y + h); octx.lineTo(x, y + h - t);
     octx.stroke();
+    octx.fillStyle = 'rgba(106,213,130,.6)';
     octx.fillText(o.n + ' РЕБ', x + 3, y - 4);
   });
 }
@@ -1537,7 +1804,6 @@ function drawFocusRing(sx, sy){
   octx.strokeStyle = 'rgba(106,213,130,.18)';
   octx.beginPath(); octx.arc(cx, cy, r, 0, 6.2832); octx.stroke();
   octx.setLineDash([]);
-  const t = r * 0.18;
   octx.lineWidth = 1.6;
   octx.strokeStyle = lockStable ? 'rgba(255,193,60,.92)' : 'rgba(255,193,60,.32)';
   for (let q = 0; q < 4; q++){
@@ -1547,7 +1813,7 @@ function drawFocusRing(sx, sy){
   if (lockStable && P.lock){
     octx.font = '700 10px ui-monospace,monospace';
     octx.fillStyle = 'rgba(255,193,60,.95)';
-    octx.fillText('ФІКС', cx - r + t * 0.2, cy + r + 16);
+    octx.fillText('ФІКС', cx - r + r * 0.04, cy + r + 16);
   }
   octx.restore();
 }
@@ -1562,7 +1828,9 @@ const HINT = {
   hold:  'Зафіксував, тримаю',
   lost:  'Загубив кадр, шукаю заново',
   still: 'Стій — воду телефоном вбік, дай паралакс',
-  slow:  'Тормозить, скидаю красоту'
+  slow:  'Тормозить, скидаю красоту',
+  drift: 'Модель розʼїжджається з кадром',
+  mem:   'Памʼятаю, водь далі по обʼєкту'
 };
 let lastHint = '';
 function hint(t, amber){
@@ -1592,33 +1860,8 @@ function render(){
 
   /* CPU пайплайн */
   if (grabGray()){
-    updFocus();
-    normalize();
-    if (P.preblur > 0){
-      B.bl.set(B.normS);
-      for (let i = 0; i < Math.round(P.preblur); i++) box3(B.bl, B.bl);
-      scharr(B.bl);
-    } else scharr(B.normS);
-    suppress();
-    hysteresis();
-    traceContours();
-
-    if (P.lock){
-      const tmp = pyrPrev; pyrPrev = pyrCur; pyrCur = tmp;
-      buildPyr(pyrCur, B.gray);
-      if (pyrReady){
-        pickPoints();
-        lkTrack();
-        fitSimilarity();
-      } else { pyrReady = true; }
-      warpTracks();
-      hashEdges();
-      associate();
-      rigidity();
-      frameNo++;
-      if (frameNo % 6 === 0) weldPass();
-      depth();
-    }
+    detectStage();
+    if (P.lock) lockStage();
     drawOverlay();
   }
 
@@ -1631,23 +1874,22 @@ function render(){
     document.getElementById('cFps').textContent = Math.round(fpsN * 1000 / (now - fpsT));
     fpsT = now; fpsN = 0;
     document.getElementById('cMs').textContent = msEma.toFixed(1);
-    document.getElementById('cLines').textContent = SEG.cnt;
-    let live = 0, cs = 0, cn = 0;
-    for (let v = 0; v < vCnt; v++) if (VAlive[v] && VPin[v] > 0) live++;
+    let cs = 0, cn = 0;
     for (let e = 0; e < eCnt; e++)
-      if (EAlive[e]){
-        const mx = (VX[EA[e]] + VX[EB[e]]) * 0.5, my = (VY[EA[e]] + VY[EB[e]]) * 0.5;
-        if (inFocus(mx, my)){ cs += EConf[e]; cn++; }
-      }
-    document.getElementById('cKf').textContent = live;
+      if (EAlive[e] && EVis[e] && inFocus(EMx[e], EMy[e])){ cs += EConf[e]; cn++; }
+    document.getElementById('cKf').textContent = memVis;
+    document.getElementById('cMem').textContent = memTotal;
+    document.getElementById('cDrift').textContent = driftRes.toFixed(1);
     document.getElementById('c3d').textContent = Math.round(depthConf * 100);
     lockStable = cn > 20 && cs / cn > 8;
 
     if (!P.lock) hint(HINT.off, false);
     else if (degrade > 0) hint(HINT.slow, true);
     else if (gmeLost) hint(HINT.lost, true);
+    else if (driftRes > 3.2) hint(HINT.drift, true);
     else if (!lockStable) hint(HINT.seek, false);
     else if (depthConf < 0.12) hint(HINT.still, true);
+    else if (P.memory && memOff > 12) hint(HINT.mem, false);
     else hint(HINT.hold, false);
 
     /* адаптивна деградація */
@@ -1730,8 +1972,15 @@ document.querySelectorAll('.tg').forEach(b => b.addEventListener('click', () => 
   const k = b.dataset.tg;
   P[k] = !P[k];
   b.classList.toggle('on', P[k]);
-  if (k === 'lock' && P.lock) resetTracks();
+  if ((k === 'lock' || k === 'memory') && P[k]) resetTracks();
 }));
+
+document.getElementById('bForget').addEventListener('click', e => {
+  resetTracks();
+  const el = e.currentTarget;
+  el.classList.add('on');
+  setTimeout(() => el.classList.remove('on'), 220);
+});
 
 document.getElementById('bBase').addEventListener('click', e => {
   P.showBase = P.showBase ? 0 : 1;
