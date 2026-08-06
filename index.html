@@ -37,6 +37,8 @@ video{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 .mark{font-size:19px;font-weight:800;letter-spacing:.14em;color:var(--hot);
   text-shadow:0 0 14px rgba(106,213,130,.55)}
 .mark span{color:var(--accent);font-weight:500;letter-spacing:.22em;font-size:13px}
+.mark i{display:block;font-style:normal;font-size:8.5px;letter-spacing:.16em;
+  color:var(--ink);opacity:.65;margin-top:2px}
 .chips{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap;justify-content:flex-end}
 .chip{background:rgba(4,14,9,.72);border:1px solid rgba(106,213,130,.18);
   border-radius:999px;padding:5px 11px;font-size:10.5px;letter-spacing:.11em;
@@ -144,7 +146,7 @@ input[type=range]::-moz-range-thumb{width:17px;height:17px;border:0;border-radiu
 </div>
 
 <div class="hud" id="top">
-  <div class="mark">DICH <span>//EDGE</span></div>
+  <div class="mark">DICH <span>//EDGE</span><i id="bld"></i></div>
   <div class="chips">
     <div class="chip"><i class="dot"></i>LIVE</div>
     <div class="chip"><b id="cFps">--</b>FPS</div>
@@ -191,7 +193,7 @@ input[type=range]::-moz-range-thumb{width:17px;height:17px;border:0;border-radiu
     <button class="tg" data-tg="tri">3D</button>
     <button class="tg on" data-tg="arrows">СТРІЛКИ</button>
     <button class="tg on" data-tg="verts">ВЕРШИНИ</button>
-    <button class="tg on" data-tg="rigid">ЖОРСТКІСТЬ</button>
+    <button class="tg" data-tg="rigid">ЖОРСТКІСТЬ</button>
     <button class="tg on" data-tg="nms">NMS</button>
     <button class="tg on" data-tg="hyst">ГІСТЕРЕЗИС</button>
     <button class="tg" data-tg="flow">ПОТІК</button>
@@ -201,6 +203,7 @@ input[type=range]::-moz-range-thumb{width:17px;height:17px;border:0;border-radiu
 
 <div id="boot">
   <h1>DICH <span>//EDGE</span></h1>
+  <div style="font-size:10px;letter-spacing:.18em;color:var(--amber)" id="bldBoot"></div>
   <p>Контури залипають на об'єкті й лягають у світову памʼять: водиш камерою по частинах —
      каркас накопичується. Те, що виїхало за кадр, живе до кнопки ЗАБУТИ.</p>
   <button id="go">ПУСК</button>
@@ -213,6 +216,7 @@ input[type=range]::-moz-range-thumb{width:17px;height:17px;border:0;border-radiu
 /* ============================================================
    ПАРАМЕТРИ
    ============================================================ */
+const BUILD = 'E6 · без фокуса';
 const P = {
   /* детектор */
   gain:      3.4,
@@ -229,14 +233,13 @@ const P = {
   mem:       14,     // maxMiss у фокусі, кадрів
   weld:      4,      // радіус зварки, proc px
   extrude:   9,      // об'єм
-  focus:     0.34,   // радіус зони фокусу, частка min(w,h)
   /* памʼять */
   world:     6,      // межа світу в діагоналях кадру
   /* 3D */
   hfov:      62,     // горизонтальне поле зору камери, градуси
   parallax:  4.0,    // мінімальний кут паралакса для тріангуляції, градуси
   /* тумблери */
-  lock:  true,  verts: true,  rigid:  true,
+  lock:  true,  verts: true,  rigid:  false,   // виміряно: у світовій системі шкодить
   memory:true,  arrows: true,  tri: false,
   nms:   true,  hyst:  true,  flow:  false,  dbg: false,
   showBase: 1,  boxes: false
@@ -257,7 +260,6 @@ const ROWS = [
   { k:'mem',     l:'ПАМʼЯТЬ',   min:2,    max:30,   st:1    },
   { k:'weld',    l:'ЗВАРКА',    min:2,    max:12,   st:1    },
   { k:'extrude', l:'ОБʼЄМ',     min:0,    max:20,   st:1    },
-  { k:'focus',   l:'ФОКУС',     min:0.18, max:0.50, st:0.01 },
   { g:'ПАМʼЯТЬ' },
   { k:'world',   l:'СВІТ',      min:2,    max:12,   st:1    },
   { g:'3D' },
@@ -271,7 +273,7 @@ const PRESETS = {
   wire:   { gain:3.8, radius:22, levels:2, tHigh:0.26, tLow:0.10, preblur:2, temporal:0.55, minLen:30 },
   soft:   { gain:2.2, radius:20, levels:5, tHigh:0.16, tLow:0.06, preblur:2, temporal:0.60, minLen:18 },
   wire3d: { gain:3.0, radius:16, levels:4, tHigh:0.22, tLow:0.09, preblur:1, temporal:0.45, minLen:22,
-            lock:true, mem:20, rigid:true, verts:true, extrude:12, inertia:0.10, focus:0.34, weld:3,
+            lock:true, mem:20, rigid:false, verts:true, extrude:12, inertia:0.10, weld:3,
             memory:true, arrows:true, world:6 }
 };
 
@@ -1074,9 +1076,11 @@ function hashVerts(){
 }
 
 /* ---------- зона фокусу (координати кадру) ---------- */
-let fcx = 0, fcy = 0, fr = 0;
-function updFocus(){ fcx = pw * 0.5; fcy = ph * 0.5; fr = P.focus * Math.min(pw, ph); }
-function inFocus(x, y){ const dx = x - fcx, dy = y - fcy; return dx * dx + dy * dy < fr * fr; }
+/* Зони фокусу більше немає — весь кадр рівноцінний. fcx/fcy лишились
+   як центр кадру: від нього йде напрямок екструзії, туди ж міряється
+   межа світу при витісненні. */
+let fcx = 0, fcy = 0;
+function updFocus(){ fcx = pw * 0.5; fcy = ph * 0.5; }
 
 /* ---------- життєвий цикл вершин і ребер ---------- */
 function killVertex(v){
@@ -1269,8 +1273,7 @@ function applyMatches(){
     else         { oax = SEG.x1[s]; oay = SEG.y1[s]; obx = SEG.x0[s]; oby = SEG.y0[s]; }
 
     const stick = 1 - 0.6 * (EConf[e] / 12);
-    const fa = inFocus(PX[a], PY[a]) ? aF * stick : aO;
-    const fb = inFocus(PX[b], PY[b]) ? aF * stick : aO;
+    const fa = aF * stick, fb = aF * stick;
     const nax = PX[a] + (oax - PX[a]) * fa, nay = PY[a] + (oay - PY[a]) * fa;
     const nbx = PX[b] + (obx - PX[b]) * fb, nby = PY[b] + (oby - PY[b]) * fb;
     PX[a] = nax; PY[a] = nay; PX[b] = nbx; PY[b] = nby;
@@ -1288,9 +1291,8 @@ function applyMatches(){
 }
 
 /* ---------- старіння: дормантне поза кадром ---------- */
-const BORD = 24;      // біля рамки контур не дотягує до minLen — детектор там сліпий
 function ageEdges(){
-  const memF = Math.round(P.mem), memO = 4;
+  const memF = Math.round(P.mem);
   for (let e = 0; e < eCnt; e++){
     if (!EAlive[e] || EHit[e]) continue;
     if (!EVis[e]) continue;                    // дормант — памʼять не тане
@@ -1298,7 +1300,7 @@ function ageEdges(){
     if (mx < BORD || my < BORD || mx > pw - BORD || my > ph - BORD) continue;
     if (EGrace[e] > 0){ EGrace[e]--; continue; }
     EMiss[e]++;
-    let lim = inFocus(EMx[e], EMy[e]) ? memF : memO;
+    let lim = memF;
     if (gmeLost) lim = Math.max(2, lim >> 1);
     if (EMiss[e] > lim || EConf[e] <= 0) killEdge(e);
     else if (EMiss[e] % 3 === 0 && EConf[e] > 0) EConf[e]--;
@@ -1362,14 +1364,23 @@ function evictBatch(){
   return freed;
 }
 
+const BORD = 24;   // біля рамки контур не дотягує до minLen — детектор там сліпий
+
 /* ---------- жорсткість (у світових одиницях = жорсткість обʼєкта) ---------- */
 function rigidity(){
   if (!P.rigid) return;
   for (let it = 0; it < 3; it++){
     for (let e = 0; e < eCnt; e++){
       if (!EAlive[e] || !EVis[e] || EConf[e] < 5) continue;
+      /* Раніше жорсткість обмежувалась зоною фокусу, і та працювала як
+         неявний фільтр ЯКОСТІ: у центрі ребра довгоживучі й добре
+         обумовлені. Без зони критерій має бути прямим — еталонна довжина
+         мусить встигнути збігтися (EMA 5%/кадр ≈ 12 кадрів), а біля рамки
+         детектор сліпий і штовхати там нічого. */
+      if (EAge[e] < 12) continue;
+      const mx = EMx[e], my = EMy[e];
+      if (mx < BORD || my < BORD || mx > pw - BORD || my > ph - BORD) continue;
       const a = EA[e], b = EB[e];
-      if (!inFocus(PX[a], PY[a]) || !inFocus(PX[b], PY[b])) continue;
       const dx = VX[b] - VX[a], dy = VY[b] - VY[a];
       const L = Math.sqrt(dx * dx + dy * dy);
       if (L < 0.3) continue;
@@ -1533,7 +1544,7 @@ function depth(){
   /* нормалізація паралаксної частини по перцентилях серед фокусу */
   let m = 0;
   for (let v = 0; v < vCnt; v++)
-    if (VAlive[v] && VDw[v] > 0.5 && inFocus(PX[v], PY[v])) dSort[m++] = VD[v];
+    if (VAlive[v] && VDw[v] > 0.5) dSort[m++] = VD[v];
   let lo = 0.3, hi = 0.7;
   if (m > 8){
     const sub = dSort.subarray(0, m);
@@ -1559,7 +1570,8 @@ function depth(){
   let confSum = 0, confN = 0;
   for (let v = 0; v < vCnt; v++){
     if (!VAlive[v]){ dFinal[v] = 0.5; continue; }
-    const dx = (PX[v] - fcx) / Math.max(fr, 1), dy = (PY[v] - fcy) / Math.max(fr, 1);
+    const rn = Math.max(1, Math.min(pw, ph) * 0.5);        // півкадру замість зони фокусу
+    const dx = (PX[v] - fcx) / rn, dy = (PY[v] - fcy) / rn;
     const rN = Math.min(1, Math.hypot(dx, dy));
     const closure = Math.min(1, Math.max(0, (VPin[v] - 1) / 3));
     const lenN2 = lenN[v] > 0 ? Math.min(1, (lenSum[v] / lenN[v]) / maxLen) : 0.3;
@@ -2459,8 +2471,7 @@ function drawOverlay(){
     dbgCtx.putImageData(im, 0, 0);
     octx.imageSmoothingEnabled = false;
     octx.drawImage(dbgCan, 0, 0, W, H);
-    drawFocusRing(sx, sy);
-    return;
+      return;
   }
 
   octx.lineCap = 'round'; octx.lineJoin = 'round';
@@ -2474,23 +2485,7 @@ function drawOverlay(){
       octx.lineTo(SEG.x1[s] * sx, SEG.y1[s] * sy);
     }
     octx.stroke();
-    drawFocusRing(sx, sy);
-    return;
-  }
-
-  /* --- 1. поза фокусом: тускло, гасне --- */
-  octx.lineWidth = 1;
-  for (let e = 0; e < eCnt; e++){
-    if (!EAlive[e] || !EVis[e] || EConf[e] < 4) continue;
-    if (inFocus(EMx[e], EMy[e])) continue;
-    const al = 0.22 * Math.max(0, 1 - EMiss[e] / 5) * (EConf[e] / 12);
-    if (al < 0.012) continue;
-    const a = EA[e], b = EB[e];
-    octx.strokeStyle = 'rgba(106,213,130,' + al.toFixed(3) + ')';
-    octx.beginPath();
-    octx.moveTo(PX[a] * sx, PY[a] * sy);
-    octx.lineTo(PX[b] * sx, PY[b] * sy);
-    octx.stroke();
+      return;
   }
 
   /* --- 2. екструзія: обʼєм --- */
@@ -2501,7 +2496,6 @@ function drawOverlay(){
     for (let e = 0; e < eCnt; e++){
       if (!EAlive[e] || !EVis[e] || EConf[e] < 6) continue;
       const mx = EMx[e], my = EMy[e];
-      if (!inFocus(mx, my)) continue;
       let rx = mx - fcx, ry = my - fcy;
       const rl = Math.sqrt(rx * rx + ry * ry) || 1;
       rx /= rl; ry /= rl;
@@ -2517,7 +2511,6 @@ function drawOverlay(){
     for (let e = 0; e < eCnt; e++){
       if (!EAlive[e] || !EVis[e] || EConf[e] < 8) continue;
       const mx = EMx[e], my = EMy[e];
-      if (!inFocus(mx, my)) continue;
       let rx = mx - fcx, ry = my - fcy;
       const rl = Math.sqrt(rx * rx + ry * ry) || 1;
       rx /= rl; ry /= rl;
@@ -2535,7 +2528,6 @@ function drawOverlay(){
     if (pass === 1) octx.setLineDash([4, 4]);
     for (let e = 0; e < eCnt; e++){
       if (!EAlive[e] || !EVis[e] || EConf[e] < 4) continue;
-      if (!inFocus(EMx[e], EMy[e])) continue;
       const fromMem = EHit[e] ? 0 : 1;
       if (fromMem !== pass) continue;
       const a = EA[e], b = EB[e];
@@ -2557,7 +2549,6 @@ function drawOverlay(){
     for (let v = 0; v < vCnt; v++){
       if (!VAlive[v] || VPin[v] < 2 || VConf[v] < 6) continue;
       const x = PX[v], y = PY[v];
-      if (!inFocus(x, y)) continue;
       const d = dFinal[v];
       octx.fillStyle = 'rgba(218,255,199,' + (0.35 + 0.5 * d).toFixed(3) + ')';
       octx.beginPath();
@@ -2582,7 +2573,6 @@ function drawOverlay(){
     }
   }
 
-  drawFocusRing(sx, sy);
 }
 
 /* 3D-каркас: ребра, обидва кінці яких тріангульовані.
@@ -2702,27 +2692,6 @@ function drawBoxes(sx, sy){
   });
 }
 
-function drawFocusRing(sx, sy){
-  const cx = fcx * sx, cy = fcy * sy, r = fr * ((sx + sy) * 0.5);
-  octx.save();
-  octx.setLineDash([5, 7]);
-  octx.lineWidth = 1;
-  octx.strokeStyle = 'rgba(106,213,130,.18)';
-  octx.beginPath(); octx.arc(cx, cy, r, 0, 6.2832); octx.stroke();
-  octx.setLineDash([]);
-  octx.lineWidth = 1.6;
-  octx.strokeStyle = lockStable ? 'rgba(255,193,60,.92)' : 'rgba(255,193,60,.32)';
-  for (let q = 0; q < 4; q++){
-    const a0 = q * Math.PI / 2 - 0.22, a1 = q * Math.PI / 2 + 0.22;
-    octx.beginPath(); octx.arc(cx, cy, r, a0, a1); octx.stroke();
-  }
-  if (lockStable && P.lock){
-    octx.font = '700 10px ui-monospace,monospace';
-    octx.fillStyle = 'rgba(255,193,60,.95)';
-    octx.fillText('ФІКС', cx - r + r * 0.04, cy + r + 16);
-  }
-  octx.restore();
-}
 
 /* ============================================================
    ЦИКЛ
@@ -2782,7 +2751,7 @@ function render(){
     document.getElementById('cMs').textContent = msEma.toFixed(1);
     let cs = 0, cn = 0;
     for (let e = 0; e < eCnt; e++)
-      if (EAlive[e] && EVis[e] && inFocus(EMx[e], EMy[e])){ cs += EConf[e]; cn++; }
+      if (EAlive[e] && EVis[e]){ cs += EConf[e]; cn++; }
     document.getElementById('cKf').textContent = memVis;
     document.getElementById('cMem').textContent = memTotal;
     document.getElementById('cDrift').textContent = driftRes.toFixed(1);
@@ -2862,6 +2831,9 @@ function syncRows(){
   document.getElementById('bBase').classList.toggle('on', !!P.showBase);
   document.getElementById('bBox').classList.toggle('on', !!P.boxes);
 }
+
+document.getElementById('bld').textContent = BUILD;
+document.getElementById('bldBoot').textContent = 'ЗБІРКА ' + BUILD;
 
 document.getElementById('grip').addEventListener('click', () => {
   const s = document.getElementById('sheet');
@@ -2982,6 +2954,9 @@ function diagText(){
   L.push('базис: ' + (scaleFixed ? '<span class="good">призначено</span>' : '<span class="warn">нема</span>'));
   L.push('3D-точок: <b>' + pts3d + '</b>' + (sealed ? '  <span class="warn">ЗАПЕЧАТАНО</span>' : ''));
   L.push('поле зору: ' + P.hfov + '°  (fx ' + CAM.fx.toFixed(0) + ' px)');
+
+  L.push('<h4>ЗБІРКА</h4>');
+  L.push('<b>' + BUILD + '</b>');
 
   L.push('<h4>СКАН</h4>');
   L.push('запис: ' + (recOn ? '<span class="good">іде</span>' : 'стоїть') +
