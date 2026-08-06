@@ -56,6 +56,12 @@ video{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 .btn.on{border-color:rgba(106,213,130,.55);color:var(--hot);background:rgba(0,49,30,.7)}
 .btn.amber{border-color:rgba(255,193,60,.55);color:var(--amber)}
 
+#vpbar{position:absolute;z-index:6;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 16px);
+  display:none;justify-content:center;gap:10px;pointer-events:none}
+#vpbar.show{display:flex}
+.vb{pointer-events:auto;background:rgba(4,14,9,.9);border:1px solid rgba(106,213,130,.45);
+  color:var(--hot);border-radius:999px;padding:13px 18px;font-family:var(--mono);
+  font-size:11px;letter-spacing:.1em;backdrop-filter:blur(8px)}
 #diag{position:absolute;z-index:5;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 110px);
   background:rgba(4,14,9,.94);border:1px solid rgba(106,213,130,.3);border-radius:14px;
   padding:14px 16px;font-size:11px;line-height:1.75;letter-spacing:.03em;color:var(--ink);
@@ -158,10 +164,14 @@ input[type=range]::-moz-range-thumb{width:17px;height:17px;border:0;border-radiu
   <button class="btn" id="bBox">◉ БОКСИ</button>
   <button class="btn" id="bGyro">◎ ГІРО</button>
   <button class="btn" id="bDiag">? ДІАГ</button>
+  <button class="btn" id="bRec">● ЗАПИС</button>
   <button class="btn" id="bForget">✕ ЗАБУТИ</button>
   <button class="btn amber" id="bShot">⚡ КАДР</button>
 </div>
 
+<div id="vpbar"><button class="vb" id="vbExp">↧ OBJ</button>
+  <button class="vb" id="vbNew">↺ НОВИЙ СКАН</button>
+  <button class="vb" id="vbClose">✕ ЗАКРИТИ</button></div>
 <div id="diag"></div>
 <div id="lockline">Фіксація спить</div>
 
@@ -907,7 +917,8 @@ function fitSimilarity(){
 
 const MAXV = 2600, MAXE = 3600, MAXC = 24;
 
-let VX, VY, VD, VDw, VConf, VMiss, VPin, VAlive, VCl, vCnt;
+let VX, VY, VD, VDw, VConf, VMiss, VPin, VAlive, VCl, VUid, vCnt;
+let uidNext = 1;
 let PX, PY;                                   // проєкція вершин у кадр
 let EA, EB, EConf, EMiss, EAge, ELen, EAlive, eCnt;
 let EMx, EMy, EAng, ECur, EVis, EWas, EGrace, EHit;
@@ -928,6 +939,8 @@ function resetTracks(){
   VConf = new Int16Array(MAXV); VMiss = new Int16Array(MAXV);
   VPin = new Int16Array(MAXV); VAlive = new Uint8Array(MAXV);
   VCl = new Int16Array(MAXV); VCl.fill(-1);
+  VUid = new Int32Array(MAXV);
+  uidNext = 1;
   EA = new Int32Array(MAXE); EB = new Int32Array(MAXE);
   EConf = new Int16Array(MAXE); EMiss = new Int16Array(MAXE);
   EAge = new Int32Array(MAXE); ELen = new Float32Array(MAXE);
@@ -945,6 +958,7 @@ function resetTracks(){
   evicted = 0; rebases = 0;
   pyrReady = false; frameNo = 0;
   reset3d();
+  resetScan();
 }
 
 /* ---------- світовий трансформ ---------- */
@@ -1078,6 +1092,7 @@ function newVertex(x, y){
   else return -1;
   VX[v] = x; VY[v] = y; VD[v] = 0.5; VDw[v] = 0;
   VConf[v] = 1; VMiss[v] = 0; VPin[v] = 0; VAlive[v] = 1; VCl[v] = -1;
+  VUid[v] = uidNext++;
   if (TA) reset3dVertex(v);
   return v;
 }
@@ -2010,6 +2025,369 @@ function project3(v, o){
 }
 
 /* ============================================================
+   ШАР E — СКАН: ЗАПИС, ОФЛАЙН-УТОЧНЕННЯ, ВЬЮПОРТ, ЕКСПОРТ
+   ============================================================
+   Між СТОП і показом немає обмеження реального часу. Тому тут
+   повороти вже НЕ вважаються точними: кожна поза підганяється
+   по 6 параметрах за похибкою перепроєкції. Гіроскоп лишається
+   початковим наближенням, а не істиною — саме це рятує від
+   його 0.5°, які в живому режимі руйнували реконструкцію.
+   ============================================================ */
+
+const OBSMAX = 240000, KFMAX = 400;
+let recOn = false, scanReady = false, refining = false;
+let kfQ, kfC, kfN = 0;
+let obsK, obsId, obsU, obsV, obsN = 0;
+let edgeSeen = null;
+let lastKfC = null;
+let refineLog = '';
+
+/* модель після уточнення */
+const SM = { X:null, id:null, n:0, E:null, m:0, cx:0, cy:0, cz:0, rad:1 };
+
+function allocScan(){
+  kfQ = new Float32Array(KFMAX * 4); kfC = new Float32Array(KFMAX * 3);
+  obsK = new Int32Array(OBSMAX); obsId = new Int32Array(OBSMAX);
+  obsU = new Float32Array(OBSMAX); obsV = new Float32Array(OBSMAX);
+}
+function resetScan(){
+  if (!kfQ) allocScan();
+  kfN = 0; obsN = 0; recOn = false; scanReady = false; refining = false;
+  edgeSeen = new Map(); lastKfC = null; refineLog = '';
+  SM.n = 0; SM.m = 0;
+}
+
+function startRec(){
+  resetScan();
+  recOn = true;
+}
+
+/* Кадр пишемо, лише коли камера відчутно зсунулась — інакше однакові
+   спостереження лише роздують систему без нової інформації. */
+function recFrame(){
+  if (!recOn || !scaleFixed || kfN >= KFMAX) return;
+  if (lastKfC){
+    const d = Math.hypot(curC[0]-lastKfC[0], curC[1]-lastKfC[1], curC[2]-lastKfC[2]);
+    if (d < 0.015) return;
+  }
+  const k = kfN++;
+  kfQ[k*4]=curQ[0]; kfQ[k*4+1]=curQ[1]; kfQ[k*4+2]=curQ[2]; kfQ[k*4+3]=curQ[3];
+  kfC[k*3]=curC[0]; kfC[k*3+1]=curC[1]; kfC[k*3+2]=curC[2];
+  lastKfC = [curC[0], curC[1], curC[2]];
+  for (let v = 0; v < vCnt; v++){
+    if (!VAlive[v] || !EnoughObs(v) || obsN >= OBSMAX) continue;
+    obsK[obsN]=k; obsId[obsN]=VUid[v]; obsU[obsN]=PX[v]; obsV[obsN]=PY[v]; obsN++;
+  }
+  for (let e = 0; e < eCnt; e++){
+    if (!EAlive[e] || EConf[e] < 6) continue;
+    const a = VUid[EA[e]], b = VUid[EB[e]];
+    if (a === b) continue;
+    const key = a < b ? a + ',' + b : b + ',' + a;
+    edgeSeen.set(key, (edgeSeen.get(key) || 0) + 1);
+  }
+}
+
+/* ---------- 6×6 Холецький ---------- */
+function chol6(A, b, x){
+  const L = new Float64Array(36);
+  for (let i = 0; i < 6; i++){
+    for (let j = 0; j <= i; j++){
+      let s = A[i*6+j];
+      for (let k = 0; k < j; k++) s -= L[i*6+k]*L[j*6+k];
+      if (i === j){ if (s < 1e-12) return false; L[i*6+i] = Math.sqrt(s); }
+      else L[i*6+j] = s / L[j*6+j];
+    }
+  }
+  const y = new Float64Array(6);
+  for (let i = 0; i < 6; i++){
+    let s = b[i];
+    for (let k = 0; k < i; k++) s -= L[i*6+k]*y[k];
+    y[i] = s / L[i*6+i];
+  }
+  for (let i = 5; i >= 0; i--){
+    let s = y[i];
+    for (let k = i+1; k < 6; k++) s -= L[k*6+i]*x[k];
+    x[i] = s / L[i*6+i];
+  }
+  return true;
+}
+
+/* ---------- офлайн-уточнення ---------- */
+const _qi=[0,0,0,1], _pc=[0,0,0], _wr=[0,0,0];
+
+function refineScan(iters){
+  if (obsN < 60 || kfN < 4) return false;
+  refining = true;
+  updCam();
+
+  /* стабільні id → щільні індекси */
+  const idMap = new Map();
+  for (let i = 0; i < obsN; i++)
+    if (!idMap.has(obsId[i])) idMap.set(obsId[i], idMap.size);
+  const nP = idMap.size;
+  const PX3 = new Float64Array(nP * 3);
+  const has = new Uint8Array(nP);
+  const idx = new Int32Array(obsN);
+  for (let i = 0; i < obsN; i++) idx[i] = idMap.get(obsId[i]);
+
+  /* нормальні рівняння тріангуляції — по всіх спостереженнях одразу */
+  const pA = new Float64Array(nP * 6), pB = new Float64Array(nP * 3);
+  const cnt = new Int32Array(nP);
+  const pD0 = new Float64Array(nP * 3), pPar = new Float64Array(nP);
+  /* Офлайн бачить лише вікно запису (база коротша), зате має десятки
+     спостережень на точку замість двох — тому поріг нижчий за живий. */
+  const needPar = Math.max(1.0, P.parallax * 0.4) * Math.PI / 180;
+  function retriangulate(){
+    pA.fill(0); pB.fill(0); cnt.fill(0); pPar.fill(0);
+    const r=[0,0,0], rw=[0,0,0];
+    for (let i = 0; i < obsN; i++){
+      const k = obsK[i], p = idx[i];
+      pixRay(obsU[i], obsV[i], r);
+      _qi[0]=kfQ[k*4]; _qi[1]=kfQ[k*4+1]; _qi[2]=kfQ[k*4+2]; _qi[3]=kfQ[k*4+3];
+      qRot(_qi, r, rw);
+      const dx=rw[0], dy=rw[1], dz=rw[2];
+      /* кут розкриву пучка: без нього в модель лізуть вироджені точки,
+         тріангульовані з майже паралельних променів */
+      if (cnt[p] === 0){ pD0[p*3]=dx; pD0[p*3+1]=dy; pD0[p*3+2]=dz; }
+      else {
+        const dt = pD0[p*3]*dx + pD0[p*3+1]*dy + pD0[p*3+2]*dz;
+        const ang = Math.acos(Math.max(-1, Math.min(1, dt)));
+        if (ang > pPar[p]) pPar[p] = ang;
+      }
+      const m00=1-dx*dx, m01=-dx*dy, m02=-dx*dz;
+      const m11=1-dy*dy, m12=-dy*dz, m22=1-dz*dz;
+      const cx=kfC[k*3], cy=kfC[k*3+1], cz=kfC[k*3+2];
+      const a=p*6, b=p*3;
+      pA[a]+=m00; pA[a+1]+=m01; pA[a+2]+=m02;
+      pA[a+3]+=m11; pA[a+4]+=m12; pA[a+5]+=m22;
+      pB[b]  += m00*cx + m01*cy + m02*cz;
+      pB[b+1]+= m01*cx + m11*cy + m12*cz;
+      pB[b+2]+= m02*cx + m12*cy + m22*cz;
+      cnt[p]++;
+    }
+    const o=[0,0,0];
+    let good = 0;
+    for (let p = 0; p < nP; p++){
+      has[p] = 0;
+      if (cnt[p] < 3 || pPar[p] < needPar) continue;
+      const a=p*6, b=p*3;
+      if (!solve3(pA[a],pA[a+1],pA[a+2],pA[a+3],pA[a+4],pA[a+5],
+                  pB[b],pB[b+1],pB[b+2], o)) continue;
+      PX3[b]=o[0]; PX3[b+1]=o[1]; PX3[b+2]=o[2];
+      has[p]=1; good++;
+    }
+    return good;
+  }
+
+  /* середня похибка перепроєкції */
+  function reproj(){
+    let acc = 0, n = 0;
+    for (let i = 0; i < obsN; i++){
+      const p = idx[i]; if (!has[p]) continue;
+      const k = obsK[i];
+      _qi[0]=-kfQ[k*4]; _qi[1]=-kfQ[k*4+1]; _qi[2]=-kfQ[k*4+2]; _qi[3]=kfQ[k*4+3];
+      _wr[0]=PX3[p*3]-kfC[k*3]; _wr[1]=PX3[p*3+1]-kfC[k*3+1]; _wr[2]=PX3[p*3+2]-kfC[k*3+2];
+      qRot(_qi, _wr, _pc);
+      if (_pc[2] <= 0.02) continue;
+      const du = CAM.cx + CAM.fx*_pc[0]/_pc[2] - obsU[i];
+      const dv = CAM.cy + CAM.fy*_pc[1]/_pc[2] - obsV[i];
+      acc += Math.sqrt(du*du + dv*dv); n++;
+    }
+    return n ? acc/n : -1;
+  }
+
+  /* 6-параметрична підгонка однієї пози: поворот ТЕЖ вільний */
+  const H = new Float64Array(36), g = new Float64Array(6), dx6 = new Float64Array(6);
+  function refinePose(k, lambda){
+    if (k === 0) return;            // перший кадр закріплений — інакше вільна калібровка
+    H.fill(0); g.fill(0);
+    let n = 0;
+    _qi[0]=-kfQ[k*4]; _qi[1]=-kfQ[k*4+1]; _qi[2]=-kfQ[k*4+2]; _qi[3]=kfQ[k*4+3];
+    /* R^T як 3 рядки: обертаємо базисні вектори */
+    const RT = new Float64Array(9);
+    for (let c = 0; c < 3; c++){
+      _wr[0]=c===0?1:0; _wr[1]=c===1?1:0; _wr[2]=c===2?1:0;
+      qRot(_qi, _wr, _pc);
+      RT[0*3+c]=_pc[0]; RT[1*3+c]=_pc[1]; RT[2*3+c]=_pc[2];
+    }
+    for (let i = 0; i < obsN; i++){
+      if (obsK[i] !== k) continue;
+      const p = idx[i]; if (!has[p]) continue;
+      _wr[0]=PX3[p*3]-kfC[k*3]; _wr[1]=PX3[p*3+1]-kfC[k*3+1]; _wr[2]=PX3[p*3+2]-kfC[k*3+2];
+      qRot(_qi, _wr, _pc);
+      const X=_pc[0], Y=_pc[1], Z=_pc[2];
+      if (Z <= 0.02) continue;
+      const iz=1/Z, iz2=iz*iz;
+      const ru = CAM.cx + CAM.fx*X*iz - obsU[i];
+      const rv = CAM.cy + CAM.fy*Y*iz - obsV[i];
+      /* ∂(u,v)/∂Xc */
+      const du=[CAM.fx*iz, 0, -CAM.fx*X*iz2];
+      const dv=[0, CAM.fy*iz, -CAM.fy*Y*iz2];
+      /* ∂Xc/∂δω = [Xc]×  — кососиметрична матриця вектора (X,Y,Z).
+         Знак тут критичний: з протилежним крок повороту йде назад
+         і оптимізація розлітається тим сильніше, чим більше шуму гіро. */
+      const Jw = [[0,-Z,Y],[Z,0,-X],[-Y,X,0]];
+      const Ju = new Float64Array(6), Jv = new Float64Array(6);
+      for (let c = 0; c < 3; c++){
+        Ju[c] = du[0]*Jw[0][c] + du[1]*Jw[1][c] + du[2]*Jw[2][c];
+        Jv[c] = dv[0]*Jw[0][c] + dv[1]*Jw[1][c] + dv[2]*Jw[2][c];
+        Ju[3+c] = -(du[0]*RT[0*3+c] + du[1]*RT[1*3+c] + du[2]*RT[2*3+c]);
+        Jv[3+c] = -(dv[0]*RT[0*3+c] + dv[1]*RT[1*3+c] + dv[2]*RT[2*3+c]);
+      }
+      /* Хубер: один поганий трек не має тягнути позу */
+      const r2 = ru*ru + rv*rv, dlt = 3.0;
+      const w = r2 > dlt*dlt ? dlt/Math.sqrt(r2) : 1;
+      for (let a = 0; a < 6; a++){
+        g[a] -= w*(Ju[a]*ru + Jv[a]*rv);
+        for (let b = 0; b <= a; b++) H[a*6+b] += w*(Ju[a]*Ju[b] + Jv[a]*Jv[b]);
+      }
+      n++;
+    }
+    if (n < 8) return;
+    for (let a = 0; a < 6; a++){
+      H[a*6+a] *= (1 + lambda);
+      for (let b = a+1; b < 6; b++) H[a*6+b] = H[b*6+a];
+    }
+    if (!chol6(H, g, dx6)) return;
+    let mag = 0; for (let a = 0; a < 6; a++) mag += dx6[a]*dx6[a];
+    if (!isFinite(mag) || mag > 1) return;
+    /* поворот: мале приростання кватерніона */
+    const hw=dx6[0]*0.5, hx=dx6[1]*0.5, hy=dx6[2]*0.5;
+    const dq=[hw, hx, hy, 1];
+    const nq=Math.hypot(dq[0],dq[1],dq[2],dq[3]);
+    dq[0]/=nq; dq[1]/=nq; dq[2]/=nq; dq[3]/=nq;
+    const cur=[kfQ[k*4],kfQ[k*4+1],kfQ[k*4+2],kfQ[k*4+3]], out=[0,0,0,1];
+    qMul(cur, dq, out);
+    const on=Math.hypot(out[0],out[1],out[2],out[3]);
+    kfQ[k*4]=out[0]/on; kfQ[k*4+1]=out[1]/on; kfQ[k*4+2]=out[2]/on; kfQ[k*4+3]=out[3]/on;
+    kfC[k*3]+=dx6[3]; kfC[k*3+1]+=dx6[4]; kfC[k*3+2]+=dx6[5];
+  }
+
+  let good = retriangulate();
+  const e0 = reproj();
+  let best = e0, lambda = 1e-3;
+  const snapQ = new Float32Array(kfN*4), snapC = new Float32Array(kfN*3);
+  for (let it = 0; it < iters; it++){
+    snapQ.set(kfQ.subarray(0, kfN*4)); snapC.set(kfC.subarray(0, kfN*3));
+    for (let k = 0; k < kfN; k++) refinePose(k, lambda);
+    retriangulate();
+    const e = reproj();
+    if (e >= 0 && e < best){
+      best = e; lambda = Math.max(1e-6, lambda*0.6);      // крок прийнято
+    } else {
+      kfQ.set(snapQ, 0); kfC.set(snapC, 0);               // відкат
+      lambda = Math.min(1e2, lambda*4);
+      if (lambda >= 1e2) break;
+    }
+  }
+  good = retriangulate();
+  const e1 = reproj();
+  refineLog = `перепроєкція ${e0.toFixed(2)} → ${e1.toFixed(2)} px, точок ${good}, кадрів ${kfN}`;
+
+  /* збірка моделі: викидаємо явні викиди по медіанній відстані */
+  const keep = [], rmap = new Map();
+  for (const [sid, p] of idMap){ if (has[p]) keep.push([sid, p]); }
+  SM.n = keep.length;
+  SM.X = new Float32Array(SM.n * 3); SM.id = new Int32Array(SM.n);
+  let cx=0, cy=0, cz=0;
+  for (let i = 0; i < SM.n; i++){
+    const [sid, p] = keep[i];
+    SM.X[i*3]=PX3[p*3]; SM.X[i*3+1]=PX3[p*3+1]; SM.X[i*3+2]=PX3[p*3+2];
+    SM.id[i]=sid; rmap.set(sid, i);
+    cx+=SM.X[i*3]; cy+=SM.X[i*3+1]; cz+=SM.X[i*3+2];
+  }
+  if (SM.n){ cx/=SM.n; cy/=SM.n; cz/=SM.n; }
+  /* радіус по 90-му перцентилю — один викид не має ламати кадрування */
+  const rr = [];
+  for (let i = 0; i < SM.n; i++)
+    rr.push(Math.hypot(SM.X[i*3]-cx, SM.X[i*3+1]-cy, SM.X[i*3+2]-cz));
+  rr.sort((a,b)=>a-b);
+  SM.cx=cx; SM.cy=cy; SM.cz=cz;
+  SM.rad = rr.length ? Math.max(1e-3, rr[Math.min(rr.length-1, (rr.length*0.9)|0)]) : 1;
+
+  const el = [];
+  edgeSeen.forEach((c, key) => {
+    if (c < 3) return;
+    const parts = key.split(',');
+    const a = rmap.get(+parts[0]), b = rmap.get(+parts[1]);
+    if (a === undefined || b === undefined || a === b) return;
+    el.push(a, b);
+  });
+  SM.E = new Int32Array(el); SM.m = el.length >> 1;
+  refining = false;
+  scanReady = SM.n >= 8;
+  return scanReady;
+}
+
+/* ---------- вьюпорт: орбітальна камера від пальця ---------- */
+const VP = { az:0.6, el:0.35, dist:3.2, on:false };
+const _vp=[0,0,0];
+function vpProject(i, o){
+  const ca=Math.cos(VP.az), sa=Math.sin(VP.az);
+  const ce=Math.cos(VP.el), se=Math.sin(VP.el);
+  let x=SM.X[i*3]-SM.cx, y=SM.X[i*3+1]-SM.cy, z=SM.X[i*3+2]-SM.cz;
+  const s=1/SM.rad; x*=s; y*=s; z*=s;
+  const x1 = ca*x + sa*z, z1 = -sa*x + ca*z;
+  const y2 = ce*y - se*z1, z2 = se*y + ce*z1;
+  const zc = z2 + VP.dist;
+  if (zc < 0.05) return false;
+  const f = Math.min(ovc.width, ovc.height) * 0.42;
+  o[0] = ovc.width*0.5 + f*x1/zc;
+  o[1] = ovc.height*0.5 + f*y2/zc;
+  o[2] = zc;
+  return true;
+}
+const _va=[0,0,0], _vb=[0,0,0];
+function drawViewport(){
+  const W = ovc.width, H = ovc.height;
+  octx.setTransform(1,0,0,1,0,0);
+  octx.clearRect(0,0,W,H);
+  octx.fillStyle = 'rgba(3,9,6,.97)';
+  octx.fillRect(0,0,W,H);
+  let zmin=1e9, zmax=-1e9;
+  for (let i = 0; i < SM.n; i++)
+    if (vpProject(i,_va)){ if(_va[2]<zmin)zmin=_va[2]; if(_va[2]>zmax)zmax=_va[2]; }
+  const span = Math.max(1e-3, zmax-zmin);
+  octx.lineCap='round'; octx.lineJoin='round';
+  for (let e = 0; e < SM.m; e++){
+    const a = SM.E[e*2], b = SM.E[e*2+1];
+    if (!vpProject(a,_va) || !vpProject(b,_vb)) continue;
+    const t = 1 - (((_va[2]+_vb[2])*0.5)-zmin)/span;
+    octx.lineWidth = 1.0 + 2.0*t;
+    octx.strokeStyle = 'rgba(' + lerpCol(t) + ',' + (0.35+0.6*t).toFixed(3) + ')';
+    octx.beginPath(); octx.moveTo(_va[0],_va[1]); octx.lineTo(_vb[0],_vb[1]); octx.stroke();
+  }
+  for (let i = 0; i < SM.n; i++){
+    if (!vpProject(i,_va)) continue;
+    const t = 1 - (_va[2]-zmin)/span;
+    octx.fillStyle = 'rgba(218,255,199,' + (0.3+0.5*t).toFixed(3) + ')';
+    octx.beginPath(); octx.arc(_va[0],_va[1], 1.6+1.6*t, 0, 6.2832); octx.fill();
+  }
+  octx.font='700 11px ui-monospace,monospace';
+  octx.fillStyle='rgba(106,213,130,.85)';
+  octx.fillText(SM.n + ' ТОЧОК · ' + SM.m + ' РЕБЕР', 18, 34);
+  octx.fillStyle='rgba(143,169,154,.75)';
+  octx.font='500 10px ui-monospace,monospace';
+  octx.fillText(refineLog, 18, 52);
+  octx.fillText('масштаб умовний — монокулярно він не спостережуваний', 18, 68);
+}
+
+/* ---------- експорт OBJ ---------- */
+function exportOBJ(){
+  const L = ['# DICH //EDGE scan', '# масштаб умовний (монокулярна реконструкція)'];
+  for (let i = 0; i < SM.n; i++)
+    L.push('v ' + SM.X[i*3].toFixed(5) + ' ' + (-SM.X[i*3+1]).toFixed(5) + ' ' + SM.X[i*3+2].toFixed(5));
+  for (let e = 0; e < SM.m; e++)
+    L.push('l ' + (SM.E[e*2]+1) + ' ' + (SM.E[e*2+1]+1));
+  const blob = new Blob([L.join('\n')], { type:'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'dich-scan-' + Date.now() + '.obj';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+/* ============================================================
    СТАДІЇ КАДРУ
    ============================================================ */
 function detectStage(){
@@ -2045,6 +2423,7 @@ function lockStage(){
   if (frameNo % 6 === 0){ weldPass(); recluster(); }
   depth();
   if (P.tri) pose3dStage();
+  if (recOn) recFrame();
 }
 
 /* ============================================================
@@ -2063,6 +2442,7 @@ function lerpCol(t){
 }
 
 function drawOverlay(){
+  if (VP.on && scanReady){ drawViewport(); return; }
   const W = ovc.width, H = ovc.height;
   octx.setTransform(1, 0, 0, 1, 0, 0);
   octx.clearRect(0, 0, W, H);
@@ -2603,6 +2983,11 @@ function diagText(){
   L.push('3D-точок: <b>' + pts3d + '</b>' + (sealed ? '  <span class="warn">ЗАПЕЧАТАНО</span>' : ''));
   L.push('поле зору: ' + P.hfov + '°  (fx ' + CAM.fx.toFixed(0) + ' px)');
 
+  L.push('<h4>СКАН</h4>');
+  L.push('запис: ' + (recOn ? '<span class="good">іде</span>' : 'стоїть') +
+         '   кадрів <b>' + kfN + '</b>   спостережень <b>' + obsN + '</b>');
+  if (refineLog) L.push('<span class="good">' + refineLog + '</span>');
+
   L.push('<h4>ЩО РОБИТИ</h4>');
   if (!window.isSecureContext) L.push('<span class="bad">Відкрий через HTTPS — GitHub Pages підійде.</span>');
   else if (!gyroOn) L.push('Тисни ◎ ГІРО.');
@@ -2642,11 +3027,70 @@ document.getElementById('bGyro').addEventListener('click', async e => {
 
 /* тап по кадру — запечатати / розпечатати модель */
 ovc.addEventListener('click', () => {
-  if (!P.tri) return;
+  if (VP.on || !P.tri) return;
   if (!sealed && pts3d < 12){ hint('Мало 3D-точок, води ще', true); return; }
   sealed = !sealed;
   hint(sealed ? 'Запечатано. Обходь — воно лишається на місці'
               : 'Розпечатано, будую далі', sealed);
+});
+
+function setRail(hidden){
+  document.getElementById('rail').style.display = hidden ? 'none' : 'flex';
+  document.getElementById('sheet').style.display = hidden ? 'none' : 'block';
+  document.getElementById('top').style.display = hidden ? 'none' : 'flex';
+  document.getElementById('vpbar').classList.toggle('show', hidden);
+}
+document.getElementById('bRec').addEventListener('click', e => {
+  const el = e.currentTarget;
+  if (!recOn){
+    if (!P.tri || poseMode === 'none'){ hint('Спершу ГІРО і тумблер 3D', true);
+      if (!diagOn) document.getElementById('bDiag').click(); return; }
+    startRec(); el.classList.add('on'); el.textContent = '■ СТОП';
+    hint('Пишу. Обводь предмет, ведучи камеру вбік', false);
+  } else {
+    recOn = false; el.classList.remove('on'); el.textContent = '● ЗАПИС';
+    hint('Рахую модель…', true);
+    setTimeout(() => {
+      const okk = refineScan(12);
+      if (!okk){ hint('Замало даних: ' + kfN + ' кадрів, ' + obsN + ' спостережень', true);
+        if (!diagOn) document.getElementById('bDiag').click(); return; }
+      VP.on = true; VP.az = 0.6; VP.el = 0.35; VP.dist = 3.2;
+      setRail(true);
+      hint('Крути пальцем, щипай для зуму', false);
+    }, 30);
+  }
+});
+document.getElementById('vbClose').addEventListener('click', () => {
+  VP.on = false; setRail(false);
+});
+document.getElementById('vbNew').addEventListener('click', () => {
+  VP.on = false; setRail(false); resetTracks();
+  document.getElementById('bRec').textContent = '● ЗАПИС';
+  document.getElementById('bRec').classList.remove('on');
+});
+document.getElementById('vbExp').addEventListener('click', () => exportOBJ());
+
+/* орбіта і зум пальцем */
+const ptrs = new Map();
+let lastPinch = 0;
+ovc.addEventListener('pointerdown', ev => { if (VP.on) ptrs.set(ev.pointerId, [ev.clientX, ev.clientY]); });
+ovc.addEventListener('pointerup', ev => { ptrs.delete(ev.pointerId); lastPinch = 0; });
+ovc.addEventListener('pointercancel', ev => { ptrs.delete(ev.pointerId); lastPinch = 0; });
+ovc.addEventListener('pointermove', ev => {
+  if (!VP.on || !ptrs.has(ev.pointerId)) return;
+  const prev = ptrs.get(ev.pointerId);
+  ptrs.set(ev.pointerId, [ev.clientX, ev.clientY]);
+  if (ptrs.size === 1){
+    VP.az -= (ev.clientX - prev[0]) * 0.008;
+    VP.el += (ev.clientY - prev[1]) * 0.008;
+    VP.el = Math.max(-1.45, Math.min(1.45, VP.el));
+  } else if (ptrs.size === 2){
+    const a = [...ptrs.values()];
+    const d = Math.hypot(a[0][0]-a[1][0], a[0][1]-a[1][1]);
+    if (lastPinch) VP.dist = Math.max(1.1, Math.min(14, VP.dist * lastPinch / Math.max(1, d)));
+    lastPinch = d;
+  }
+  ev.preventDefault();
 });
 
 document.getElementById('bForget').addEventListener('click', e => {
