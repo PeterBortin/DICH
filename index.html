@@ -26,7 +26,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
 #stage{position:fixed;inset:0}
 canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 #gl{z-index:1}
-#ov{z-index:2}
+#ov{z-index:2;pointer-events:auto}
 video{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 #proc{display:none}
 
@@ -134,6 +134,8 @@ input[type=range]::-moz-range-thumb{width:17px;height:17px;border:0;border-radiu
     <div class="chip lock"><b id="cKf">0</b>КАРКАС</div>
     <div class="chip lock"><b id="cMem">0</b>ПАМʼЯТЬ</div>
     <div class="chip"><b id="cDrift">0</b>ДРЕЙФ</div>
+    <div class="chip lock"><b id="cP3">0</b>3D</div>
+    <div class="chip"><b id="cPar">0</b>° ПАРАЛАКС</div>
     <div class="chip lock"><b id="c3d">0</b>% 3D</div>
     <div class="chip"><b id="cMs">--</b>MS</div>
   </div>
@@ -143,6 +145,7 @@ input[type=range]::-moz-range-thumb{width:17px;height:17px;border:0;border-radiu
   <button class="btn" id="bCam">⟳ КАМЕРА</button>
   <button class="btn on" id="bBase">◆ БАЗА</button>
   <button class="btn" id="bBox">◉ БОКСИ</button>
+  <button class="btn" id="bGyro">◎ ГІРО</button>
   <button class="btn" id="bForget">✕ ЗАБУТИ</button>
   <button class="btn amber" id="bShot">⚡ КАДР</button>
 </div>
@@ -162,6 +165,7 @@ input[type=range]::-moz-range-thumb{width:17px;height:17px;border:0;border-radiu
   <div class="toggles">
     <button class="tg on" data-tg="lock">ФІКСАЦІЯ</button>
     <button class="tg on" data-tg="memory">ПАМʼЯТЬ</button>
+    <button class="tg" data-tg="tri">3D</button>
     <button class="tg on" data-tg="arrows">СТРІЛКИ</button>
     <button class="tg on" data-tg="verts">ВЕРШИНИ</button>
     <button class="tg on" data-tg="rigid">ЖОРСТКІСТЬ</button>
@@ -205,9 +209,12 @@ const P = {
   focus:     0.34,   // радіус зони фокусу, частка min(w,h)
   /* памʼять */
   world:     6,      // межа світу в діагоналях кадру
+  /* 3D */
+  hfov:      62,     // горизонтальне поле зору камери, градуси
+  parallax:  4.0,    // мінімальний кут паралакса для тріангуляції, градуси
   /* тумблери */
   lock:  true,  verts: true,  rigid:  true,
-  memory:true,  arrows: true,
+  memory:true,  arrows: true,  tri: false,
   nms:   true,  hyst:  true,  flow:  false,  dbg: false,
   showBase: 1,  boxes: false
 };
@@ -229,7 +236,10 @@ const ROWS = [
   { k:'extrude', l:'ОБʼЄМ',     min:0,    max:20,   st:1    },
   { k:'focus',   l:'ФОКУС',     min:0.18, max:0.50, st:0.01 },
   { g:'ПАМʼЯТЬ' },
-  { k:'world',   l:'СВІТ',      min:2,    max:12,   st:1    }
+  { k:'world',   l:'СВІТ',      min:2,    max:12,   st:1    },
+  { g:'3D' },
+  { k:'hfov',    l:'ПОЛЕ ЗОРУ', min:40,   max:90,   st:1    },
+  { k:'parallax',l:'ПАРАЛАКС',  min:0.5,  max:8,    st:0.1  }
 ];
 
 const PRESETS = {
@@ -921,6 +931,7 @@ function resetTracks(){
   driftRes = 0; memTotal = 0; memOff = 0; memVis = 0;
   evicted = 0; rebases = 0;
   pyrReady = false; frameNo = 0;
+  reset3d();
 }
 
 /* ---------- світовий трансформ ---------- */
@@ -1044,6 +1055,7 @@ function inFocus(x, y){ const dx = x - fcx, dy = y - fcy; return dx * dx + dy * 
 function killVertex(v){
   if (!VAlive[v]) return;
   VAlive[v] = 0; VPin[v] = 0; VCl[v] = -1;
+  if (TA) reset3dVertex(v);        // слот піде іншій вершині — 3D-стан не успадковується
   if (vFreeN < MAXV) vFree[vFreeN++] = v;
 }
 function newVertex(x, y){
@@ -1053,6 +1065,7 @@ function newVertex(x, y){
   else return -1;
   VX[v] = x; VY[v] = y; VD[v] = 0.5; VDw[v] = 0;
   VConf[v] = 1; VMiss[v] = 0; VPin[v] = 0; VAlive[v] = 1; VCl[v] = -1;
+  if (TA) reset3dVertex(v);
   return v;
 }
 function killEdge(e){
@@ -1532,6 +1545,455 @@ function depth(){
 }
 
 /* ============================================================
+   ШАР D — 3D: ПОЗА І ТРІАНГУЛЯЦІЯ
+   ============================================================
+   Споживач треків, не власник. 2D-фіксація працює як працювала;
+   цей шар лише читає підтверджені спостереження і будує з них
+   геометрію в метричному (або умовно-масштабованому) просторі.
+
+   Поворот R приходить ззовні і вважається точним (гіроскоп або WebXR).
+   Це перетворює дві задачі з нелінійних на лінійні:
+     • напрямок зсуву:  (x2 × R·x1) · t = 0     — нуль-простір 3×3
+     • резекція:        xi × (R·Xi − c) = 0     — МНК по 3 невідомих
+   Масштаб монокулярно не спостережуваний: перший базис = 1 одиниця.
+   ============================================================ */
+
+/* ---------- внутрішні параметри камери (у пікселях proc) ---------- */
+const CAM = { fx:0, fy:0, cx:0, cy:0 };
+function updCam(){
+  const hf = P.hfov * Math.PI / 180;
+  CAM.fx = (pw * 0.5) / Math.tan(hf * 0.5);
+  CAM.fy = CAM.fx;                 // квадратний піксель
+  CAM.cx = pw * 0.5; CAM.cy = ph * 0.5;
+}
+/* піксель → одиничний промінь у системі камери */
+function pixRay(u, v, o){
+  const x = (u - CAM.cx) / CAM.fx, y = (v - CAM.cy) / CAM.fy;
+  const n = 1 / Math.sqrt(x * x + y * y + 1);
+  o[0] = x * n; o[1] = y * n; o[2] = n;
+}
+
+/* ---------- кватерніони ---------- */
+function qMul(a, b, o){
+  o[0] = a[3]*b[0] + a[0]*b[3] + a[1]*b[2] - a[2]*b[1];
+  o[1] = a[3]*b[1] - a[0]*b[2] + a[1]*b[3] + a[2]*b[0];
+  o[2] = a[3]*b[2] + a[0]*b[1] - a[1]*b[0] + a[2]*b[3];
+  o[3] = a[3]*b[3] - a[0]*b[0] - a[1]*b[1] - a[2]*b[2];
+}
+function qRot(q, v, o){            // o = q · v · q*
+  const x=q[0], y=q[1], z=q[2], w=q[3];
+  const tx = 2*(y*v[2] - z*v[1]), ty = 2*(z*v[0] - x*v[2]), tz = 2*(x*v[1] - y*v[0]);
+  o[0] = v[0] + w*tx + (y*tz - z*ty);
+  o[1] = v[1] + w*ty + (z*tx - x*tz);
+  o[2] = v[2] + w*tz + (x*ty - y*tx);
+}
+function qConj(q, o){ o[0]=-q[0]; o[1]=-q[1]; o[2]=-q[2]; o[3]=q[3]; }
+
+/* DeviceOrientation (alpha,beta,gamma у градусах) + орієнтація екрана
+   → кватерніон камери у світі. Порядок обертань ZXY, як у специфікації. */
+const _qa=[0,0,0,1], _qb=[0,0,0,1], _qc=[0,0,0,1], _qs=[0,0,0,1];
+function orientToQuat(alpha, beta, gamma, screenDeg, o){
+  const D = Math.PI / 180;
+  const z = alpha * D, x = beta * D, y = gamma * D;
+  const cZ = Math.cos(z*0.5), sZ = Math.sin(z*0.5);
+  const cX = Math.cos(x*0.5), sX = Math.sin(x*0.5);
+  const cY = Math.cos(y*0.5), sY = Math.sin(y*0.5);
+  /* q = qZ · qX · qY */
+  _qa[0]=0; _qa[1]=0; _qa[2]=sZ; _qa[3]=cZ;
+  _qb[0]=sX; _qb[1]=0; _qb[2]=0; _qb[3]=cX;
+  _qc[0]=0; _qc[1]=sY; _qc[2]=0; _qc[3]=cY;
+  qMul(_qa, _qb, _qs); qMul(_qs, _qc, o);
+  /* екран повернутий відносно пристрою */
+  if (screenDeg){
+    const s = -screenDeg * D * 0.5;
+    _qa[0]=0; _qa[1]=0; _qa[2]=Math.sin(s); _qa[3]=Math.cos(s);
+    qMul(o, _qa, _qs); o[0]=_qs[0]; o[1]=_qs[1]; o[2]=_qs[2]; o[3]=_qs[3];
+  }
+  /* камера дивиться вздовж −Z пристрою: доворот на −90° по X */
+  const h = -Math.PI * 0.25;
+  _qa[0]=Math.sin(h); _qa[1]=0; _qa[2]=0; _qa[3]=Math.cos(h);
+  qMul(o, _qa, _qs);
+  o[0]=_qs[0]; o[1]=_qs[1]; o[2]=_qs[2]; o[3]=_qs[3];
+}
+
+/* ---------- стан пози ---------- */
+const POSEN = 256;
+const poseQ = new Float32Array(POSEN * 4);   // орієнтація камери у світі
+const poseC = new Float32Array(POSEN * 3);   // центр камери у світі
+let poseHead = -1, poseCount = 0;
+let curQ = new Float32Array([0,0,0,1]);
+let curC = new Float32Array(3);
+let poseMode = 'none';       // 'none' | 'imu' | 'xr'
+let scaleFixed = false;      // базис уже призначений
+let resErr = 0, parMax = 0, pts3d = 0, poseLost = true;
+
+function poseSlot(){
+  poseHead = (poseHead + 1) % POSEN;
+  if (poseCount < POSEN) poseCount++;
+  return poseHead;
+}
+function pushPose(){
+  const i = poseSlot(), q = i*4, c = i*3;
+  poseQ[q]=curQ[0]; poseQ[q+1]=curQ[1]; poseQ[q+2]=curQ[2]; poseQ[q+3]=curQ[3];
+  poseC[c]=curC[0]; poseC[c+1]=curC[1]; poseC[c+2]=curC[2];
+  return i;
+}
+/* промінь пікселя у СВІТОВИХ координатах для пози i */
+const _r=[0,0,0], _rw=[0,0,0], _q=[0,0,0,1];
+function worldRay(poseIdx, u, v, o){
+  pixRay(u, v, _r);
+  const q = poseIdx*4;
+  _q[0]=poseQ[q]; _q[1]=poseQ[q+1]; _q[2]=poseQ[q+2]; _q[3]=poseQ[q+3];
+  qRot(_q, _r, o);
+}
+
+/* ---------- накопичувачі тріангуляції (на вершину) ---------- */
+let TA, TB, TD0, TPar, TX, TN, TAnchor, TAu, TAv;
+function alloc3d(){
+  TA = new Float32Array(MAXV * 6);   // симетрична 3×3: xx xy xz yy yz zz
+  TB = new Float32Array(MAXV * 3);
+  TD0 = new Float32Array(MAXV * 3);  // перший промінь — для кута паралакса
+  TPar = new Float32Array(MAXV);
+  TX = new Float32Array(MAXV * 3);   // 3D-точка
+  TN = new Uint8Array(MAXV);         // 0 нема, 1 накопичується, 2 готова
+  TAnchor = new Int32Array(MAXV);
+  TAu = new Float32Array(MAXV); TAv = new Float32Array(MAXV);
+}
+function reset3dVertex(v){
+  const a = v*6, b = v*3;
+  TA[a]=TA[a+1]=TA[a+2]=TA[a+3]=TA[a+4]=TA[a+5]=0;
+  TB[b]=TB[b+1]=TB[b+2]=0;
+  TPar[v]=0; TN[v]=0; TAnchor[v]=-1;
+}
+function reset3d(){
+  if (!TA) alloc3d();
+  for (let v = 0; v < MAXV; v++) reset3dVertex(v);
+  poseHead=-1; poseCount=0; scaleFixed=false; poseLost=true;
+  bootPose=-1; bootAge=0;
+  curQ[0]=curQ[1]=curQ[2]=0; curQ[3]=1;
+  curC[0]=curC[1]=curC[2]=0;
+  resErr=0; parMax=0; pts3d=0;
+  sealed = false;
+}
+
+/* Записати якір і накопичити кут паралакса. Нормальні рівняння НЕ чіпаємо,
+   поки базис не призначено — до того curC це змінна одинична оцінка напрямку,
+   і нею можна лише зіпсувати накопичення. */
+const _d=[0,0,0];
+function noteObs(v, u, vy, poseIdx){
+  const k = v*3;
+  if (TN[v] === 0){
+    worldRay(poseIdx, u, vy, _d);
+    TD0[k]=_d[0]; TD0[k+1]=_d[1]; TD0[k+2]=_d[2];
+    TAnchor[v]=poseIdx; TAu[v]=u; TAv[v]=vy;
+    TN[v] = 1;
+    return;
+  }
+  worldRay(poseIdx, u, vy, _d);
+  const dot = TD0[k]*_d[0] + TD0[k+1]*_d[1] + TD0[k+2]*_d[2];
+  const ang = Math.acos(Math.max(-1, Math.min(1, dot)));
+  if (ang > TPar[v]) TPar[v] = ang;
+}
+
+/* додати спостереження в нормальні рівняння (потрібна достовірна curC) */
+function addObs(v, u, vy, poseIdx, cx, cy, cz){
+  worldRay(poseIdx, u, vy, _d);
+  const a = v*6, b = v*3, k = v*3;
+  if (TN[v] === 0){
+    TD0[k]=_d[0]; TD0[k+1]=_d[1]; TD0[k+2]=_d[2];
+    TAnchor[v]=poseIdx; TAu[v]=u; TAv[v]=vy;
+    TN[v] = 1;
+  } else {
+    const dot = TD0[k]*_d[0] + TD0[k+1]*_d[1] + TD0[k+2]*_d[2];
+    const ang = Math.acos(Math.max(-1, Math.min(1, dot)));
+    if (ang > TPar[v]) TPar[v] = ang;
+  }
+  /* A += I − d dᵀ,  b += (I − d dᵀ)·C */
+  const dx=_d[0], dy=_d[1], dz=_d[2];
+  const m00=1-dx*dx, m01=-dx*dy, m02=-dx*dz;
+  const m11=1-dy*dy, m12=-dy*dz, m22=1-dz*dz;
+  TA[a]+=m00; TA[a+1]+=m01; TA[a+2]+=m02;
+  TA[a+3]+=m11; TA[a+4]+=m12; TA[a+5]+=m22;
+  TB[b]  += m00*cx + m01*cy + m02*cz;
+  TB[b+1]+= m01*cx + m11*cy + m12*cz;
+  TB[b+2]+= m02*cx + m12*cy + m22*cz;
+}
+
+/* розвʼязати 3×3 симетричну систему */
+function solve3(a0,a1,a2,a3,a4,a5, b0,b1,b2, o){
+  const c00=a3*a5-a4*a4, c01=a2*a4-a1*a5, c02=a1*a4-a2*a3;
+  const det = a0*c00 + a1*c01 + a2*c02;
+  if (Math.abs(det) < 1e-9) return false;
+  const c11=a0*a5-a2*a2, c12=a2*a1-a0*a4, c22=a0*a3-a1*a1;
+  const id = 1/det;
+  o[0]=(c00*b0 + c01*b1 + c02*b2)*id;
+  o[1]=(c01*b0 + c11*b1 + c12*b2)*id;
+  o[2]=(c02*b0 + c12*b1 + c22*b2)*id;
+  return true;
+}
+
+const _x3=[0,0,0];
+function triangulate(){
+  pts3d = 0; parMax = 0;
+  const need = P.parallax * Math.PI / 180;
+  for (let v = 0; v < vCnt; v++){
+    if (!VAlive[v] || TN[v] === 0) continue;
+    if (VPin[v] < 2){ continue; }          // тільки стики: вільний кінець не локалізований
+    if (TPar[v] > parMax) parMax = TPar[v];
+    if (TPar[v] < need) continue;
+    const a = v*6, b = v*3;
+    if (!solve3(TA[a],TA[a+1],TA[a+2],TA[a+3],TA[a+4],TA[a+5],
+                TB[b],TB[b+1],TB[b+2], _x3)) continue;
+    /* точка мусить бути перед камерою */
+    const dx=_x3[0]-curC[0], dy=_x3[1]-curC[1], dz=_x3[2]-curC[2];
+    qConj(curQ, _q);
+    _d[0]=dx; _d[1]=dy; _d[2]=dz;
+    qRot(_q, _d, _r);
+    if (_r[2] <= 0.02) continue;
+    TX[b]=_x3[0]; TX[b+1]=_x3[1]; TX[b+2]=_x3[2];
+    TN[v] = 2; pts3d++;
+  }
+}
+
+/* ---------- напрямок зсуву при відомому повороті ---------- */
+/* (x2 × R·x1) · t = 0 → найменший власний вектор Σ ffᵀ */
+const epiA = new Float64Array(6);
+const epiF = new Float64Array(400*3);
+const epiR = new Float64Array(400);
+function estTransDir(o){
+  epiA.fill(0);
+  let n = 0;
+  const r1=[0,0,0], r1w=[0,0,0], r2=[0,0,0], r2w=[0,0,0], f=[0,0,0];
+  for (let v = 0; v < vCnt && n < 400; v++){
+    if (!VAlive[v] || TN[v] === 0 || VPin[v] < 2) continue;
+    const ai = TAnchor[v];
+    if (ai < 0) continue;
+    worldRay(ai, TAu[v], TAv[v], r1w);           // промінь якоря у світі
+    pixRay(PX[v], PY[v], r2);
+    qRot(curQ, r2, r2w);                          // поточний промінь у світі
+    f[0] = r2w[1]*r1w[2] - r2w[2]*r1w[1];
+    f[1] = r2w[2]*r1w[0] - r2w[0]*r1w[2];
+    f[2] = r2w[0]*r1w[1] - r2w[1]*r1w[0];
+    const L = Math.sqrt(f[0]*f[0]+f[1]*f[1]+f[2]*f[2]);
+    if (L < 1e-4) continue;
+    f[0]/=L; f[1]/=L; f[2]/=L;
+    epiF[n*3]=f[0]; epiF[n*3+1]=f[1]; epiF[n*3+2]=f[2];
+    epiA[0]+=f[0]*f[0]; epiA[1]+=f[0]*f[1]; epiA[2]+=f[0]*f[2];
+    epiA[3]+=f[1]*f[1]; epiA[4]+=f[1]*f[2]; epiA[5]+=f[2]*f[2];
+    n++;
+  }
+  if (n < 12) return false;
+  if (!smallestEigen(epiA, o)) return false;
+  /* Один прохід відсіву: МНК на неоднозначних відповідностях зміщує
+     нуль-простір. Викидаємо гіршу третину по |f·t| і переганяємо. */
+  if (n >= 24){
+    for (let i = 0; i < n; i++)
+      epiR[i] = Math.abs(epiF[i*3]*o[0] + epiF[i*3+1]*o[1] + epiF[i*3+2]*o[2]);
+    const srt = Array.prototype.slice.call(epiR, 0, n).sort((a,b)=>a-b);
+    const cut = srt[(n*0.67)|0];
+    epiA.fill(0);
+    let m = 0;
+    for (let i = 0; i < n; i++){
+      if (epiR[i] > cut) continue;
+      const a=epiF[i*3], b=epiF[i*3+1], c=epiF[i*3+2];
+      epiA[0]+=a*a; epiA[1]+=a*b; epiA[2]+=a*c;
+      epiA[3]+=b*b; epiA[4]+=b*c; epiA[5]+=c*c;
+      m++;
+    }
+    if (m >= 12) smallestEigen(epiA, o);
+  }
+  return true;
+}
+
+/* найменший власний вектор симетричної 3×3 — оберненими ітераціями */
+const _ev=[0,0,0], _tmp=[0,0,0];
+function smallestEigen(A, o){
+  const tr = (A[0]+A[3]+A[5]) / 3 || 1;
+  const s = 1/tr;
+  const a0=A[0]*s, a1=A[1]*s, a2=A[2]*s, a3=A[3]*s, a4=A[4]*s, a5=A[5]*s;
+  const eps = 1e-3;
+  const b0=a0+eps, b3=a3+eps, b5=a5+eps;
+  let x0=0.577, x1=0.577, x2=0.577;
+  for (let it = 0; it < 24; it++){
+    if (!solve3(b0,a1,a2,b3,a4,b5, x0,x1,x2, _tmp)) return false;
+    const L = Math.sqrt(_tmp[0]*_tmp[0]+_tmp[1]*_tmp[1]+_tmp[2]*_tmp[2]);
+    if (!(L > 1e-12)) return false;
+    x0=_tmp[0]/L; x1=_tmp[1]/L; x2=_tmp[2]/L;
+  }
+  o[0]=x0; o[1]=x1; o[2]=x2;
+  return true;
+}
+
+/* ---------- резекція: центр камери при відомому R і 3D-точках ---------- */
+/* xi × (Xi − C) = 0, лінійно по C */
+const resA = new Float64Array(6), resB = new Float64Array(3);
+function resection(){
+  resA.fill(0); resB.fill(0);
+  let n = 0;
+  const r=[0,0,0], rw=[0,0,0];
+  for (let v = 0; v < vCnt; v++){
+    if (!VAlive[v] || TN[v] !== 2 || VPin[v] < 2) continue;
+    pixRay(PX[v], PY[v], r);
+    qRot(curQ, r, rw);
+    const dx=rw[0], dy=rw[1], dz=rw[2];
+    const m00=1-dx*dx, m01=-dx*dy, m02=-dx*dz;
+    const m11=1-dy*dy, m12=-dy*dz, m22=1-dz*dz;
+    const k=v*3, X=TX[k], Y=TX[k+1], Z=TX[k+2];
+    resA[0]+=m00; resA[1]+=m01; resA[2]+=m02;
+    resA[3]+=m11; resA[4]+=m12; resA[5]+=m22;
+    resB[0]+= m00*X + m01*Y + m02*Z;
+    resB[1]+= m01*X + m11*Y + m12*Z;
+    resB[2]+= m02*X + m12*Y + m22*Z;
+    n++;
+  }
+  if (n < 6) return false;
+  if (!solve3(resA[0],resA[1],resA[2],resA[3],resA[4],resA[5],
+              resB[0],resB[1],resB[2], _x3)) return false;
+  /* другий прохід — без точок з великою похибкою відстані до променя */
+  if (n >= 16){
+    const cx0=_x3[0], cy0=_x3[1], cz0=_x3[2];
+    let s2 = 0, cnt2 = 0;
+    for (let v = 0; v < vCnt; v++){
+      if (!VAlive[v] || TN[v] !== 2 || VPin[v] < 2) continue;
+      pixRay(PX[v], PY[v], r); qRot(curQ, r, rw);
+      const k=v*3, ex=TX[k]-cx0, ey=TX[k+1]-cy0, ez=TX[k+2]-cz0;
+      const pr = ex*rw[0]+ey*rw[1]+ez*rw[2];
+      const px=ex-pr*rw[0], py=ey-pr*rw[1], pz=ez-pr*rw[2];
+      s2 += px*px+py*py+pz*pz; cnt2++;
+    }
+    const thr = (s2/Math.max(1,cnt2)) * 1.4;
+    resA.fill(0); resB.fill(0);
+    let m = 0;
+    for (let v = 0; v < vCnt; v++){
+      if (!VAlive[v] || TN[v] !== 2 || VPin[v] < 2) continue;
+      pixRay(PX[v], PY[v], r); qRot(curQ, r, rw);
+      const k=v*3, ex=TX[k]-cx0, ey=TX[k+1]-cy0, ez=TX[k+2]-cz0;
+      const pr = ex*rw[0]+ey*rw[1]+ez*rw[2];
+      const px=ex-pr*rw[0], py=ey-pr*rw[1], pz=ez-pr*rw[2];
+      if (px*px+py*py+pz*pz > thr) continue;
+      const dx=rw[0], dy=rw[1], dz=rw[2];
+      const m00=1-dx*dx, m01=-dx*dy, m02=-dx*dz;
+      const m11=1-dy*dy, m12=-dy*dz, m22=1-dz*dz;
+      const X=TX[k], Y=TX[k+1], Z=TX[k+2];
+      resA[0]+=m00; resA[1]+=m01; resA[2]+=m02;
+      resA[3]+=m11; resA[4]+=m12; resA[5]+=m22;
+      resB[0]+= m00*X + m01*Y + m02*Z;
+      resB[1]+= m01*X + m11*Y + m12*Z;
+      resB[2]+= m02*X + m12*Y + m22*Z;
+      m++;
+    }
+    if (m >= 6) solve3(resA[0],resA[1],resA[2],resA[3],resA[4],resA[5],
+                       resB[0],resB[1],resB[2], _x3);
+  }
+  const step = Math.sqrt((_x3[0]-curC[0])**2 + (_x3[1]-curC[1])**2 + (_x3[2]-curC[2])**2);
+  if (!isFinite(step) || step > 2.0) return false;      // стрибок = розбіжність
+  curC[0]=_x3[0]; curC[1]=_x3[1]; curC[2]=_x3[2];
+  resErr = step;
+  return true;
+}
+
+/* ---------- головна стадія ---------- */
+let sealed = false;
+let bootPose = -1, bootAge = 0;
+const _t=[0,0,0];
+
+function pose3dStage(){
+  if (poseMode === 'none'){ poseLost = true; return; }
+  updCam();
+  poseLost = false;
+
+  if (!scaleFixed){
+    /* --- ЗАВАНТАЖЕННЯ: класична двокадрова схема ---
+       Опорний кадр A не може бути найпершим: вершині треба ~6 кадрів,
+       щоб набрати довіру. Тому A — це перший кадр, де впевнених вершин
+       уже достатньо, і саме він стає початком координат. */
+    curC[0]=0; curC[1]=0; curC[2]=0;
+    if (bootPose < 0){
+      let n = 0;
+      for (let v = 0; v < vCnt; v++) if (VAlive[v] && EnoughObs(v)) n++;
+      if (n < 20){ pts3d = 0; parMax = 0; return; }
+      bootPose = pushPose(); bootAge = 0;
+      for (let v = 0; v < vCnt; v++){
+        if (!VAlive[v] || !EnoughObs(v)) continue;
+        reset3dVertex(v);
+        noteObs(v, PX[v], PY[v], bootPose);
+      }
+      pts3d = 0; parMax = 0; return;
+    }
+    bootAge++;
+    if (bootAge > POSEN - 8){ bootPose = -1; pts3d = 0; return; }  // кільце поз обернулось
+    const pi = pushPose();
+    parMax = 0;
+    for (let v = 0; v < vCnt; v++){
+      if (!VAlive[v] || TAnchor[v] !== bootPose || !EnoughObs(v)) continue;
+      noteObs(v, PX[v], PY[v], pi);
+      if (VPin[v] >= 2 && TPar[v] > parMax) parMax = TPar[v];
+    }
+    if (parMax < P.parallax * Math.PI / 180){ pts3d = 0; return; }
+    if (!estTransDir(_t)){ pts3d = 0; return; }
+    /* Епіполярна умова однорідна — знак базису з неї не випливає.
+       Розвʼязує хіральність: правильний знак дає точки ПЕРЕД камерою.
+       Скалярний добуток напрямку на точку з базисом тут не працює: при
+       боковому проході базис перпендикулярний погляду, добуток ≈ 0. */
+    let bestN = -1, bestSg = 1;
+    for (let pass = 0; pass < 3; pass++){
+      const sg = pass === 0 ? 1 : (pass === 1 ? -1 : bestSg);
+      curC[0]=_t[0]*sg; curC[1]=_t[1]*sg; curC[2]=_t[2]*sg;   // |базис| := 1
+      const pj = pushPose();
+      for (let v = 0; v < vCnt; v++){
+        if (!VAlive[v] || TN[v] === 0 || TAnchor[v] !== bootPose || !EnoughObs(v)) continue;
+        const a=v*6, b=v*3;
+        TA[a]=TA[a+1]=TA[a+2]=TA[a+3]=TA[a+4]=TA[a+5]=0;
+        TB[b]=TB[b+1]=TB[b+2]=0;
+        addObs(v, TAu[v], TAv[v], bootPose, 0, 0, 0);
+        addObs(v, PX[v], PY[v], pj, curC[0], curC[1], curC[2]);
+      }
+      triangulate();
+      if (pass < 2){
+        if (pts3d > bestN){ bestN = pts3d; bestSg = sg; }
+        for (let v = 0; v < vCnt; v++) if (TN[v] === 2) TN[v] = 1;
+      }
+    }
+    if (pts3d >= 8) scaleFixed = true;
+    else { for (let v = 0; v < vCnt; v++) if (TN[v] === 2) TN[v] = 1; pts3d = 0; }
+    return;
+  }
+
+  /* --- РОБОЧИЙ РЕЖИМ: резекція, потім накопичення --- */
+  if (!resection()){ poseLost = true; return; }
+  const pi = pushPose();
+  if (!sealed){
+    for (let v = 0; v < vCnt; v++){
+      if (!VAlive[v] || !EnoughObs(v)) continue;
+      addObs(v, PX[v], PY[v], pi, curC[0], curC[1], curC[2]);
+    }
+    triangulate();
+  } else {
+    let n = 0;
+    for (let v = 0; v < vCnt; v++) if (VAlive[v] && TN[v] === 2) n++;
+    pts3d = n;
+  }
+}
+function EnoughObs(v){
+  return VPin[v] >= 2 && VConf[v] >= 6 &&
+         PX[v] > 2 && PY[v] > 2 && PX[v] < pw - 2 && PY[v] < ph - 2;
+}
+
+/* ---------- проєкція 3D → екран ---------- */
+function project3(v, o){
+  const k = v*3;
+  const dx = TX[k]-curC[0], dy = TX[k+1]-curC[1], dz = TX[k+2]-curC[2];
+  qConj(curQ, _q);
+  _d[0]=dx; _d[1]=dy; _d[2]=dz;
+  qRot(_q, _d, _r);
+  if (_r[2] <= 0.02) return false;
+  o[0] = CAM.cx + CAM.fx * _r[0] / _r[2];
+  o[1] = CAM.cy + CAM.fy * _r[1] / _r[2];
+  o[2] = _r[2];
+  return true;
+}
+
+/* ============================================================
    СТАДІЇ КАДРУ
    ============================================================ */
 function detectStage(){
@@ -1566,6 +2028,7 @@ function lockStage(){
   frameNo++;
   if (frameNo % 6 === 0){ weldPass(); recluster(); }
   depth();
+  if (P.tri) pose3dStage();
 }
 
 /* ============================================================
@@ -1707,6 +2170,7 @@ function drawOverlay(){
     }
   }
 
+  if (P.tri && pts3d > 0) draw3d(sx, sy);
   if (P.boxes) drawBoxes(sx, sy);
   if (P.arrows && P.memory) drawMemoryArrows(W, H);
 
@@ -1723,6 +2187,52 @@ function drawOverlay(){
   }
 
   drawFocusRing(sx, sy);
+}
+
+/* 3D-каркас: ребра, обидва кінці яких тріангульовані.
+   Колір і товщина за метричною глибиною, не за псевдо-пріором. */
+const _p3a=[0,0,0], _p3b=[0,0,0];
+function draw3d(sx, sy){
+  let zMin = 1e9, zMax = -1e9;
+  for (let v = 0; v < vCnt; v++){
+    if (!VAlive[v] || TN[v] !== 2) continue;
+    if (!project3(v, _p3a)) continue;
+    if (_p3a[2] < zMin) zMin = _p3a[2];
+    if (_p3a[2] > zMax) zMax = _p3a[2];
+  }
+  const span = Math.max(1e-3, zMax - zMin);
+  octx.lineCap = 'round'; octx.lineJoin = 'round';
+  for (let e = 0; e < eCnt; e++){
+    if (!EAlive[e] || EConf[e] < 5) continue;
+    const a = EA[e], b = EB[e];
+    if (TN[a] !== 2 || TN[b] !== 2) continue;
+    if (!project3(a, _p3a) || !project3(b, _p3b)) continue;
+    const t = 1 - (((_p3a[2] + _p3b[2]) * 0.5) - zMin) / span;   // ближче = 1
+    octx.lineWidth = 1.2 + 1.8 * t;
+    octx.strokeStyle = sealed
+      ? 'rgba(255,193,60,' + (0.45 + 0.5 * t).toFixed(3) + ')'
+      : 'rgba(' + lerpCol(t) + ',' + (0.45 + 0.5 * t).toFixed(3) + ')';
+    octx.beginPath();
+    octx.moveTo(_p3a[0] * sx, _p3a[1] * sy);
+    octx.lineTo(_p3b[0] * sx, _p3b[1] * sy);
+    octx.stroke();
+  }
+  if (P.verts){
+    for (let v = 0; v < vCnt; v++){
+      if (!VAlive[v] || TN[v] !== 2 || VPin[v] < 2) continue;
+      if (!project3(v, _p3a)) continue;
+      const t = 1 - (_p3a[2] - zMin) / span;
+      octx.fillStyle = sealed ? 'rgba(255,193,60,.9)' : 'rgba(218,255,199,' + (0.4 + 0.5*t).toFixed(3) + ')';
+      octx.beginPath();
+      octx.arc(_p3a[0] * sx, _p3a[1] * sy, 2.0 + 1.4 * t, 0, 6.2832);
+      octx.fill();
+    }
+  }
+  if (sealed){
+    octx.font = '700 11px ui-monospace,monospace';
+    octx.fillStyle = 'rgba(255,193,60,.95)';
+    octx.fillText('ЗАПЕЧАТАНО · ' + pts3d + ' ТОЧОК', 16, ovc.height - 96);
+  }
 }
 
 /* Памʼять поза кадром: засічки на рамці в бік того, що там лежить.
@@ -1881,6 +2391,8 @@ function render(){
     document.getElementById('cMem').textContent = memTotal;
     document.getElementById('cDrift').textContent = driftRes.toFixed(1);
     document.getElementById('c3d').textContent = Math.round(depthConf * 100);
+    document.getElementById('cP3').textContent = pts3d;
+    document.getElementById('cPar').textContent = (parMax * 57.2958).toFixed(1);
     lockStable = cn > 20 && cs / cn > 8;
 
     if (!P.lock) hint(HINT.off, false);
@@ -1974,6 +2486,47 @@ document.querySelectorAll('.tg').forEach(b => b.addEventListener('click', () => 
   b.classList.toggle('on', P[k]);
   if ((k === 'lock' || k === 'memory') && P[k]) resetTracks();
 }));
+
+let gyroOn = false, screenDeg = 0;
+function readScreenDeg(){
+  const o = (screen.orientation && screen.orientation.angle);
+  screenDeg = typeof o === 'number' ? o : (window.orientation || 0);
+}
+function onOrient(ev){
+  if (ev.alpha === null) return;
+  readScreenDeg();
+  orientToQuat(ev.alpha, ev.beta, ev.gamma, screenDeg, curQ);
+  if (poseMode === 'none') poseMode = 'imu';
+}
+async function enableGyro(){
+  const D = window.DeviceOrientationEvent;
+  if (!D) return 'нема DeviceOrientation';
+  try {
+    if (typeof D.requestPermission === 'function'){
+      const r = await D.requestPermission();
+      if (r !== 'granted') return 'відмовлено';
+    }
+  } catch (err){ return 'помилка дозволу'; }
+  window.addEventListener('deviceorientation', onOrient, true);
+  gyroOn = true;
+  return null;
+}
+document.getElementById('bGyro').addEventListener('click', async e => {
+  const el = e.currentTarget;
+  const err = await enableGyro();
+  el.classList.toggle('on', gyroOn);
+  if (err) hint('Гіро не дало: ' + err, true);
+  else { P.tri = true; syncRows(); hint('Гіро є. Веди камеру вбік — треба паралакс', false); }
+});
+
+/* тап по кадру — запечатати / розпечатати модель */
+ovc.addEventListener('click', () => {
+  if (!P.tri) return;
+  if (!sealed && pts3d < 12){ hint('Мало 3D-точок, води ще', true); return; }
+  sealed = !sealed;
+  hint(sealed ? 'Запечатано. Обходь — воно лишається на місці'
+              : 'Розпечатано, будую далі', sealed);
+});
 
 document.getElementById('bForget').addEventListener('click', e => {
   resetTracks();
