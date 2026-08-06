@@ -56,6 +56,17 @@ video{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 .btn.on{border-color:rgba(106,213,130,.55);color:var(--hot);background:rgba(0,49,30,.7)}
 .btn.amber{border-color:rgba(255,193,60,.55);color:var(--amber)}
 
+#diag{position:absolute;z-index:5;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 110px);
+  background:rgba(4,14,9,.94);border:1px solid rgba(106,213,130,.3);border-radius:14px;
+  padding:14px 16px;font-size:11px;line-height:1.75;letter-spacing:.03em;color:var(--ink);
+  backdrop-filter:blur(10px);display:none;max-height:62vh;overflow-y:auto;pointer-events:auto}
+#diag.show{display:block}
+#diag b{color:var(--hot);font-weight:700}
+#diag .bad{color:var(--red)}
+#diag .good{color:var(--accent)}
+#diag .warn{color:var(--amber)}
+#diag h4{margin:10px 0 4px;font-size:9.5px;letter-spacing:.2em;color:var(--amber);font-weight:600}
+#diag h4:first-child{margin-top:0}
 #lockline{position:absolute;z-index:3;left:16px;bottom:calc(env(safe-area-inset-bottom) + 78px);
   font-size:11px;letter-spacing:.09em;color:var(--ink);opacity:.85;
   text-shadow:0 0 10px rgba(0,0,0,.9);max-width:64vw}
@@ -146,10 +157,12 @@ input[type=range]::-moz-range-thumb{width:17px;height:17px;border:0;border-radiu
   <button class="btn on" id="bBase">◆ БАЗА</button>
   <button class="btn" id="bBox">◉ БОКСИ</button>
   <button class="btn" id="bGyro">◎ ГІРО</button>
+  <button class="btn" id="bDiag">? ДІАГ</button>
   <button class="btn" id="bForget">✕ ЗАБУТИ</button>
   <button class="btn amber" id="bShot">⚡ КАДР</button>
 </div>
 
+<div id="diag"></div>
 <div id="lockline">Фіксація спить</div>
 
 <div id="sheet">
@@ -1609,9 +1622,12 @@ function orientToQuat(alpha, beta, gamma, screenDeg, o){
     _qa[0]=0; _qa[1]=0; _qa[2]=Math.sin(s); _qa[3]=Math.cos(s);
     qMul(o, _qa, _qs); o[0]=_qs[0]; o[1]=_qs[1]; o[2]=_qs[2]; o[3]=_qs[3];
   }
-  /* камера дивиться вздовж −Z пристрою: доворот на −90° по X */
-  const h = -Math.PI * 0.25;
-  _qa[0]=Math.sin(h); _qa[1]=0; _qa[2]=0; _qa[3]=Math.cos(h);
+  /* Пристрій: X вправо по екрану, Y вгору по екрану, Z з екрана на глядача.
+     Тилова камера дивиться вздовж −Z, а піксельна конвенція має y ВНИЗ.
+     Отже camera = diag(1,−1,−1) відносно пристрою — це поворот на 180°
+     навколо X, кватерніон (1,0,0,0). Не −90°: при −90° вісь Z перестає
+     бути оптичною, і крен від повороту екрана зсуває напрямок погляду. */
+  _qa[0]=1; _qa[1]=0; _qa[2]=0; _qa[3]=0;
   qMul(o, _qa, _qs);
   o[0]=_qs[0]; o[1]=_qs[1]; o[2]=_qs[2]; o[3]=_qs[3];
 }
@@ -2488,35 +2504,140 @@ document.querySelectorAll('.tg').forEach(b => b.addEventListener('click', () => 
 }));
 
 let gyroOn = false, screenDeg = 0;
+const GY = { evt:0, motion:0, last:0, hz:0, a:null, b:null, g:null, abs:false,
+             rate:false, rx:0, ry:0, rz:0, perm:'не питали', permMotion:'не питали',
+             jitter:0, jn:0, ja:0, jb:0, jg:0, err:null };
+
 function readScreenDeg(){
-  const o = (screen.orientation && screen.orientation.angle);
+  const o = (window.screen && screen.orientation && screen.orientation.angle);
   screenDeg = typeof o === 'number' ? o : (window.orientation || 0);
 }
 function onOrient(ev){
-  if (ev.alpha === null) return;
+  if (ev.alpha === null && ev.beta === null) return;
+  GY.evt++;
+  const t = performance.now();
+  if (GY.last) GY.hz = GY.hz * 0.9 + (1000 / Math.max(1, t - GY.last)) * 0.1;
+  GY.last = t;
+  GY.abs = !!ev.absolute;
+  /* тремтіння орієнтації: воно прямо визначає, чи вийде реконструкція */
+  if (GY.a !== null){
+    const d = Math.abs(ev.alpha - GY.a) + Math.abs(ev.beta - GY.b) + Math.abs(ev.gamma - GY.g);
+    if (d < 20){ GY.jitter = GY.jitter * 0.95 + d * 0.05; GY.jn++; }
+  }
+  GY.a = ev.alpha; GY.b = ev.beta; GY.g = ev.gamma;
   readScreenDeg();
   orientToQuat(ev.alpha, ev.beta, ev.gamma, screenDeg, curQ);
   if (poseMode === 'none') poseMode = 'imu';
 }
+function onMotion(ev){
+  GY.motion++;
+  const r = ev.rotationRate;
+  if (r && (r.alpha !== null || r.beta !== null)){
+    GY.rate = true;
+    GY.rx = r.beta || 0; GY.ry = r.gamma || 0; GY.rz = r.alpha || 0;
+  }
+}
 async function enableGyro(){
-  const D = window.DeviceOrientationEvent;
-  if (!D) return 'нема DeviceOrientation';
+  GY.err = null;
+  if (!window.isSecureContext){
+    GY.err = 'не HTTPS — iOS не дасть дозвіл';
+    return GY.err;
+  }
+  const DO = window.DeviceOrientationEvent, DM = window.DeviceMotionEvent;
+  if (!DO){ GY.err = 'нема DeviceOrientationEvent'; return GY.err; }
   try {
-    if (typeof D.requestPermission === 'function'){
-      const r = await D.requestPermission();
-      if (r !== 'granted') return 'відмовлено';
-    }
-  } catch (err){ return 'помилка дозволу'; }
+    if (typeof DO.requestPermission === 'function'){
+      GY.perm = await DO.requestPermission();
+      if (GY.perm !== 'granted'){ GY.err = 'орієнтація: ' + GY.perm; return GY.err; }
+    } else GY.perm = 'не потрібен';
+  } catch (e){ GY.perm = 'помилка'; GY.err = 'дозвіл кинув помилку'; return GY.err; }
+  try {
+    if (DM && typeof DM.requestPermission === 'function')
+      GY.permMotion = await DM.requestPermission();
+    else if (DM) GY.permMotion = 'не потрібен';
+  } catch (e){ GY.permMotion = 'помилка'; }
+
+  /* absolute-варіант точніший там, де він є */
+  window.addEventListener('deviceorientationabsolute', onOrient, true);
   window.addEventListener('deviceorientation', onOrient, true);
+  if (DM) window.addEventListener('devicemotion', onMotion, true);
   gyroOn = true;
+  setTimeout(() => { if (GY.evt === 0) GY.err = 'дозвіл є, але подій нема'; }, 1200);
   return null;
 }
+
+function diagText(){
+  const L = [];
+  const yn = (c, t) => '<span class="' + (c ? 'good' : 'bad') + '">' + t + '</span>';
+  L.push('<h4>ПІДКЛЮЧЕННЯ</h4>');
+  L.push('протокол: ' + yn(window.isSecureContext, location.protocol + ' ' +
+        (window.isSecureContext ? 'захищений' : '— iOS вимагає HTTPS')));
+  L.push('DeviceOrientation: ' + yn(!!window.DeviceOrientationEvent, window.DeviceOrientationEvent ? 'є' : 'нема'));
+  L.push('дозвіл орієнтації: <b>' + GY.perm + '</b>');
+  L.push('дозвіл руху: <b>' + GY.permMotion + '</b>');
+  L.push('подій орієнтації: <b>' + GY.evt + '</b>' + (GY.evt ? ' (' + GY.hz.toFixed(0) + ' Гц)' : ''));
+  L.push('подій руху: <b>' + GY.motion + '</b>');
+  if (GY.err) L.push('<span class="bad">✕ ' + GY.err + '</span>');
+
+  L.push('<h4>ГІРОСКОП</h4>');
+  if (GY.a === null) L.push('<span class="bad">кутів нема</span>');
+  else {
+    L.push('α ' + GY.a.toFixed(1) + '  β ' + GY.b.toFixed(1) + '  γ ' + GY.g.toFixed(1) +
+           '   екран ' + screenDeg + '°');
+    L.push('absolute: ' + (GY.abs ? '<span class="good">так</span>' : '<span class="warn">ні</span>'));
+    L.push('rotationRate: ' + (GY.rate ? '<span class="good">є</span>' : '<span class="warn">нема</span>'));
+    const j = GY.jitter;
+    const cls = j < 0.3 ? 'good' : (j < 0.8 ? 'warn' : 'bad');
+    L.push('тремтіння: <span class="' + cls + '">' + j.toFixed(2) + '°</span>' +
+           (j >= 0.5 ? ' — на 0.5° похибка точок росте вчетверо' : ''));
+  }
+
+  L.push('<h4>3D</h4>');
+  L.push('режим пози: <b>' + poseMode + '</b>' + (P.tri ? '' : '  <span class="warn">(тумблер 3D вимкнений)</span>'));
+  let conf = 0;
+  for (let v = 0; v < vCnt; v++) if (VAlive[v] && VPin[v] >= 2 && VConf[v] >= 6) conf++;
+  L.push('впевнених стиків: <b>' + conf + '</b> / треба 20 на опорний кадр');
+  L.push('опорний кадр: ' + (bootPose >= 0 ? '<span class="good">є</span>' : '<span class="warn">чекає</span>'));
+  L.push('паралакс: <b>' + (parMax * 57.2958).toFixed(2) + '°</b> / треба ' + P.parallax.toFixed(1) + '°');
+  L.push('базис: ' + (scaleFixed ? '<span class="good">призначено</span>' : '<span class="warn">нема</span>'));
+  L.push('3D-точок: <b>' + pts3d + '</b>' + (sealed ? '  <span class="warn">ЗАПЕЧАТАНО</span>' : ''));
+  L.push('поле зору: ' + P.hfov + '°  (fx ' + CAM.fx.toFixed(0) + ' px)');
+
+  L.push('<h4>ЩО РОБИТИ</h4>');
+  if (!window.isSecureContext) L.push('<span class="bad">Відкрий через HTTPS — GitHub Pages підійде.</span>');
+  else if (!gyroOn) L.push('Тисни ◎ ГІРО.');
+  else if (GY.evt === 0) L.push('<span class="bad">Дозвіл є, подій нема — перезавантаж сторінку.</span>');
+  else if (!P.tri) L.push('Увімкни тумблер 3D у шторці.');
+  else if (conf < 20) L.push('Наведи на предмет з чіткими гранями — мало стиків.');
+  else if (!scaleFixed) L.push('<span class="warn">Веди камеру ВБІК паралельно собі, не повертай.</span>');
+  else L.push('<span class="good">Будую. Тап по кадру запечатує.</span>');
+  return L.join('<br>');
+}
+
+let diagOn = false, diagTimer = 0;
+document.getElementById('bDiag').addEventListener('click', e => {
+  diagOn = !diagOn;
+  e.currentTarget.classList.toggle('on', diagOn);
+  const el = document.getElementById('diag');
+  el.classList.toggle('show', diagOn);
+  clearInterval(diagTimer);
+  if (diagOn){
+    el.innerHTML = diagText();
+    diagTimer = setInterval(() => { el.innerHTML = diagText(); }, 400);
+  }
+});
+
 document.getElementById('bGyro').addEventListener('click', async e => {
   const el = e.currentTarget;
   const err = await enableGyro();
   el.classList.toggle('on', gyroOn);
-  if (err) hint('Гіро не дало: ' + err, true);
-  else { P.tri = true; syncRows(); hint('Гіро є. Веди камеру вбік — треба паралакс', false); }
+  if (err){
+    hint('Гіро не дало: ' + err, true);
+    if (!diagOn) document.getElementById('bDiag').click();
+  } else {
+    P.tri = true; syncRows();
+    hint('Гіро є. Веди камеру вбік — треба паралакс', false);
+  }
 });
 
 /* тап по кадру — запечатати / розпечатати модель */
