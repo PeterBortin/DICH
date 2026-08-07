@@ -164,7 +164,7 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border:0;border-radiu
         <div class="row"><label>ПРОЗОРІСТЬ</label><input type="range" id="sOpa" min="0" max="1" step="0.05" value="0.85"><output>0.85</output></div>
         <div class="row"><label>БЛИЖНЯ</label><input type="range" id="sNear" min="0" max="0.9" step="0.01" value="0"><output>0.00</output></div>
         <div class="row"><label>ДАЛЬНЯ</label><input type="range" id="sFar" min="0.1" max="1" step="0.01" value="1"><output>1.00</output></div>
-        <div class="row"><label>ПОРІГ ДОВІРИ</label><input type="range" id="sConf" min="0" max="0.9" step="0.02" value="0.18"><output>0.18</output></div>
+        <div class="row"><label>ПОРІГ ДОВІРИ</label><input type="range" id="sConf" min="0" max="0.9" step="0.02" value="0.12"><output>0.18</output></div>
       </div>
 
       <div class="grp" data-g="scan">
@@ -210,14 +210,14 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border:0;border-radiu
 </div>
 
 <script type="module">
-const BUILD = 'L1 · сенсор';
+const BUILD = 'L2 · без NaN';
 document.getElementById('stamp').textContent = 'ЗБІРКА ' + BUILD;
 
 /* ============================================================
    ПАРАМЕТРИ
    ============================================================ */
 const P = {
-  pal:0, mask:true, opacity:0.85, near:0, far:1, confMin:0.18,
+  pal:0, mask:true, opacity:0.85, near:0, far:1, confMin:0.12,
   shots:24, step:2, cut:0.06, relief:1, hfov:62, range:6,
   measure:false, gyro:false, auto:true
 };
@@ -232,41 +232,56 @@ function depthToZ(dn, range){ const k = 1/range; return 1/(dn*(1-k) + k); }
 function buildRelief(depth, conf, W, H, rgb, o){
   const step = Math.max(1, Math.round(o.step));
   const gw = Math.floor((W-1)/step)+1, gh = Math.floor((H-1)/step)+1;
-  const n = gw*gh;
-  const pos = new Float32Array(n*3), col = new Float32Array(n*3), zs = new Float32Array(n);
+  const N = gw*gh;
   const fx = (W*0.5)/Math.tan(o.hfov*Math.PI/360), cx = W*0.5, cy = H*0.5;
   let lo = Infinity, hi = -Infinity;
   for (let i=0;i<depth.length;i++){ const d=depth[i]; if(d<lo)lo=d; if(d>hi)hi=d; }
   const span = Math.max(1e-6, hi-lo);
-  let i = 0, kept = 0;
-  for (let gy=0; gy<gh; gy++){
+
+  /* Прохід 1: хто виживає. Відкинуті НЕ лишаємо в буфері як NaN —
+     Box3 по такому масиву дає NaN-межі, isEmpty() їх не ловить,
+     камера стає в NaN і сцена рендериться чорною. Виміряно на живому
+     кадрі з довірою 25%. */
+  const zs = new Float32Array(N), map = new Int32Array(N).fill(-1);
+  let kept = 0, dropConf = 0, dropRange = 0;
+  for (let gy=0, i=0; gy<gh; gy++){
     const v = Math.min(H-1, gy*step);
     for (let gx=0; gx<gw; gx++, i++){
       const u = Math.min(W-1, gx*step), k = v*W+u;
       const dn = (depth[k]-lo)/span;
-      if (dn < o.near || dn > o.far || (conf && conf[k] < o.confMin)){ zs[i] = -1; pos[i*3+2] = NaN; continue; }
-      const z = depthToZ(dn, o.range) * o.relief;
-      zs[i] = z; kept++;
-      pos[i*3] = (u-cx)*z/fx; pos[i*3+1] = -(v-cy)*z/fx; pos[i*3+2] = -z;
-      if (rgb){ const q=k*4; col[i*3]=rgb[q]/255; col[i*3+1]=rgb[q+1]/255; col[i*3+2]=rgb[q+2]/255; }
-      else { col[i*3]=.42; col[i*3+1]=.84; col[i*3+2]=.51; }
+      if (dn < o.near || dn > o.far){ dropRange++; continue; }
+      if (conf && conf[k] < o.confMin){ dropConf++; continue; }
+      zs[i] = depthToZ(dn, o.range) * o.relief;
+      map[i] = kept++;
+    }
+  }
+  const pos = new Float32Array(kept*3), col = new Float32Array(kept*3);
+  for (let gy=0, i=0; gy<gh; gy++){
+    const v = Math.min(H-1, gy*step);
+    for (let gx=0; gx<gw; gx++, i++){
+      const m = map[i]; if (m < 0) continue;
+      const u = Math.min(W-1, gx*step), k = v*W+u, z = zs[i];
+      pos[m*3] = (u-cx)*z/fx; pos[m*3+1] = -(v-cy)*z/fx; pos[m*3+2] = -z;
+      if (rgb){ const q=k*4; col[m*3]=rgb[q]/255; col[m*3+1]=rgb[q+1]/255; col[m*3+2]=rgb[q+2]/255; }
+      else { col[m*3]=.42; col[m*3+1]=.84; col[m*3+2]=.51; }
     }
   }
   /* грань пропускаємо на розриві глибини: інакше на межах предметів
-     тягнеться плівка від переднього плану до фону */
+     тягнеться плівка від переднього плану до фону. Поріг росте з кроком —
+     ширший квад природно має більший перепад. */
   const tri = [];
   for (let gy=0; gy<gh-1; gy++)
     for (let gx=0; gx<gw-1; gx++){
       const a=gy*gw+gx, b=a+1, c=a+gw, d=c+1;
+      const ma=map[a], mb=map[b], mc=map[c], md=map[d];
+      if (ma<0||mb<0||mc<0||md<0) continue;
       const za=zs[a],zb=zs[b],zc=zs[c],zd=zs[d];
-      if (za<0||zb<0||zc<0||zd<0) continue;
       const mx=Math.max(za,zb,zc,zd), mn=Math.min(za,zb,zc,zd);
-      /* Квад ширший — перепад глибини в ньому природно більший. Без цієї
-         поправки на кроці 4 поріг з'їдав 95% граней. */
       if ((mx-mn)/mn > o.cut*step) continue;
-      tri.push(a,c,b, b,c,d);
+      tri.push(ma,mc,mb, mb,mc,md);
     }
-  return { pos, col, tri:new Uint32Array(tri), gw, gh, count:n, kept };
+  return { pos, col, tri:new Uint32Array(tri), gw, gh,
+           count:kept, kept, total:N, dropConf, dropRange };
 }
 function edgesFromTris(tri){
   const seen = new Set(), out = [];
@@ -281,6 +296,246 @@ function edgesFromTris(tri){
   }
   return new Uint32Array(out);
 }
+
+/* ============================================================
+   СКАН: ЗШИВАННЯ КАДРІВ ХМАРАМИ
+   ============================================================
+   Поз тут узяти нема звідки — SfM у цьому приладі немає. Тому
+   кадри зшиваються самими хмарами глибини, 7 параметрів:
+   поворот, зсув і МАСШТАБ. Сьомий обов'язковий: мережа віддає
+   глибину кожного кадру з довільним масштабом, і без нього він
+   сплутується зі зсувом уздовж осі камери — виміряно раніше.
+   Перший кадр задає масштаб, решта беруть його з перекриття.
+   ============================================================ */
+function cholN(A, b, x, n){
+  const L = new Float64Array(n*n);
+  for (let i=0;i<n;i++)
+    for (let j=0;j<=i;j++){
+      let s = A[i*n+j];
+      for (let k=0;k<j;k++) s -= L[i*n+k]*L[j*n+k];
+      if (i===j){ if (s < 1e-14) return false; L[i*n+i] = Math.sqrt(s); }
+      else L[i*n+j] = s/L[j*n+j];
+    }
+  const y = new Float64Array(n);
+  for (let i=0;i<n;i++){ let s=b[i];
+    for (let k=0;k<i;k++) s -= L[i*n+k]*y[k]; y[i] = s/L[i*n+i]; }
+  for (let i=n-1;i>=0;i--){ let s=y[i];
+    for (let k=i+1;k<n;k++) s -= L[k*n+i]*x[k]; x[i] = s/L[i*n+i]; }
+  return true;
+}
+function cloudNormals(f){
+  const gw=f.gw, gh=f.gh, Pp=f.pos, N=new Float32Array(f.count*3);
+  for (let y=0;y<gh;y++) for (let x=0;x<gw;x++){
+    const i=y*gw+x;
+    if (!isFinite(Pp[i*3+2])) continue;
+    const xa=x>0?i-1:i, xb=x<gw-1?i+1:i, ya=y>0?i-gw:i, yb=y<gh-1?i+gw:i;
+    if (!isFinite(Pp[xa*3+2])||!isFinite(Pp[xb*3+2])||!isFinite(Pp[ya*3+2])||!isFinite(Pp[yb*3+2])) continue;
+    const ux=Pp[xb*3]-Pp[xa*3], uy=Pp[xb*3+1]-Pp[xa*3+1], uz=Pp[xb*3+2]-Pp[xa*3+2];
+    const vx=Pp[yb*3]-Pp[ya*3], vy=Pp[yb*3+1]-Pp[ya*3+1], vz=Pp[yb*3+2]-Pp[ya*3+2];
+    let nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx;
+    const L=Math.sqrt(nx*nx+ny*ny+nz*nz);
+    if (L<1e-12) continue;
+    N[i*3]=nx/L; N[i*3+1]=ny/L; N[i*3+2]=nz/L;
+  }
+  return N;
+}
+function cloudHash(pos, count, cell){
+  const map=new Map();
+  for (let i=0;i<count;i++){
+    const z=pos[i*3+2]; if (!isFinite(z)) continue;
+    const k=Math.floor(pos[i*3]/cell)+','+Math.floor(pos[i*3+1]/cell)+','+Math.floor(z/cell);
+    let a=map.get(k); if(!a){a=[];map.set(k,a);} a.push(i);
+  }
+  return { map, cell };
+}
+function nearest(h, pos, x, y, z, maxD){
+  const c=h.cell, bx=Math.floor(x/c), by=Math.floor(y/c), bz=Math.floor(z/c);
+  let best=-1, bd=maxD*maxD;
+  for (let dx=-1;dx<=1;dx++) for (let dy=-1;dy<=1;dy++) for (let dz=-1;dz<=1;dz++){
+    const a=h.map.get((bx+dx)+','+(by+dy)+','+(bz+dz));
+    if (!a) continue;
+    for (let n=0;n<a.length;n++){ const i=a[n];
+      const ex=pos[i*3]-x, ey=pos[i*3+1]-y, ez=pos[i*3+2]-z;
+      const d=ex*ex+ey*ey+ez*ez; if (d<bd){ bd=d; best=i; } }
+  }
+  return best;
+}
+const s7H=new Float64Array(49), s7G=new Float64Array(7), s7X=new Float64Array(7);
+function icp7(src, sN, refPos, refNrm, hash, maxD, minCos, lam, C){
+  s7H.fill(0); s7G.fill(0);
+  let pairs=0, sse=0;
+  for (let i=0;i<src.count;i++){
+    const px=src.pos[i*3], py=src.pos[i*3+1], pz=src.pos[i*3+2];
+    if (!isFinite(pz)) continue;
+    const ax=sN[i*3], ay=sN[i*3+1], az=sN[i*3+2];
+    if (!ax && !ay && !az) continue;
+    const j=nearest(hash, refPos, px, py, pz, maxD);
+    if (j<0) continue;
+    const nx=refNrm[j*3], ny=refNrm[j*3+1], nz=refNrm[j*3+2];
+    if (!nx && !ny && !nz) continue;
+    if (Math.abs(ax*nx+ay*ny+az*nz) < minCos) continue;
+    const r=(px-refPos[j*3])*nx + (py-refPos[j*3+1])*ny + (pz-refPos[j*3+2])*nz;
+    const qx=px-C[0], qy=py-C[1], qz=pz-C[2];
+    const J=[qy*nz-qz*ny, qz*nx-qx*nz, qx*ny-qy*nx, qx*nx+qy*ny+qz*nz, nx, ny, nz];
+    const w = Math.abs(r) > maxD*0.3 ? (maxD*0.3)/Math.abs(r) : 1;
+    for (let a=0;a<7;a++){ s7G[a] -= w*J[a]*r;
+      for (let b=0;b<=a;b++) s7H[a*7+b] += w*J[a]*J[b]; }
+    sse+=r*r; pairs++;
+  }
+  if (pairs < 60) return null;
+  let dR=0; for (let a=0;a<3;a++) dR+=s7H[a*7+a]; dR=Math.max(1e-12,dR/3);
+  const dS=Math.max(1e-12, s7H[3*7+3]);
+  let dT=0; for (let a=4;a<7;a++) dT+=s7H[a*7+a]; dT=Math.max(1e-12,dT/3);
+  for (let a=0;a<7;a++){
+    s7H[a*7+a] += (a<3?dR:a===3?dS:dT) * lam;
+    for (let b=a+1;b<7;b++) s7H[a*7+b]=s7H[b*7+a];
+  }
+  if (!cholN(s7H, s7G, s7X, 7)) return null;
+  let m=0; for (let a=0;a<7;a++) m+=s7X[a]*s7X[a];
+  if (!isFinite(m) || m>1) return null;
+  return { w:[s7X[0],s7X[1],s7X[2]], s:s7X[3], t:[s7X[4],s7X[5],s7X[6]], pairs, rms:Math.sqrt(sse/pairs) };
+}
+function applyD7(f, N, d, C){
+  const w=d.w, sc=1+d.s, t=d.t;
+  const nq=Math.sqrt(1+0.25*(w[0]*w[0]+w[1]*w[1]+w[2]*w[2]));
+  const dq=[w[0]*.5/nq, w[1]*.5/nq, w[2]*.5/nq, 1/nq];
+  const v=[0,0,0], o=[0,0,0];
+  for (let i=0;i<f.count;i++){
+    if (!isFinite(f.pos[i*3+2])) continue;
+    v[0]=f.pos[i*3]-C[0]; v[1]=f.pos[i*3+1]-C[1]; v[2]=f.pos[i*3+2]-C[2];
+    qrot(dq,v,o);
+    f.pos[i*3]=C[0]+o[0]*sc+t[0]; f.pos[i*3+1]=C[1]+o[1]*sc+t[1]; f.pos[i*3+2]=C[2]+o[2]*sc+t[2];
+    v[0]=N[i*3]; v[1]=N[i*3+1]; v[2]=N[i*3+2];
+    if (v[0]||v[1]||v[2]){ qrot(dq,v,o); N[i*3]=o[0]; N[i*3+1]=o[1]; N[i*3+2]=o[2]; }
+  }
+}
+function qrot(q,v,o){ const x=q[0],y=q[1],z=q[2],w=q[3];
+  const tx=2*(y*v[2]-z*v[1]), ty=2*(z*v[0]-x*v[2]), tz=2*(x*v[1]-y*v[0]);
+  o[0]=v[0]+w*tx+(y*tz-z*ty); o[1]=v[1]+w*ty+(z*tx-x*tz); o[2]=v[2]+w*tz+(x*ty-y*tx); }
+
+/* послідовне зшивання: кожен кадр — до всього, що вже зшито */
+function stitch(frames, scale, opt){
+  opt = opt||{};
+  const iters = opt.iters||14;
+  const log = { rms0:-1, rms1:-1, done:0, drop:0 };
+  if (frames.length < 2) return log;
+  const refP=[frames[0].pos], refN=[cloudNormals(frames[0])], refC=[frames[0].count];
+  for (let k=1;k<frames.length;k++){
+    const f=frames[k], N=cloudNormals(f);
+    let tot=0; for (const c of refC) tot+=c;
+    const cat=new Float32Array(tot*3), catN=new Float32Array(tot*3);
+    let o=0;
+    for (let r=0;r<refP.length;r++){
+      cat.set(refP[r].subarray(0,refC[r]*3), o*3);
+      catN.set(refN[r].subarray(0,refC[r]*3), o*3); o+=refC[r]; }
+    const C=[f.camx||0, f.camy||0, f.camz||0];
+    let maxD=scale*0.18, lam=0.05, first=-1, last=-1;
+    const hash=cloudHash(cat, tot, maxD);
+    for (let it=0; it<iters; it++){
+      const d=icp7(f, N, cat, catN, hash, maxD, 0.55, lam, C);
+      if (!d) break;
+      if (first<0) first=d.rms;
+      if (last>=0 && d.rms > last*1.02){ lam=Math.min(4,lam*3); continue; }
+      lam=Math.max(0.01,lam*0.7); last=d.rms;
+      applyD7(f, N, d, C);
+      if (Math.hypot(d.t[0],d.t[1],d.t[2]) < scale*1e-4 &&
+          Math.hypot(d.w[0],d.w[1],d.w[2]) < 1e-4) break;
+      if (it===(iters>>1)) maxD*=0.6;
+    }
+    /* кадр, що не зійшовся, у модель не пускаємо — краще діра, ніж каша */
+    if (first<0 || last > scale*0.05){ log.drop++; continue; }
+    if (log.rms0<0) log.rms0=first;
+    log.rms1=last; log.done++;
+    refP.push(f.pos); refN.push(N); refC.push(f.count);
+  }
+  return log;
+}
+function fuseClouds(frames, voxel){
+  const map=new Map();
+  for (const f of frames){
+    for (let i=0;i<f.count;i++){
+      const x=f.pos[i*3], y=f.pos[i*3+1], z=f.pos[i*3+2];
+      if (!isFinite(x)||!isFinite(z)) continue;
+      const k=((x/voxel)|0)+','+((y/voxel)|0)+','+((z/voxel)|0);
+      let o=map.get(k); if(!o){ o=[0,0,0,0,0,0,0]; map.set(k,o); }
+      o[0]+=x;o[1]+=y;o[2]+=z; o[3]+=f.col[i*3];o[4]+=f.col[i*3+1];o[5]+=f.col[i*3+2]; o[6]++;
+    }
+  }
+  const n=map.size, pos=new Float32Array(n*3), col=new Float32Array(n*3);
+  let i=0;
+  map.forEach(o=>{ const c=o[6];
+    pos[i*3]=o[0]/c; pos[i*3+1]=o[1]/c; pos[i*3+2]=o[2]/c;
+    col[i*3]=o[3]/c; col[i*3+1]=o[4]/c; col[i*3+2]=o[5]/c; i++; });
+  return { pos, col, n };
+}
+globalThis.__SCAN = { cholN, cloudNormals, cloudHash, nearest, icp7, applyD7, stitch, fuseClouds };
+
+/* ============================================================
+   ГІРОСКОП
+   ============================================================
+   Перенесено з перевіреного: телефон плазом → камера дивиться вниз,
+   вертикально спиною на північ → камера на північ, поворот екрана
+   не змінює напрямок погляду. Доворот на вісь камери — 180° по X:
+   пристрій має Z з екрана на глядача і Y вгору, тилова камера
+   дивиться вздовж −Z, а піксельна конвенція має y вниз.
+   ============================================================ */
+function qmul(a,b,o){
+  o[0]=a[3]*b[0]+a[0]*b[3]+a[1]*b[2]-a[2]*b[1];
+  o[1]=a[3]*b[1]-a[0]*b[2]+a[1]*b[3]+a[2]*b[0];
+  o[2]=a[3]*b[2]+a[0]*b[1]-a[1]*b[0]+a[2]*b[3];
+  o[3]=a[3]*b[3]-a[0]*b[0]-a[1]*b[1]-a[2]*b[2];
+}
+function qconj(q,o){ o[0]=-q[0];o[1]=-q[1];o[2]=-q[2];o[3]=q[3]; }
+const _ga=[0,0,0,1],_gb=[0,0,0,1],_gc=[0,0,0,1],_gs=[0,0,0,1];
+function orientToQuat(al, be, ga, scr, o){
+  const D=Math.PI/180, z=al*D, x=be*D, y=ga*D;
+  const cZ=Math.cos(z*.5), sZ=Math.sin(z*.5);
+  const cX=Math.cos(x*.5), sX=Math.sin(x*.5);
+  const cY=Math.cos(y*.5), sY=Math.sin(y*.5);
+  _ga[0]=0;_ga[1]=0;_ga[2]=sZ;_ga[3]=cZ;
+  _gb[0]=sX;_gb[1]=0;_gb[2]=0;_gb[3]=cX;
+  _gc[0]=0;_gc[1]=sY;_gc[2]=0;_gc[3]=cY;
+  qmul(_ga,_gb,_gs); qmul(_gs,_gc,o);
+  if (scr){ const s=-scr*D*.5;
+    _ga[0]=0;_ga[1]=0;_ga[2]=Math.sin(s);_ga[3]=Math.cos(s);
+    qmul(o,_ga,_gs); o[0]=_gs[0];o[1]=_gs[1];o[2]=_gs[2];o[3]=_gs[3]; }
+  _ga[0]=1;_ga[1]=0;_ga[2]=0;_ga[3]=0;          // 180° по X
+  qmul(o,_ga,_gs);
+  o[0]=_gs[0];o[1]=_gs[1];o[2]=_gs[2];o[3]=_gs[3];
+}
+
+/* Хмара кадру живе у власній системі камери, камера в початку координат.
+   Поворот навколо початку правильний для камери, що КРУТИТЬСЯ НА МІСЦІ.
+   Але скан — це обліт: камера і крутиться, і їде. Дати самий поворот
+   означає скласти всі кадри в одну точку, розвернуті врізнобіч — гірше,
+   ніж не робити нічого (виміряно: 0 зшитих проти 1).
+   При обльоті зсув ВИВОДИТЬСЯ з повороту: камера на відстані d від
+   предмета, поворот на θ = рух по дузі радіуса d. Тому крутимо хмару
+   навколо ПРЕДМЕТА, а не навколо камери. */
+function pivotDepth(f){
+  const z = [];
+  for (let i=0;i<f.count;i+=7){
+    const v = f.pos[i*3+2];
+    if (isFinite(v)) z.push(-v);
+  }
+  if (!z.length) return 1;
+  z.sort((a,b)=>a-b);
+  return Math.max(0.05, z[z.length>>1]);          // медіанна глибина
+}
+function placeByGyro(f, qRef, qCur, d, t){
+  const ic=[0,0,0,1], rel=[0,0,0,1];
+  qconj(qRef, ic); qmul(ic, qCur, rel);
+  const v=[0,0,0], o=[0,0,0];
+  t = t || [0,0,0];
+  for (let i=0;i<f.count;i++){
+    if (!isFinite(f.pos[i*3+2])) continue;
+    v[0]=f.pos[i*3]; v[1]=f.pos[i*3+1]; v[2]=f.pos[i*3+2] + d;   // у систему предмета
+    qrot(rel, v, o);
+    f.pos[i*3]=o[0]+t[0]; f.pos[i*3+1]=o[1]+t[1]; f.pos[i*3+2]=o[2]-d+t[2];
+  }
+  return rel;
+}
+globalThis.__GY = { orientToQuat, qmul, qconj, placeByGyro, pivotDepth };
 
 /* ============================================================
    ДОВІРА
@@ -527,13 +782,19 @@ async function shootOne(){
   shotRGB = wctx.getImageData(0,0,DW,DH).data;
   await plog('будую рельєф…', '', 55);
   relief = buildRelief(D, CONF, DW, DH, shotRGB, P);
-  await plog('точок <b>' + relief.kept + '</b> · граней <b>' + (relief.tri.length/3|0) + '</b>',
-             relief.kept ? 'ok' : 'no', 80);
+  await plog('точок <b>' + relief.kept + '</b> з ' + relief.total +
+             ' · граней <b>' + (relief.tri.length/3|0) + '</b>', relief.kept ? 'ok' : 'no', 78);
+  if (relief.dropConf) await plog('поріг довіри зрізав ' +
+    Math.round(100*relief.dropConf/relief.total) + '% кадру', 'wt', 82);
   if (!relief.kept){ await plog('усе відкинуто порогом довіри — знизь його', 'no', 100); return; }
   await plog('відкриваю модель', 'ok', 100);
-  setTab('model');
-  await openViewer();
-  setTimeout(hideProc, 900);
+  try {
+    setTab('model');
+    await openViewer();
+    setTimeout(hideProc, 1100);
+  } catch (e){
+    await plog('вьюпорт не піднявся: ' + (e && e.message ? e.message : e), 'no', 100);
+  }
 }
 
 /* ---------- вьюпорт ---------- */
@@ -579,11 +840,16 @@ function buildViewer(){
   sc.add(oPts); sc.add(oMesh); sc.add(oWire);
   applyVMode();
   const bb = new TH.Box3().setFromBufferAttribute(g.getAttribute('position'));
-  if (!bb.isEmpty()){
-    const ct = bb.getCenter(new TH.Vector3()), sz = bb.getSize(new TH.Vector3());
-    const r = Math.max(sz.x,sz.y,sz.z)||1;
+  const ct = bb.getCenter(new TH.Vector3()), sz = bb.getSize(new TH.Vector3());
+  const r = Math.max(sz.x, sz.y, sz.z);
+  const sane = [ct.x,ct.y,ct.z,r].every(Number.isFinite) && r > 1e-6;
+  if (sane){
     ctl.target.copy(ct); cam.position.set(ct.x, ct.y, ct.z + r*1.6);
     cam.near = r/200; cam.far = r*40; cam.updateProjectionMatrix(); ctl.update();
+  } else {
+    ctl.target.set(0,0,-2); cam.position.set(0,0,1);
+    cam.near = 0.01; cam.far = 100; cam.updateProjectionMatrix(); ctl.update();
+    plog('габарит моделі порожній — камеру ставлю навмання', 'wt');
   }
 }
 function applyVMode(){
@@ -602,26 +868,22 @@ function save(name, text){
 }
 function toOBJ(){
   const L = ['# DICH //LIDAR','# масштаб умовний — монокулярна глибина'];
-  for (let i=0;i<relief.count;i++){
-    if (!isFinite(relief.pos[i*3+2])) { L.push('v 0 0 0'); continue; }
+  for (let i=0;i<relief.count;i++)
     L.push('v '+relief.pos[i*3].toFixed(4)+' '+relief.pos[i*3+1].toFixed(4)+' '+relief.pos[i*3+2].toFixed(4));
-  }
   for (let i=0;i<relief.tri.length;i+=3)
     L.push('f '+(relief.tri[i]+1)+' '+(relief.tri[i+1]+1)+' '+(relief.tri[i+2]+1));
   return L.join('\n');
 }
 function toPLY(){
-  const idx = [], map = new Int32Array(relief.count).fill(-1);
-  for (let i=0;i<relief.count;i++) if (isFinite(relief.pos[i*3+2])){ map[i]=idx.length; idx.push(i); }
   const H = ['ply','format ascii 1.0','comment DICH //LIDAR — масштаб умовний',
-    'element vertex '+idx.length,'property float x','property float y','property float z',
+    'element vertex '+relief.count,'property float x','property float y','property float z',
     'property uchar red','property uchar green','property uchar blue',
     'element face '+(relief.tri.length/3),'property list uchar int vertex_index','end_header'];
-  for (const i of idx)
+  for (let i=0;i<relief.count;i++)
     H.push(relief.pos[i*3].toFixed(4)+' '+relief.pos[i*3+1].toFixed(4)+' '+relief.pos[i*3+2].toFixed(4)+
       ' '+(relief.col[i*3]*255|0)+' '+(relief.col[i*3+1]*255|0)+' '+(relief.col[i*3+2]*255|0));
   for (let i=0;i<relief.tri.length;i+=3)
-    H.push('3 '+map[relief.tri[i]]+' '+map[relief.tri[i+1]]+' '+map[relief.tri[i+2]]);
+    H.push('3 '+relief.tri[i]+' '+relief.tri[i+1]+' '+relief.tri[i+2]);
   return H.join('\n');
 }
 
