@@ -82,6 +82,10 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border:0;border-radiu
     <div class="row"><label>ЩІЛЬНІСТЬ</label><input type="range" id="sStep" min="1" max="5" step="1" value="2"><output>2</output></div>
     <div class="row"><label>ГЛИБИНА</label><input type="range" id="sRange" min="2" max="20" step="0.5" value="6"><output>6.0</output></div>
     <div class="row"><label>РОЗРИВ</label><input type="range" id="sCut" min="0.02" max="0.4" step="0.01" value="0.08"><output>0.08</output></div>
+    <div style="display:flex;gap:6px;padding:6px 0 2px">
+      <button class="mini" id="bFill" style="width:auto;height:34px;padding:0 12px;font-size:9.5px;letter-spacing:.1em">ЛАТАТИ</button>
+      <button class="mini" id="bAuto" style="width:auto;height:34px;padding:0 12px;font-size:9.5px;letter-spacing:.1em">АВТОПОРІГ</button>
+    </div>
   </div>
   <div id="acts">
     <button class="mini" id="bOpt">⚙</button>
@@ -104,10 +108,10 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border:0;border-radiu
 </div>
 
 <script type="module">
-const BUILD = 'S1';
+const BUILD = 'S2 · цілісніша сітка';
 document.getElementById('stamp').textContent = 'ЗБІРКА ' + BUILD;
 
-const P = { confMin:0.10, step:2, range:6, cut:0.08, hfov:62 };
+const P = { confMin:0.08, step:2, range:6, cut:0.08, hfov:62, fill:true, adaptive:true };
 
 /* ============================================================
    ГЕОМЕТРІЯ
@@ -154,17 +158,74 @@ function build(depth, conf, W, H, o){
   let lo = Infinity, hi = -Infinity;
   for (let i = 0; i < depth.length; i++){ const d = depth[i]; if (d<lo) lo=d; if (d>hi) hi=d; }
   const span = Math.max(1e-6, hi-lo);
-  const zs = new Float32Array(N), map = new Int32Array(N).fill(-1);
-  let kept = 0, dropped = 0;
+
+  /* глибина у вузлах сітки + хто пройшов поріг довіри */
+  const zs = new Float32Array(N), okv = new Uint8Array(N);
+  let dropConf = 0;
   for (let gy=0, i=0; gy<gh; gy++){
     const v = Math.min(H-1, gy*st);
     for (let gx=0; gx<gw; gx++, i++){
       const u = Math.min(W-1, gx*st), k = v*W+u;
-      if (conf && conf[k] < o.confMin){ dropped++; continue; }
       zs[i] = depthToZ((depth[k]-lo)/span, o.range);
-      map[i] = kept++;
+      if (conf && conf[k] < o.confMin){ dropConf++; continue; }
+      okv[i] = 1;
     }
   }
+
+  /* Дірки від довіри латаємо: вузол, оточений прийнятими сусідами, майже
+     напевно лежить на тій самій поверхні — просто без текстури. Викидати
+     його означає дірявити суцільну стіну. Глибину беремо з сусідів. */
+  let filled = 0;
+  if (o.fill){
+    for (let pass = 0; pass < 6; pass++){
+      const add = [];
+      for (let gy=1; gy<gh-1; gy++)
+        for (let gx=1; gx<gw-1; gx++){
+          const i = gy*gw+gx;
+          if (okv[i]) continue;
+          let n = 0, sum = 0;
+          for (let j=-1;j<=1;j++) for (let q=-1;q<=1;q++){
+            const m = (gy+j)*gw + gx+q;
+            if (m!==i && okv[m]){ n++; sum += zs[m]; }
+          }
+          /* трьох сусідів досить: дірка від гладкої стіни суцільна, і латати
+         її треба з краю всередину, а не вимагати оточення з усіх боків */
+      if (n >= 3) add.push([i, sum/n]);
+        }
+      if (!add.length) break;
+      for (const [i,z] of add){ okv[i]=1; zs[i]=z; filled++; }
+    }
+  }
+
+  /* Поріг розриву адаптивний: фіксоване відношення ріже там, де глибина
+     природно змінюється (похила підлога, стіна під кутом), і модель
+     розсипається на клапті. Беремо високий перцентиль реальних перепадів
+     у цій сцені — тоді відсікаються справжні межі, а не нахили. */
+  const ratios = [];
+  for (let gy=0; gy<gh-1; gy++)
+    for (let gx=0; gx<gw-1; gx++){
+      const a=gy*gw+gx, b=a+1, c=a+gw, d=c+1;
+      if (!okv[a]||!okv[b]||!okv[c]||!okv[d]) continue;
+      const mx=Math.max(zs[a],zs[b],zs[c],zs[d]), mn=Math.min(zs[a],zs[b],zs[c],zs[d]);
+      ratios.push((mx-mn)/mn);
+    }
+  let cut = o.cut*st;
+  if (o.adaptive && ratios.length > 50){
+    /* Поріг мусить стояти НАД типовим перепадом, інакше він ріже сам нахил
+       поверхні. Перцентиль для цього не годиться: на похилій підлозі
+       перепади розподілені рівно, і 94-й перцентиль виявляється нижчим за
+       фіксований поріг — виміряно, клаптів стало 2 → 64.
+       Беремо медіану й множимо: справжня межа предмета дає перепад на
+       порядок більший за нахил, тому вона все одно відсічеться. */
+    const srt = ratios.slice().sort((x,y)=>x-y);
+    const m = srt[srt.length >> 1];
+    cut = Math.min(Math.max(m * 6, 0.03), 0.6);
+  }
+
+  /* нумеруємо лише те, що лишилось */
+  const map = new Int32Array(N).fill(-1);
+  let kept = 0;
+  for (let i = 0; i < N; i++) if (okv[i]) map[i] = kept++;
   const pos = new Float32Array(kept*3), uv = new Float32Array(kept*2);
   for (let gy=0, i=0; gy<gh; gy++){
     const v = Math.min(H-1, gy*st);
@@ -175,22 +236,35 @@ function build(depth, conf, W, H, o){
       uv[m*2] = u/(W-1); uv[m*2+1] = 1 - v/(H-1);
     }
   }
-  /* Грань пропускаємо на розриві глибини — інакше на межах предметів
-     тягнеться плівка від переднього плану до фону, і модель виглядає
-     як розплавлений віск. Поріг росте з кроком: ширший квад природно
-     має більший перепад. */
   const tri = [];
+  let dropCut = 0;
   for (let gy=0; gy<gh-1; gy++)
     for (let gx=0; gx<gw-1; gx++){
       const a=gy*gw+gx, b=a+1, c=a+gw, d=c+1;
       const ma=map[a], mb=map[b], mc=map[c], md=map[d];
       if (ma<0||mb<0||mc<0||md<0) continue;
-      const za=zs[a],zb=zs[b],zc=zs[c],zd=zs[d];
-      const mx=Math.max(za,zb,zc,zd), mn=Math.min(za,zb,zc,zd);
-      if ((mx-mn)/mn > o.cut*st) continue;
+      const mx=Math.max(zs[a],zs[b],zs[c],zs[d]), mn=Math.min(zs[a],zs[b],zs[c],zs[d]);
+      if ((mx-mn)/mn > cut){ dropCut++; continue; }
       tri.push(ma,mc,mb, mb,mc,md);
     }
-  return { pos, uv, tri:new Uint32Array(tri), count:kept, total:N, dropped };
+  return { pos, uv, tri:new Uint32Array(tri), count:kept, total:N,
+           dropped:dropConf, filled, dropCut, cut };
+}
+
+/* скільки окремих клаптів у сітці — прямий показник розірваності */
+function pieces(M){
+  if (!M.count) return 0;
+  const par = new Int32Array(M.count);
+  for (let i=0;i<M.count;i++) par[i]=i;
+  const find = a => { while(par[a]!==a){ par[a]=par[par[a]]; a=par[a]; } return a; };
+  for (let i=0;i<M.tri.length;i+=3){
+    const a=find(M.tri[i]), b=find(M.tri[i+1]), c=find(M.tri[i+2]);
+    if(a!==b) par[a]=b;
+    if(find(M.tri[i])!==find(c)) par[find(M.tri[i])]=c;
+  }
+  const seen = new Set();
+  for (let i=0;i<M.count;i++) seen.add(find(i));
+  return seen.size;
 }
 
 function toOBJ(M, mtl){
@@ -224,7 +298,7 @@ function toPLY(M, rgb, W, H){
   for (let i=0;i<M.tri.length;i+=3) L.push('3 '+M.tri[i]+' '+M.tri[i+1]+' '+M.tri[i+2]);
   return L.join('\n');
 }
-globalThis.__SCAN = { depthToZ, confidence, build, toOBJ, toPLY };
+globalThis.__SCAN = { depthToZ, confidence, build, pieces, toOBJ, toPLY };
 
 /* ============================================================
    КАМЕРА, МЕРЕЖА, СЦЕНА
@@ -335,8 +409,10 @@ async function scan(){
     }
     TEXCV = grab(1440);
     await show();
-    msg(`<b>${MODEL.count}</b> точок · <b>${MODEL.tri.length/3|0}</b> граней · ${ms} мс · ` +
-        `<em>масштаб умовний</em>`);
+    const cov = Math.round(100*MODEL.count/Math.max(1,MODEL.total));
+    msg(`<b>${MODEL.count}</b> точок · <b>${MODEL.tri.length/3|0}</b> граней · покриття <b>${cov}%</b>` +
+        (MODEL.filled ? ` · залатано ${MODEL.filled}` : '') +
+        ` · ${ms} мс<br><em>один ракурс, масштаб умовний</em>`);
   } catch(e){
     msg('<em>Не вийшло:</em> ' + (e && e.message ? e.message : e));
     console.error(e);
@@ -433,6 +509,11 @@ const bind = (id, key, fmt) => {
 };
 bind('sConf','confMin'); bind('sStep','step', v=>String(v|0));
 bind('sRange','range', v=>v.toFixed(1)); bind('sCut','cut');
+for (const [id,key] of [['bFill','fill'],['bAuto','adaptive']]){
+  const el = document.getElementById(id);
+  el.classList.toggle('on', P[key]);
+  el.addEventListener('click', () => { P[key] = !P[key]; el.classList.toggle('on', P[key]); });
+}
 document.getElementById('bOpt').addEventListener('click', e => {
   const on = document.getElementById('opts').classList.toggle('on');
   e.currentTarget.classList.toggle('on', on);
