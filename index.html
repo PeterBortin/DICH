@@ -39,8 +39,10 @@ video{display:none}
 .stats{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 .dot{width:6px;height:6px;border-radius:999px;background:var(--dim);flex:0 0 auto}
 .dot.ok{background:var(--lime)}.dot.load{background:var(--cyan);animation:bl 1s steps(1) infinite}.dot.bad{background:#FF5C6C}
+.dot.rec{background:#FF5C6C;animation:bl .9s steps(1) infinite}
 @keyframes bl{50%{opacity:.15}}
 .val{color:var(--txt);font-variant-numeric:tabular-nums}
+#p-cloud{display:none}
 
 #legend{position:fixed;right:13px;top:50%;transform:translateY(-50%);z-index:5;display:none;
   flex-direction:column;align-items:center;gap:7px;pointer-events:none}
@@ -48,12 +50,13 @@ video{display:none}
 #legend span{font-size:9px;color:var(--dim)}
 
 #dock{position:fixed;left:0;right:0;bottom:0;z-index:6;display:none;justify-content:center;
-  padding:0 10px calc(env(safe-area-inset-bottom) + 12px)}
-#dock .inner{background:var(--surf);border:1px solid var(--bd);border-radius:20px;padding:7px;display:flex;gap:3px}
-.dbtn{border-radius:14px;padding:9px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;
-  font-size:9px;color:var(--dim);min-width:52px}
+  padding:0 8px calc(env(safe-area-inset-bottom) + 12px)}
+#dock .inner{background:var(--surf);border:1px solid var(--bd);border-radius:20px;padding:7px;display:flex;gap:2px}
+.dbtn{border-radius:14px;padding:9px 6px;display:flex;flex-direction:column;align-items:center;gap:4px;
+  font-size:8.5px;color:var(--dim);min-width:50px}
 .dbtn .ic{font-size:16px;line-height:1}
 .dbtn.on{background:var(--lime);color:#0B0C11}
+.dbtn.rec{background:#FF5C6C;color:#fff}
 .dbtn:active{background:rgba(255,255,255,.07)}.dbtn.on:active{background:var(--lime)}
 
 .sheet{position:fixed;left:0;right:0;bottom:0;z-index:8;background:var(--surf2);border-top:1px solid var(--bd);
@@ -67,7 +70,7 @@ video{display:none}
 .row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;border-top:1px solid var(--bd)}
 .row:first-of-type{border-top:none}
 .rn{font-size:13.5px;font-weight:500}.rd{font-size:10.5px;color:var(--dim);margin-top:3px;max-width:180px;line-height:1.5}
-.seg{display:flex;background:#0F121A;border:1px solid var(--bd);border-radius:999px;padding:3px;flex:0 0 auto}
+.seg{display:flex;background:#0F121A;border:1px solid var(--bd);border-radius:999px;padding:3px;flex:0 0 auto;flex-wrap:wrap}
 .seg button{font-size:11px;padding:7px 10px;border-radius:999px;color:var(--dim)}
 .seg button[aria-pressed="true"]{background:var(--lime);color:#0B0C11;font-weight:600}
 input[type=range]{-webkit-appearance:none;appearance:none;width:118px;height:3px;border-radius:999px;background:#333947}
@@ -76,12 +79,12 @@ input[type=range]::-moz-range-thumb{width:17px;height:17px;border:none;border-ra
 .xbtn{width:100%;background:var(--lime);color:#0B0C11;border-radius:14px;padding:14px;font-size:14px;font-weight:600;margin-top:10px}
 .xbtn.alt{background:#0F121A;color:var(--txt);border:1px solid var(--bd)}
 #hint{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 92px);z-index:5;text-align:center;
-  font-size:11.5px;color:var(--dim);display:none;pointer-events:none;transition:opacity .6s}
+  font-size:11.5px;color:var(--dim);display:none;pointer-events:none;transition:opacity .6s;padding:0 20px;line-height:1.6}
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 96px);z-index:12;
   background:var(--surf);border:1px solid var(--bd);border-radius:999px;padding:10px 18px;font-size:12px;
-  color:var(--lime);opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+  color:var(--lime);opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap;max-width:90vw}
 #toast.on{opacity:1}
-@media (prefers-reduced-motion:reduce){.dot.load{animation:none}}
+@media (prefers-reduced-motion:reduce){.dot.load,.dot.rec{animation:none}}
 </style>
 </head>
 <body>
@@ -91,9 +94,10 @@ input[type=range]::-moz-range-thumb{width:17px;height:17px;border:none;border-ra
 <div id="hud">
   <div class="pill"><span id="brand">DICH<i>·</i>SPACE</span></div>
   <div class="stats">
+    <div class="pill" id="p-cloud"><span class="dot rec"></span><span class="val" id="t-pts">0</span>тчк</div>
     <div class="pill"><span class="dot" id="d-model"></span><span id="t-model">модель…</span></div>
     <div class="pill"><span class="val" id="t-fps">--</span>fps</div>
-    <div class="pill"><span class="val" id="t-ms">--</span>ms/скан</div>
+    <div class="pill"><span class="val" id="t-ms">--</span>ms</div>
   </div>
 </div>
 
@@ -104,41 +108,49 @@ input[type=range]::-moz-range-thumb{width:17px;height:17px;border:none;border-ra
 <div id="dock"><div class="inner">
   <button class="dbtn on" id="b-video"><span class="ic">◧</span>Відео</button>
   <button class="dbtn on" id="b-mode"><span class="ic">◳</span>Обидва</button>
-  <button class="dbtn" id="b-points"><span class="ic">⁘</span>Точки</button>
-  <button class="dbtn" id="b-reset"><span class="ic">⌖</span>Вид</button>
+  <button class="dbtn" id="b-scan"><span class="ic">◎</span>Скан</button>
+  <button class="dbtn" id="b-freeze"><span class="ic">❄</span>Стоп</button>
   <button class="dbtn" id="b-exp"><span class="ic">⤓</span>Експорт</button>
   <button class="dbtn" id="b-cfg"><span class="ic">⚙</span>Ще</button>
 </div></div>
 
 <div id="sheet" class="sheet">
   <h2>Налаштування <button class="s-close">Готово</button></h2>
+  <div class="row"><div><div class="rn">Палітра</div></div>
+    <div class="seg" id="pal-seg"><button data-p="0" aria-pressed="true">Лайм</button><button data-p="1">Термо</button><button data-p="2">Лід</button><button data-p="3">Моно</button></div></div>
   <div class="row"><div><div class="rn">Режим</div><div class="rd">поверхня закриває розриви між обʼєктом і фоном</div></div>
     <div class="seg" id="m-seg"><button data-m="wire">Каркас</button><button data-m="surf">Поверхня</button><button data-m="both" aria-pressed="true">Обидва</button></div></div>
-  <div class="row"><div><div class="rn">Сила глибини</div><div class="rd">наскільки виступає рельєф</div></div><input type="range" id="s-dep" min="40" max="260" value="100"></div>
-  <div class="row"><div><div class="rn">Освітлення</div><div class="rd">обʼєм через тіні на поверхні</div></div><input type="range" id="s-lit" min="0" max="100" value="72"></div>
+  <div class="row"><div><div class="rn">Сила глибини</div></div><input type="range" id="s-dep" min="40" max="260" value="100"></div>
+  <div class="row"><div><div class="rn">Освітлення</div></div><input type="range" id="s-lit" min="0" max="100" value="72"></div>
   <div class="row"><div><div class="rn">Туман удалині</div></div><input type="range" id="s-fog" min="0" max="100" value="45"></div>
-  <div class="row"><div><div class="rn">Відтінок глибини</div><div class="rd">0 = чисте відео, 100 = чиста схема</div></div><input type="range" id="s-tint" min="0" max="100" value="38"></div>
+  <div class="row"><div><div class="rn">Відтінок палітри</div><div class="rd">0 = чисте відео, 100 = чиста схема</div></div><input type="range" id="s-tint" min="0" max="100" value="38"></div>
+  <div class="row"><div><div class="rn">Крок накопичення</div><div class="rd">на скільки треба повернути телефон для нового ракурсу</div></div><input type="range" id="s-step" min="3" max="20" value="8"></div>
   <div class="row"><div><div class="rn">Обробка</div><div class="rd">CPU звільняє відеокарту для рендеру</div></div>
     <div class="seg" id="p-seg"><button data-p="gpu">GPU</button><button data-p="cpu">CPU</button><button data-p="auto" aria-pressed="true">Авто</button></div></div>
   <div class="row"><div><div class="rn">Щільність сітки</div></div>
     <div class="seg" id="q-seg"><button data-q="0">Рідка</button><button data-q="1">Середня</button><button data-q="2">Густа</button><button data-q="3" aria-pressed="true">Авто</button></div></div>
+  <div class="row"><div><div class="rn">Точки поверх сітки</div></div>
+    <div class="seg" id="pt-seg"><button data-t="0" aria-pressed="true">Вимк</button><button data-t="1">Увімк</button></div></div>
   <div class="row"><div><div class="rn">Прозорість відео-фону</div></div><input type="range" id="s-vid" min="0" max="100" value="20"></div>
   <div class="row"><div><div class="rn">Розмір точок</div></div><input type="range" id="s-pt" min="4" max="40" value="11"></div>
   <div class="row"><div><div class="rn">Камера</div></div>
     <div class="seg" id="c-seg"><button data-c="environment" aria-pressed="true">Тил</button><button data-c="user">Фронт</button></div></div>
+  <div class="row"><div><div class="rn">Очистити скан</div><div class="rd">стерти накопичену хмару</div></div>
+    <button class="xbtn alt" style="width:auto;margin:0;padding:9px 16px" id="b-clear">Стерти</button></div>
 </div>
 
 <div id="xsheet" class="sheet">
   <h2>Експорт <button class="s-close">Закрити</button></h2>
-  <div class="rd" style="max-width:none;margin-bottom:4px">3D-скан зберігається у PLY із кольорами з камери — відкривається у Blender, MeshLab, Preview на macOS.</div>
-  <button class="xbtn" id="x-ply">Зберегти 3D-скан (.ply)</button>
-  <button class="xbtn alt" id="x-png">Зберегти знімок (.png)</button>
+  <div class="rd" style="max-width:none;margin-bottom:4px">PLY із кольорами з камери — відкривається у Blender, MeshLab, Preview на macOS.</div>
+  <button class="xbtn" id="x-cloud">Накопичена хмара (.ply)</button>
+  <button class="xbtn alt" id="x-ply">Поточний кадр як меш (.ply)</button>
+  <button class="xbtn alt" id="x-png">Знімок екрана (.png)</button>
 </div>
 
 <div id="start">
   <h1>DICH<i>·</i>SPACE</h1>
   <div class="sub">простір у 3D</div>
-  <div class="desc">Камера бачить глибину сцени й будує з неї обʼємну поверхню. Все рахується <b>на пристрої</b>.</div>
+  <div class="desc">Камера бачить глибину сцени й будує обʼємну поверхню. Увімкни <b>Скан</b> і повертайся навколо себе — простір збереться в хмару точок. Усе на пристрої.</div>
   <button id="go">УВІМКНУТИ</button>
   <div id="err"></div>
 </div>
@@ -146,14 +158,11 @@ input[type=range]::-moz-range-thumb{width:17px;height:17px;border:none;border-ra
 <script>
 'use strict';
 /* ═══════════════════════════════════════════════════════════════
-   DICH · SPACE  v4
-   • ПОВЕРХНЯ малює всі квади → круті стають стінками-обривами,
-     тому чорних розривів між обʼєктом і фоном більше немає;
-     КАРКАС і далі ріже стрибки, щоб не було «павутиння».
-   • Освітлення по нормалях (рахуються на CPU під час скану).
-   • Сила глибини, туман, відтінок — окремі uniform-и.
-   • Розгортка в 3D — у вертексному шейдері; на кадр майже нічого.
-   • Інференс у воркері; режим CPU звільняє GPU для рендеру.
+   DICH · SPACE  v5
+   НОВЕ: накопичення ракурсів. Орієнтація з гіроскопа обертає
+   кадр глибини у СВІТОВІ координати, точки накопичуються в хмару.
+   Повертаєшся навколо себе → кімната збирається довкола.
+   Заморозка (Стоп) відвʼязує камеру від пристрою — можна облетіти.
    ═══════════════════════════════════════════════════════════════ */
 
 const $=id=>document.getElementById(id);
@@ -162,16 +171,28 @@ const video=$('video'), glc=$('gl');
 
 const FOV=62, ZNEAR=1.2, ZRANGE=7.0, BREAK=ZRANGE*0.085;
 const QP=[{v:3600,pr:1.0},{v:8000,pr:1.2},{v:15000,pr:1.4}];
+const MAXP=200000;                                  // ліміт точок у хмарі
+const PALETTES=[
+  [[0.824,1.0,0.243],[0.243,0.878,0.816]],          // лайм → бірюза
+  [[1.0,0.94,0.62],[0.42,0.05,0.36]],               // термо
+  [[0.88,0.96,1.0],[0.09,0.24,0.62]],               // лід
+  [[1.0,1.0,1.0],[0.16,0.17,0.21]]                  // моно
+];
 let qLevel=1, qAuto=true, procMode='auto', curDev='', forceCpu=false, dispMode='both';
+let scanning=false, frozen=false, gyroOK=false, stepDeg=8;
 
-let renderer,scene,cam,bgScene,bgCam,bgMat,matS,matL,surf,lines,points,geoS,geoL;
+let renderer,scene,cam,bgScene,bgCam,bgMat,matS,matL,matC,surf,lines,points,geoS,geoL;
+let liveGroup=null, cloud=null, cloudGeo=null, cpAttr=null, crAttr=null, ctAttr=null;
+let cloudPos=null, cloudRGB=null, cloudT=null, cloudCount=0;
 let GW=0,GH=0,posAttr=null,zPrevAttr=null,zNextAttr=null,nrmAttr=null,idxL=null,idxS=null,haveDepth=false;
 let facing='environment', stream=null, pendingShot=false, vTex=null;
 const view={yaw:0,pitch:0,roll:0,zoom:1,tYaw:0,tPitch:0,tRoll:0,tZoom:1,drift:0};
+const qDev=new THREE.Quaternion(), qLast=new THREE.Quaternion(), qTmp=new THREE.Quaternion();
+const vTmp=new THREE.Vector3();
 
 let toastT=null;
 function toast(m){ const t=$('toast'); t.textContent=m; t.classList.add('on');
-  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('on'),2000); }
+  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('on'),2200); }
 
 async function startCam(){
   if(stream) stream.getTracks().forEach(t=>t.stop());
@@ -180,9 +201,39 @@ async function startCam(){
   video.srcObject=stream; await video.play();
 }
 
+/* ─────────── гіроскоп → кватерніон (як у DeviceOrientationControls) ─────────── */
+const GYRO=(()=>{
+  const zee=new THREE.Vector3(0,0,1), euler=new THREE.Euler(), q0=new THREE.Quaternion();
+  const q1=new THREE.Quaternion(-Math.sqrt(0.5),0,0,Math.sqrt(0.5));
+  let has=false;
+  function onOri(e){
+    if(e.alpha==null&&e.beta==null&&e.gamma==null) return;
+    has=true; gyroOK=true;
+    const a=THREE.MathUtils.degToRad(e.alpha||0), b=THREE.MathUtils.degToRad(e.beta||0),
+          g=THREE.MathUtils.degToRad(e.gamma||0);
+    let o=0; try{ o=THREE.MathUtils.degToRad((screen.orientation&&screen.orientation.angle)||window.orientation||0); }catch(_){}
+    euler.set(b,a,-g,'YXZ');
+    qDev.setFromEuler(euler); qDev.multiply(q1); qDev.multiply(q0.setFromAxisAngle(zee,-o));
+  }
+  async function request(){
+    try{
+      const D=window.DeviceOrientationEvent;
+      if(D&&typeof D.requestPermission==='function'){
+        const r=await D.requestPermission();
+        if(r!=='granted') return false;
+      }
+      addEventListener('deviceorientation',onOri,{passive:true});
+      await new Promise(r=>setTimeout(r,450));
+      return has;
+    }catch(e){ return false; }
+  }
+  return {request,ok:()=>has};
+})();
+
 /* ─────────── шейдери ─────────── */
 const HEAD=`
 uniform float uT,uTan,uAspect,uZNear,uZRange,uDepth,uFog,uLit;
+uniform vec3 uNear,uFar;
 attribute float zPrev,zNext;
 varying float vFog; varying vec3 vDep; varying float vLight;
 `;
@@ -192,7 +243,7 @@ const BODY=`
   vec2 g=position.xy;
   vec4 mv=modelViewMatrix*vec4((g.x-0.5)*2.0*uTan*uAspect*z,(0.5-g.y)*2.0*uTan*z,-z,1.0);
   float t=clamp((z0-uZNear)/uZRange,0.0,1.0);
-  vDep=mix(vec3(0.824,1.0,0.243),vec3(0.243,0.878,0.816),t);
+  vDep=mix(uNear,uFar,t);
   vFog=clamp(t*uFog,0.0,1.0);
 `;
 const SURF_VERT=HEAD+`
@@ -202,7 +253,7 @@ void main(){
 `+BODY+`
   vec3 n=normalize(normalMatrix*normal);
   float d1=max(0.0,dot(n,normalize(vec3(0.42,0.56,0.72))));
-  float face=abs(n.z);                       // обриви дивляться вбік → темніші
+  float face=abs(n.z);
   vLight=mix(1.0, 0.18+0.52*d1+0.34*face, uLit);
   vec2 uvv=(g-0.5)*uScale+0.5;
   if(uMirror>0.5) uvv.x=1.0-uvv.x;
@@ -212,10 +263,8 @@ void main(){
 const SURF_FRAG=`precision mediump float;
 uniform sampler2D uTex; uniform float uTint; uniform vec3 uBg;
 varying vec2 vTex; varying float vFog; varying vec3 vDep; varying float vLight;
-void main(){
-  vec3 c=mix(texture2D(uTex,vTex).rgb, vDep, uTint)*vLight;
-  gl_FragColor=vec4(mix(c,uBg,vFog),1.0);
-}`;
+void main(){ vec3 c=mix(texture2D(uTex,vTex).rgb,vDep,uTint)*vLight;
+  gl_FragColor=vec4(mix(c,uBg,vFog),1.0); }`;
 const LINE_VERT=HEAD+`
 uniform float uPointSize;
 void main(){
@@ -225,21 +274,37 @@ void main(){
   gl_Position=projectionMatrix*mv;
 }`;
 const LINE_FRAG=`precision mediump float;
-uniform vec3 uBg; uniform float uLineA;
+uniform vec3 uBg;
 varying float vFog; varying vec3 vDep; varying float vLight;
-void main(){ gl_FragColor=vec4(mix(vDep,uBg,vFog),uLineA); }`;
+void main(){ gl_FragColor=vec4(mix(vDep,uBg,vFog),1.0); }`;
+const CLOUD_VERT=`
+uniform float uSize,uTint,uFog; uniform vec3 uNear,uFar;
+attribute float aT; attribute vec3 aRGB;
+varying vec3 vC; varying float vF;
+void main(){
+  vec4 mv=modelViewMatrix*vec4(position,1.0);
+  vC=mix(aRGB,mix(uNear,uFar,aT),uTint);
+  vF=clamp(aT*uFog,0.0,1.0);
+  gl_PointSize=uSize/max(0.35,-mv.z);
+  gl_Position=projectionMatrix*mv;
+}`;
+const CLOUD_FRAG=`precision mediump float;
+uniform vec3 uBg; varying vec3 vC; varying float vF;
+void main(){ gl_FragColor=vec4(mix(vC,uBg,vF),1.0); }`;
 const BG_VERT=`varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.0,1.0);}`;
 const BG_FRAG=`precision mediump float;uniform sampler2D uTex;uniform vec2 uScale;uniform float uMirror,uOpacity;
 varying vec2 vUv;void main(){vec2 uv=(vUv-0.5)*uScale+0.5;if(uMirror>0.5)uv.x=1.0-uv.x;
 gl_FragColor=vec4(texture2D(uTex,uv).rgb*uOpacity,1.0);}`;
 
 const BGC=new THREE.Vector3(0.043,0.047,0.067);
+const uNearV={value:new THREE.Vector3().fromArray(PALETTES[0][0])};
+const uFarV={value:new THREE.Vector3().fromArray(PALETTES[0][1])};
 
 function initGFX(){
   renderer=new THREE.WebGLRenderer({canvas:glc,antialias:false,alpha:false,
     powerPreference:'high-performance',stencil:false});
   renderer.autoClear=false; renderer.setClearColor(0x0B0C11,1);
-  scene=new THREE.Scene(); cam=new THREE.PerspectiveCamera(FOV,1,0.1,140);
+  scene=new THREE.Scene(); cam=new THREE.PerspectiveCamera(FOV,1,0.1,160);
   bgScene=new THREE.Scene(); bgCam=new THREE.Camera();
   vTex=new THREE.VideoTexture(video);
   vTex.minFilter=THREE.LinearFilter; vTex.magFilter=THREE.LinearFilter; vTex.generateMipmaps=false;
@@ -250,22 +315,39 @@ function initGFX(){
 
   const shared={uT:{value:1},uTan:{value:Math.tan(FOV*Math.PI/360)},uAspect:{value:1},
     uZNear:{value:ZNEAR},uZRange:{value:ZRANGE},uDepth:{value:1},uFog:{value:0.45},
-    uLit:{value:0.72},uBg:{value:BGC}};
+    uLit:{value:0.72},uBg:{value:BGC},uNear:uNearV,uFar:uFarV};
   matS=new THREE.ShaderMaterial({uniforms:Object.assign({},shared,
       {uTex:{value:vTex},uScale:scaleU,uMirror:mirU,uTint:{value:0.38}}),
     vertexShader:SURF_VERT,fragmentShader:SURF_FRAG,
     side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1});
-  matL=new THREE.ShaderMaterial({uniforms:Object.assign({},shared,
-      {uPointSize:{value:11},uLineA:{value:1}}),
+  matL=new THREE.ShaderMaterial({uniforms:Object.assign({},shared,{uPointSize:{value:11}}),
     vertexShader:LINE_VERT,fragmentShader:LINE_FRAG});
-  buildGrid(); addEventListener('resize',onResize); onResize(); applyMode();
+  matC=new THREE.ShaderMaterial({uniforms:{uSize:{value:13},uTint:{value:0.38},uFog:{value:0.45},
+      uNear:uNearV,uFar:uFarV,uBg:{value:BGC}},
+    vertexShader:CLOUD_VERT,fragmentShader:CLOUD_FRAG});
+
+  liveGroup=new THREE.Group(); scene.add(liveGroup);
+  buildCloud(); buildGrid();
+  addEventListener('resize',onResize); onResize(); applyMode();
 }
 
-function syncU(name,val){ if(matS.uniforms[name])matS.uniforms[name].value=val;
-  if(matL.uniforms[name])matL.uniforms[name].value=val; }
+function buildCloud(){
+  cloudPos=new Float32Array(MAXP*3); cloudRGB=new Float32Array(MAXP*3); cloudT=new Float32Array(MAXP);
+  cloudGeo=new THREE.BufferGeometry();
+  const DYN=THREE.DynamicDrawUsage||35048;
+  cpAttr=new THREE.BufferAttribute(cloudPos,3); cpAttr.setUsage&&cpAttr.setUsage(DYN);
+  crAttr=new THREE.BufferAttribute(cloudRGB,3); crAttr.setUsage&&crAttr.setUsage(DYN);
+  ctAttr=new THREE.BufferAttribute(cloudT,1);   ctAttr.setUsage&&ctAttr.setUsage(DYN);
+  cloudGeo.setAttribute('position',cpAttr); cloudGeo.setAttribute('aRGB',crAttr); cloudGeo.setAttribute('aT',ctAttr);
+  cloudGeo.setDrawRange(0,0);
+  cloudGeo.boundingSphere=new THREE.Sphere(new THREE.Vector3(0,0,0),80);
+  cloud=new THREE.Points(cloudGeo,matC); cloud.frustumCulled=false; scene.add(cloud);
+}
+
+function syncU(name,val){ [matS,matL,matC].forEach(m=>{ if(m&&m.uniforms[name])m.uniforms[name].value=val; }); }
 
 function buildGrid(){
-  if(surf){ scene.remove(surf); scene.remove(lines); scene.remove(points); geoS.dispose(); geoL.dispose(); }
+  if(surf){ liveGroup.remove(surf); liveGroup.remove(lines); liveGroup.remove(points); geoS.dispose(); geoL.dispose(); }
   const budget=QP[qLevel].v, r=clamp(innerHeight/innerWidth,0.4,3);
   GW=Math.max(24,Math.round(Math.sqrt(budget/r))); GH=Math.max(24,Math.round(GW*r));
   const N=GW*GH, pos=new Float32Array(N*3), zp=new Float32Array(N), zn=new Float32Array(N), nr=new Float32Array(N*3);
@@ -286,25 +368,22 @@ function buildGrid(){
   geoS.setAttribute('position',posAttr); geoS.setAttribute('zPrev',zPrevAttr);
   geoS.setAttribute('zNext',zNextAttr);  geoS.setAttribute('normal',nrmAttr);
   geoS.setIndex(idxS); geoS.setDrawRange(0,0); geoS.boundingSphere=sphere;
-
   geoL=new THREE.BufferGeometry();
   geoL.setAttribute('position',posAttr); geoL.setAttribute('zPrev',zPrevAttr);
   geoL.setAttribute('zNext',zNextAttr);  geoL.setAttribute('normal',nrmAttr);
   geoL.setIndex(idxL); geoL.setDrawRange(0,0); geoL.boundingSphere=sphere;
 
-  surf=new THREE.Mesh(geoS,matS); surf.frustumCulled=false; scene.add(surf);
-  lines=new THREE.LineSegments(geoL,matL); lines.frustumCulled=false; scene.add(lines);
+  surf=new THREE.Mesh(geoS,matS); surf.frustumCulled=false; liveGroup.add(surf);
+  lines=new THREE.LineSegments(geoL,matL); lines.frustumCulled=false; liveGroup.add(lines);
   points=new THREE.Points(geoL,matL); points.frustumCulled=false;
-  points.visible=$('b-points').classList.contains('on'); scene.add(points);
+  points.visible=(document.querySelector('#pt-seg button[data-t="1"]').getAttribute('aria-pressed')==='true');
+  liveGroup.add(points);
   haveDepth=false; applyMode();
 }
 function applyMode(){
   if(!surf) return;
-  surf.visible=(dispMode!=='wire');
-  lines.visible=(dispMode!=='surf');
-  const lbl={wire:'Каркас',surf:'Поверхня',both:'Обидва'}[dispMode];
-  $('b-mode').lastChild.textContent=lbl;
-  $('b-mode').classList.toggle('on',true);
+  surf.visible=(dispMode!=='wire'); lines.visible=(dispMode!=='surf');
+  $('b-mode').lastChild.textContent={wire:'Каркас',surf:'Поверхня',both:'Обидва'}[dispMode];
   document.querySelectorAll('#m-seg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.m===dispMode));
 }
 function onResize(){
@@ -321,11 +400,9 @@ function updateBgScale(){
   bgMat.uniforms.uMirror.value=(facing==='user')?1:0;
 }
 
-/* нормалі рахуються під час скану (2–3 рази/с), не щокадру */
 function computeNormals(){
   const zn=zNextAttr.array, nrm=nrmAttr.array, k=matS.uniforms.uDepth.value;
-  const tan=Math.tan(FOV*Math.PI/360), aspect=innerWidth/innerHeight;
-  const gw1=GW-1, gh1=GH-1;
+  const tan=Math.tan(FOV*Math.PI/360), aspect=innerWidth/innerHeight, gw1=GW-1, gh1=GH-1;
   for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){
     const i=y*GW+x;
     const xl=x>0?x-1:x, xr=x<gw1?x+1:x, yu=y>0?y-1:y, yd=y<gh1?y+1:y;
@@ -344,6 +421,51 @@ function computeNormals(){
   }
   nrmAttr.needsUpdate=true;
 }
+
+/* ─────────── накопичення ракурсів ─────────── */
+let sampC=null,sampX=null;
+function samplePixels(w,h){
+  if(!sampC){ sampC=document.createElement('canvas'); sampX=sampC.getContext('2d',{willReadFrequently:true}); }
+  if(sampC.width!==w||sampC.height!==h){ sampC.width=w; sampC.height=h; }
+  const vw=video.videoWidth,vh=video.videoHeight,ar=innerWidth/innerHeight;
+  let sw=vw,sh=vw/ar; if(sh>vh){ sh=vh; sw=vh*ar; }
+  sampX.save(); if(facing==='user'){ sampX.translate(w,0); sampX.scale(-1,1); }
+  sampX.drawImage(video,(vw-sw)/2,(vh-sh)/2,sw,sh,0,0,w,h); sampX.restore();
+  return sampX.getImageData(0,0,w,h).data;
+}
+function accumulate(){
+  if(!haveDepth||cloudCount>=MAXP) return;
+  const zn=zNextAttr.array, px=samplePixels(GW,GH);
+  const tan=Math.tan(FOV*Math.PI/360), aspect=innerWidth/innerHeight, k=matS.uniforms.uDepth.value;
+  const start=cloudCount; let n=cloudCount;
+  outer:
+  for(let y=0;y<GH;y+=2){
+    for(let x=0;x<GW;x+=2){
+      if(n>=MAXP) break outer;
+      const i=y*GW+x, z0=zn[i], t=clamp((z0-ZNEAR)/ZRANGE,0,1);
+      if(t>0.965) continue;                       // «нескінченність» не накопичуємо
+      const z=ZNEAR+(z0-ZNEAR)*k;
+      vTmp.set((x/(GW-1)-0.5)*2*tan*aspect*z,(0.5-y/(GH-1))*2*tan*z,-z).applyQuaternion(qDev);
+      cloudPos[n*3]=vTmp.x; cloudPos[n*3+1]=vTmp.y; cloudPos[n*3+2]=vTmp.z;
+      cloudRGB[n*3]=px[i*4]/255; cloudRGB[n*3+1]=px[i*4+1]/255; cloudRGB[n*3+2]=px[i*4+2]/255;
+      cloudT[n]=t; n++;
+    }
+  }
+  if(n===start) return;
+  cloudCount=n; cloudGeo.setDrawRange(0,cloudCount);
+  // вивантажуємо лише новий шматок, а не весь буфер
+  cpAttr.updateRange.offset=start*3; cpAttr.updateRange.count=(n-start)*3; cpAttr.needsUpdate=true;
+  crAttr.updateRange.offset=start*3; crAttr.updateRange.count=(n-start)*3; crAttr.needsUpdate=true;
+  ctAttr.updateRange.offset=start;   ctAttr.updateRange.count=(n-start);   ctAttr.needsUpdate=true;
+  $('t-pts').textContent=cloudCount>=1000?(cloudCount/1000).toFixed(1)+'k':cloudCount;
+  if(cloudCount>=MAXP) toast('ліміт точок досягнуто');
+}
+function maybeAccumulate(){
+  if(!scanning||frozen||!gyroOK||!haveDepth) return;
+  if(cloudCount===0){ accumulate(); qLast.copy(qDev); return; }
+  if(qDev.angleTo(qLast)>THREE.MathUtils.degToRad(stepDeg)){ accumulate(); qLast.copy(qDev); }
+}
+function clearCloud(){ cloudCount=0; cloudGeo.setDrawRange(0,0); $('t-pts').textContent='0'; }
 
 /* ─────────── воркер глибини ─────────── */
 const WSRC=`
@@ -400,7 +522,7 @@ const DEPTH=(()=>{
   function setMode(){ if(!w) return; ready=false; busy=false; st('модель…','load');
     w.postMessage({type:'mode',model:MODEL,gpu:wantGpu(),side:wantGpu()?196:154,urls:URLS}); }
   function send(now){
-    if(!ready||busy||!video.videoWidth||now-last<period) return;
+    if(!ready||busy||frozen||document.hidden||!video.videoWidth||now-last<period) return;
     last=now; busy=true;
     const vw=video.videoWidth,vh=video.videoHeight,ar=innerWidth/innerHeight;
     let sw=vw,sh=vw/ar; if(sh>vh){ sh=vh; sw=vh*ar; }
@@ -423,7 +545,6 @@ const DEPTH=(()=>{
     for(let y=0;y<GH;y++){ const sy=Math.min(dh-1,(y*dh/GH)|0);
       for(let x=0;x<GW;x++){ const sx=Math.min(dw-1,(x*dw/GW)|0);
         zn[y*GW+x]=ZNEAR+(1-(data[sy*dw+sx]-mn)/rng)*ZRANGE; } }
-    // КАРКАС: ріжемо стрибки (без «павутиння»)
     const iL=idxL.array; let k=0;
     for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){
       const i=y*GW+x;
@@ -431,18 +552,17 @@ const DEPTH=(()=>{
       if(y<GH-1&&Math.abs(zn[i]-zn[i+GW])<BREAK){ iL[k++]=i; iL[k++]=i+GW; }
     }
     geoL.setDrawRange(0,k);
-    // ПОВЕРХНЯ: усі квади → круті самі стають стінками-обривами
     const iS=idxS.array; let s=0;
     for(let y=0;y<GH-1;y++)for(let x=0;x<GW-1;x++){
       const a=y*GW+x,b=a+1,c=a+GW+1,d=a+GW;
-      iS[s++]=a; iS[s++]=b; iS[s++]=c;
-      iS[s++]=a; iS[s++]=c; iS[s++]=d;
+      iS[s++]=a; iS[s++]=b; iS[s++]=c; iS[s++]=a; iS[s++]=c; iS[s++]=d;
     }
     geoS.setDrawRange(0,s);
     computeNormals();
     zPrevAttr.needsUpdate=true; zNextAttr.needsUpdate=true; idxL.needsUpdate=true; idxS.needsUpdate=true;
     syncU('uT',0); haveDepth=true;
     if($('legend').style.display!=='flex') $('legend').style.display='flex';
+    maybeAccumulate();
   }
   return {init,send,setMode,period:()=>period};
 })();
@@ -462,11 +582,11 @@ function bindTouch(){
     const p=pts.get(e.pointerId); if(!p) return;
     const dx=e.clientX-p.x, dy=e.clientY-p.y; p.x=e.clientX; p.y=e.clientY;
     if(pts.size===1){
-      view.tYaw=clamp(view.tYaw+dx*0.0030,-1.15,1.15);
-      view.tPitch=clamp(view.tPitch+dy*0.0024,-0.85,0.85);
+      view.tYaw=clamp(view.tYaw+dx*0.0030,-3.2,3.2);
+      view.tPitch=clamp(view.tPitch+dy*0.0024,-1.2,1.2);
     } else if(pts.size===2){
       const t=two();
-      if(d0){ view.tZoom=clamp(view.tZoom*(t.d/d0),0.45,4.0); d0=t.d; }
+      if(d0){ view.tZoom=clamp(view.tZoom*(t.d/d0),0.25,4.0); d0=t.d; }
       if(a0!=null){ let da=t.a-a0; while(da>Math.PI)da-=6.283; while(da<-Math.PI)da+=6.283;
         view.tRoll=clamp(view.tRoll+da,-1.2,1.2); a0=t.a; }
     }
@@ -474,7 +594,7 @@ function bindTouch(){
   const up=e=>{ pts.delete(e.pointerId); if(pts.size<2){ d0=null; a0=null; } };
   ['pointerup','pointercancel','lostpointercapture'].forEach(ev=>glc.addEventListener(ev,up));
   glc.addEventListener('wheel',e=>{ e.preventDefault();
-    view.tZoom=clamp(view.tZoom*(e.deltaY>0?0.92:1.08),0.45,4.0); },{passive:false});
+    view.tZoom=clamp(view.tZoom*(e.deltaY>0?0.92:1.08),0.25,4.0); },{passive:false});
 }
 
 /* ─────────── адаптація ─────────── */
@@ -501,15 +621,27 @@ function loop(now){
   DEPTH.send(now);
   if(haveDepth&&matS.uniforms.uT.value<1)
     syncU('uT',Math.min(1,matS.uniforms.uT.value+dt/Math.max(200,DEPTH.period()*0.8)));
-  view.drift+=0.0015;
-  view.yaw+=((view.tYaw+Math.sin(view.drift)*0.04)-view.yaw)*0.09;
-  view.pitch+=((view.tPitch+Math.cos(view.drift*0.7)*0.025)-view.pitch)*0.09;
-  view.roll+=(view.tRoll-view.roll)*0.10;
-  view.zoom+=(view.tZoom-view.zoom)*0.12;
-  const R0=ZNEAR+ZRANGE*0.45, R=R0/view.zoom, cp=Math.cos(view.pitch);
-  cam.position.set(Math.sin(view.yaw)*cp*R, Math.sin(view.pitch)*R, -R0+Math.cos(view.yaw)*cp*R);
-  cam.up.set(Math.sin(view.roll),Math.cos(view.roll),0);
-  cam.lookAt(0,0,-R0);
+
+  if(gyroOK&&!frozen) liveGroup.quaternion.copy(qDev);
+
+  if(gyroOK&&scanning&&!frozen){
+    // вигляд «крізь телефон»: камера повторює орієнтацію пристрою
+    cam.position.set(0,0,0); cam.quaternion.copy(qDev);
+  } else {
+    view.drift+=0.0015;
+    view.yaw+=((view.tYaw+Math.sin(view.drift)*0.04)-view.yaw)*0.09;
+    view.pitch+=((view.tPitch+Math.cos(view.drift*0.7)*0.025)-view.pitch)*0.09;
+    view.roll+=(view.tRoll-view.roll)*0.10;
+    view.zoom+=(view.tZoom-view.zoom)*0.12;
+    const orbitOrigin=(cloudCount>0);
+    const R0=orbitOrigin?ZRANGE*0.9:ZNEAR+ZRANGE*0.45;
+    const px=orbitOrigin?0:0, pz=orbitOrigin?0:-(ZNEAR+ZRANGE*0.45);
+    const R=R0/view.zoom, cp=Math.cos(view.pitch);
+    cam.position.set(px+Math.sin(view.yaw)*cp*R, Math.sin(view.pitch)*R, pz+Math.cos(view.yaw)*cp*R);
+    cam.up.set(Math.sin(view.roll),Math.cos(view.roll),0);
+    cam.lookAt(px,0,pz);
+  }
+
   renderer.clear();
   if(bgMat.uniforms.uOpacity.value>0.001) renderer.render(bgScene,bgCam);
   renderer.clearDepth();
@@ -526,21 +658,27 @@ function stamp(){ const d=new Date(),p=n=>String(n).padStart(2,'0');
   return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`; }
 function grabPNG(){ try{ glc.toBlob(b=>{ if(b){ dl(b,`DICH_space_${stamp()}.png`); toast('знімок збережено'); } },'image/png'); }
   catch(e){ toast('не вдалося зберегти'); } }
-function samplePixels(){
-  const c=document.createElement('canvas'); c.width=GW; c.height=GH;
-  const x=c.getContext('2d',{willReadFrequently:true});
-  const vw=video.videoWidth,vh=video.videoHeight,ar=innerWidth/innerHeight;
-  let sw=vw,sh=vw/ar; if(sh>vh){ sh=vh; sw=vh*ar; }
-  x.save(); if(facing==='user'){ x.translate(GW,0); x.scale(-1,1); }
-  x.drawImage(video,(vw-sw)/2,(vh-sh)/2,sw,sh,0,0,GW,GH); x.restore();
-  return x.getImageData(0,0,GW,GH).data;
+function plyHeader(nv,nf){
+  return 'ply\nformat ascii 1.0\ncomment DICH SPACE\nelement vertex '+nv+
+    '\nproperty float x\nproperty float y\nproperty float z\nproperty uchar red\nproperty uchar green\nproperty uchar blue\n'+
+    'element face '+nf+'\nproperty list uchar int vertex_index\nend_header\n';
 }
-function exportPLY(){
+function exportCloud(){
+  if(!cloudCount){ toast('хмара порожня — увімкни Скан'); return; }
+  const v=new Array(cloudCount);
+  for(let i=0;i<cloudCount;i++){
+    v[i]=cloudPos[i*3].toFixed(4)+' '+cloudPos[i*3+1].toFixed(4)+' '+cloudPos[i*3+2].toFixed(4)+' '+
+      Math.round(cloudRGB[i*3]*255)+' '+Math.round(cloudRGB[i*3+1]*255)+' '+Math.round(cloudRGB[i*3+2]*255);
+  }
+  dl(new Blob([plyHeader(cloudCount,0)+v.join('\n')+'\n'],{type:'application/octet-stream'}),`DICH_cloud_${stamp()}.ply`);
+  toast('хмару збережено · '+cloudCount+' точок');
+}
+function exportFrame(){
   if(!haveDepth){ toast('спершу дочекайся скану'); return; }
   const zp=zPrevAttr.array, zn=zNextAttr.array, t=matS.uniforms.uT.value, k=matS.uniforms.uDepth.value;
   const N=GW*GH, z=new Float32Array(N);
   for(let i=0;i<N;i++){ const b=zp[i]+(zn[i]-zp[i])*t; z[i]=ZNEAR+(b-ZNEAR)*k; }
-  const px=samplePixels();
+  const px=samplePixels(GW,GH);
   const tan=Math.tan(FOV*Math.PI/360), aspect=innerWidth/innerHeight, BRK=BREAK*k;
   const v=[];
   for(let y=0,i=0;y<GH;y++)for(let x=0;x<GW;x++,i++){
@@ -554,36 +692,55 @@ function exportPLY(){
     if(Math.abs(z[a]-z[b])<BRK&&Math.abs(z[b]-z[c])<BRK&&Math.abs(z[c]-z[d])<BRK&&Math.abs(z[d]-z[a])<BRK){
       f.push('3 '+a+' '+b+' '+c); f.push('3 '+a+' '+c+' '+d); }
   }
-  const ply='ply\nformat ascii 1.0\ncomment DICH SPACE depth scan\nelement vertex '+N+
-    '\nproperty float x\nproperty float y\nproperty float z\nproperty uchar red\nproperty uchar green\nproperty uchar blue\n'+
-    'element face '+f.length+'\nproperty list uchar int vertex_index\nend_header\n'+
-    v.join('\n')+'\n'+(f.length?f.join('\n')+'\n':'');
-  dl(new Blob([ply],{type:'application/octet-stream'}),`DICH_scan_${stamp()}.ply`);
-  toast('3D-скан збережено · '+f.length+' граней');
+  dl(new Blob([plyHeader(N,f.length)+v.join('\n')+'\n'+(f.length?f.join('\n')+'\n':'')],
+    {type:'application/octet-stream'}),`DICH_frame_${stamp()}.ply`);
+  toast('кадр збережено · '+f.length+' граней');
 }
 
 /* ─────────── UI ─────────── */
 $('b-video').onclick=e=>{ const b=e.currentTarget, on=!b.classList.contains('on');
   b.classList.toggle('on',on); bgMat.uniforms.uOpacity.value=on?($('s-vid').value/100):0; };
 $('b-mode').onclick=()=>{ dispMode=dispMode==='both'?'wire':dispMode==='wire'?'surf':'both'; applyMode(); };
-$('b-points').onclick=e=>{ points.visible=!points.visible; e.currentTarget.classList.toggle('on',points.visible); };
-$('b-reset').onclick=()=>{ view.tYaw=0; view.tPitch=0; view.tRoll=0; view.tZoom=1; };
+$('b-scan').onclick=async e=>{
+  const b=e.currentTarget;
+  if(!scanning){
+    if(!gyroOK){ const ok=await GYRO.request();
+      if(!ok){ toast('гіроскоп недоступний — накопичення вимкнено'); return; } }
+    scanning=true; frozen=false; b.classList.add('rec'); $('b-freeze').classList.remove('on');
+    $('p-cloud').style.display='flex';
+    $('hint').textContent='повільно повертайся навколо себе'; $('hint').style.display='block'; $('hint').style.opacity='1';
+    setTimeout(()=>{ $('hint').style.opacity='0'; },5000);
+    toast('скан увімкнено');
+  } else { scanning=false; b.classList.remove('rec'); toast('скан зупинено'); }
+};
+$('b-freeze').onclick=e=>{ frozen=!frozen; e.currentTarget.classList.toggle('on',frozen);
+  if(frozen){ view.tYaw=0; view.tPitch=0; view.tZoom=1; toast('стоп-кадр · крути пальцем'); } else toast('відтворення'); };
 $('b-cfg').onclick=()=>$('sheet').classList.add('show');
 $('b-exp').onclick=()=>$('xsheet').classList.add('show');
 document.querySelectorAll('.s-close').forEach(b=>b.onclick=()=>{
   $('sheet').classList.remove('show'); $('xsheet').classList.remove('show'); });
 $('x-png').onclick=()=>{ $('xsheet').classList.remove('show'); pendingShot=true; };
-$('x-ply').onclick=()=>{ $('xsheet').classList.remove('show'); setTimeout(exportPLY,60); };
+$('x-ply').onclick=()=>{ $('xsheet').classList.remove('show'); setTimeout(exportFrame,60); };
+$('x-cloud').onclick=()=>{ $('xsheet').classList.remove('show'); setTimeout(exportCloud,60); };
+$('b-clear').onclick=()=>{ clearCloud(); toast('хмару стерто'); };
 
 let nrmT=null;
 $('s-dep').oninput=e=>{ syncU('uDepth',e.target.value/100);
   clearTimeout(nrmT); nrmT=setTimeout(()=>{ if(haveDepth) computeNormals(); },90); };
 $('s-lit').oninput=e=>syncU('uLit',e.target.value/100);
 $('s-fog').oninput=e=>syncU('uFog',e.target.value/100);
-$('s-tint').oninput=e=>{ matS.uniforms.uTint.value=e.target.value/100; };
+$('s-tint').oninput=e=>{ const v=e.target.value/100; matS.uniforms.uTint.value=v; matC.uniforms.uTint.value=v; };
+$('s-step').oninput=e=>{ stepDeg=+e.target.value; };
 $('s-vid').oninput=e=>{ if($('b-video').classList.contains('on')) bgMat.uniforms.uOpacity.value=e.target.value/100; };
-$('s-pt').oninput=e=>{ matL.uniforms.uPointSize.value=+e.target.value; };
+$('s-pt').oninput=e=>{ matL.uniforms.uPointSize.value=+e.target.value; matC.uniforms.uSize.value=+e.target.value+2; };
+document.querySelectorAll('#pal-seg button').forEach(b=>b.onclick=()=>{
+  const p=PALETTES[+b.dataset.p]; syncSeg('pal-seg','p',b.dataset.p);
+  uNearV.value.fromArray(p[0]); uFarV.value.fromArray(p[1]);
+  const c=v=>'rgb('+v.map(x=>Math.round(x*255)).join(',')+')';
+  document.querySelector('#legend .bar').style.background='linear-gradient(180deg,'+c(p[0])+','+c(p[1])+')'; });
 document.querySelectorAll('#m-seg button').forEach(b=>b.onclick=()=>{ dispMode=b.dataset.m; applyMode(); });
+document.querySelectorAll('#pt-seg button').forEach(b=>b.onclick=()=>{ syncSeg('pt-seg','t',b.dataset.t);
+  if(points) points.visible=b.dataset.t==='1'; });
 document.querySelectorAll('#q-seg button').forEach(b=>b.onclick=()=>{
   const q=b.dataset.q; syncSeg('q-seg','q',q);
   if(q==='3'){ qAuto=true; } else { qAuto=false; qLevel=+q; buildGrid(); onResize(); } });
