@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#050B08">
-<title>DICH //SCAN</title>
+<title>DICH //TRACK</title>
 <style>
 :root{--accent:#6AD582;--hot:#DAFFC7;--amber:#FFC13C;--red:#DF2F2E;--bg:#050B08;--ink:#8FA99A;
   --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,monospace}
@@ -15,301 +15,98 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--
 button{font-family:var(--mono);border:0;background:0 0;color:inherit}
 #view{position:fixed;inset:0}
 #view video,#view canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
-#cam{z-index:1} #gl{z-index:2;display:none}
+#cam{z-index:1} #ov{z-index:2}
 #bar{position:fixed;z-index:4;top:env(safe-area-inset-top);left:0;right:0;
-  display:flex;gap:7px;align-items:center;padding:12px 14px;flex-wrap:wrap}
-.tag{font-size:15px;font-weight:800;letter-spacing:.13em;color:var(--hot)}
-.tag s{text-decoration:none;color:var(--accent);font-weight:400;font-size:11px;letter-spacing:.2em}
-.chip{background:rgba(255,255,255,.04);border:1px solid rgba(106,213,130,.18);border-radius:99px;
+  display:flex;gap:6px;align-items:center;padding:11px 13px;flex-wrap:wrap}
+.tag{font-size:14px;font-weight:800;letter-spacing:.13em;color:var(--hot)}
+.tag s{text-decoration:none;color:var(--accent);font-weight:400;font-size:10px;letter-spacing:.2em}
+.chip{background:rgba(4,14,9,.8);border:1px solid rgba(106,213,130,.2);border-radius:99px;
   padding:4px 10px;font-size:9.5px;letter-spacing:.09em;color:var(--ink);white-space:nowrap}
-.chip b{color:var(--hot)} .chip.w b{color:var(--amber)} .chip.e b{color:var(--red)}
+.chip b{color:var(--hot)} .chip.g{border-color:rgba(106,213,130,.6)} .chip.g b{color:var(--accent)}
+.chip.w{border-color:rgba(255,193,60,.5)} .chip.w b{color:var(--amber)}
+.chip.e{border-color:rgba(223,47,46,.55)} .chip.e b{color:var(--red)}
 #bar .r{margin-left:auto}
-#msg{position:fixed;z-index:4;left:14px;right:14px;top:calc(env(safe-area-inset-top) + 52px);
-  font-size:11.5px;line-height:1.6;color:var(--ink);text-shadow:0 0 10px #000}
-#msg em{color:var(--amber);font-style:normal} #msg b{color:var(--hot);font-weight:700}
-#dock{position:fixed;z-index:4;left:0;right:0;bottom:0;padding:0 14px calc(env(safe-area-inset-bottom) + 16px)}
-#opts{display:none;padding-bottom:8px}
-#opts.on{display:block}
-.row{display:grid;grid-template-columns:78px 1fr 40px;align-items:center;gap:10px;padding:4px 0}
-.row label{font-size:9.5px;letter-spacing:.1em;color:var(--ink)}
-.row output{font-size:10px;color:var(--hot);text-align:right}
-input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:20px;background:0 0}
-input[type=range]::-webkit-slider-runnable-track{height:2px;background:rgba(106,213,130,.25)}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;margin-top:-7px;
-  border-radius:50%;background:var(--accent)}
-input[type=range]::-moz-range-thumb{width:16px;height:16px;border:0;border-radius:50%;background:var(--accent)}
-#acts{display:flex;gap:9px;align-items:center}
-#go{flex:1;height:56px;border-radius:99px;background:var(--accent);color:#03150c;
-  font-size:13px;font-weight:700;letter-spacing:.13em;box-shadow:0 0 24px rgba(106,213,130,.3)}
-#go:disabled{opacity:.45;box-shadow:none}
-.mini{width:56px;height:56px;border-radius:99px;background:rgba(4,14,9,.75);
+#log{position:fixed;z-index:4;left:13px;right:13px;top:calc(env(safe-area-inset-top) + 46px);
+  font-size:11px;line-height:1.7;color:var(--ink);text-shadow:0 0 10px #000;max-height:52%;overflow-y:auto}
+#log b{color:var(--hot)} #log .ok{color:var(--accent)} #log .no{color:var(--red)} #log .wt{color:var(--amber)}
+#dock{position:fixed;z-index:4;left:0;right:0;bottom:0;
+  padding:0 13px calc(env(safe-area-inset-bottom) + 16px);display:flex;gap:9px}
+#go{flex:1;height:54px;border-radius:99px;background:var(--accent);color:#03150c;
+  font-size:12.5px;font-weight:700;letter-spacing:.13em}
+#go:disabled{opacity:.45}
+.mini{width:54px;height:54px;border-radius:99px;background:rgba(4,14,9,.8);
   border:1px solid rgba(106,213,130,.22);font-size:14px;color:var(--ink)}
-.mini.on{color:var(--hot);border-color:rgba(106,213,130,.55)}
-#res{display:none;gap:9px} #res.on{display:flex}
-#res button{flex:1;height:52px;border-radius:99px;background:rgba(4,14,9,.85);
-  border:1px solid rgba(106,213,130,.4);color:var(--hot);font-size:11px;letter-spacing:.1em}
 #boot{position:fixed;inset:0;z-index:9;background:var(--bg);display:flex;flex-direction:column;
-  align-items:center;justify-content:center;gap:18px;padding:30px;text-align:center}
-#boot h1{margin:0;font-size:27px;font-weight:800;letter-spacing:.15em;color:var(--hot)}
-#boot h1 s{text-decoration:none;color:var(--accent);font-weight:400;font-size:16px;letter-spacing:.23em}
-#boot p{margin:0;max-width:330px;font-size:11.5px;line-height:1.85;color:var(--ink)}
-#stamp{font-size:9.5px;letter-spacing:.18em;color:var(--amber)}
-#start{background:var(--accent);color:#03150c;border-radius:99px;padding:15px 42px;
-  font-size:13px;font-weight:700;letter-spacing:.14em}
+  align-items:center;justify-content:center;gap:16px;padding:28px;text-align:center}
+#boot h1{margin:0;font-size:25px;font-weight:800;letter-spacing:.14em;color:var(--hot)}
+#boot h1 s{text-decoration:none;color:var(--accent);font-weight:400;font-size:15px;letter-spacing:.22em}
+#boot p{margin:0;max-width:330px;font-size:11px;line-height:1.85;color:var(--ink)}
+#stamp{font-size:9px;letter-spacing:.18em;color:var(--amber)}
+#start{background:var(--accent);color:#03150c;border-radius:99px;padding:14px 40px;
+  font-size:12.5px;font-weight:700;letter-spacing:.14em}
 #boot.hide{display:none}
 #err{color:var(--red);font-size:10.5px;max-width:310px;line-height:1.6}
 </style>
-<script type="importmap">
-{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-"three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
-</script>
 </head>
 <body>
 <div id="view">
   <video id="cam" playsinline muted autoplay></video>
-  <canvas id="gl"></canvas>
+  <canvas id="ov"></canvas>
 </div>
 <div id="bar">
-  <div class="tag">DICH <s>//SCAN</s></div>
-  <div class="chip r"><b id="cDev">—</b></div>
-  <div class="chip" id="cConfPill"><b id="cConf">—</b>ДОВІРА</div>
-  <div class="chip"><b id="cPts">0</b>ТОЧОК</div>
+  <div class="tag">DICH <s>//TRACK</s></div>
+  <div class="chip r" id="pSt"><b id="cSt">—</b></div>
+  <div class="chip"><b id="cPts">0</b>ОЗНАК</div>
+  <div class="chip"><b id="cFps">0</b>Гц</div>
+  <div class="chip" id="pPath"><b id="cPath">0.00</b>ШЛЯХ</div>
 </div>
-<div id="msg"></div>
+<div id="log"></div>
 <div id="dock">
-  <div id="opts">
-    <div class="row"><label>ДОВІРА</label><input type="range" id="sConf" min="0" max="0.8" step="0.02" value="0.10"><output>0.10</output></div>
-    <div class="row"><label>ЩІЛЬНІСТЬ</label><input type="range" id="sStep" min="1" max="5" step="1" value="2"><output>2</output></div>
-    <div class="row"><label>ГЛИБИНА</label><input type="range" id="sRange" min="2" max="20" step="0.5" value="6"><output>6.0</output></div>
-    <div class="row"><label>РОЗРИВ</label><input type="range" id="sCut" min="0.02" max="0.4" step="0.01" value="0.08"><output>0.08</output></div>
-    <div style="display:flex;gap:6px;padding:6px 0 2px">
-      <button class="mini" id="bFill" style="width:auto;height:34px;padding:0 12px;font-size:9.5px;letter-spacing:.1em">ЛАТАТИ</button>
-      <button class="mini" id="bAuto" style="width:auto;height:34px;padding:0 12px;font-size:9.5px;letter-spacing:.1em">АВТОПОРІГ</button>
-    </div>
-  </div>
-  <div id="acts">
-    <button class="mini" id="bOpt">⚙</button>
-    <button id="go">СКАНУВАТИ</button>
-    <button class="mini" id="bCam">⟳</button>
-  </div>
-  <div id="res">
-    <button id="bObj">↧ OBJ</button>
-    <button id="bPly">↧ PLY</button>
-    <button id="bAgain">↺ ЩЕ</button>
-  </div>
+  <button class="mini" id="bClr">↺</button>
+  <button id="go">СТАРТ ТРЕКІНГУ</button>
 </div>
 <div id="boot">
-  <h1>DICH <s>//SCAN</s></h1>
+  <h1>DICH <s>//TRACK</s></h1>
   <div id="stamp"></div>
-  <p>Наводиш камеру — отримуєш тривимірну модель того, що бачиш,
-     з фотографічною текстурою. Далі експорт у OBJ або PLY.</p>
+  <p>Проба трекінгу. Перевіряє, чи AlvaAR тримає позу камери на цьому
+     телефоні — до того, як на ньому щось будувати.</p>
   <button id="start">ПУСК</button>
   <div id="err"></div>
 </div>
 
 <script type="module">
-const BUILD = 'S2 · цілісніша сітка';
+const BUILD = 'T1 · проба AlvaAR';
 document.getElementById('stamp').textContent = 'ЗБІРКА ' + BUILD;
 
-const P = { confMin:0.08, step:2, range:6, cut:0.08, hfov:62, fill:true, adaptive:true };
-
-/* ============================================================
-   ГЕОМЕТРІЯ
-   ============================================================
-   Мережа віддає ВІДНОСНУ обернену глибину, нормалізовану 0..1.
-   Метричного масштабу в ній немає — з одного кадру він принципово
-   не спостережуваний. Переводимо так, щоб зберігалась перспектива:
-   z ~ 1/дисперсія, тобто модель правильна за формою, умовна за розміром.
-   ============================================================ */
-function depthToZ(dn, range){ const k = 1/range; return 1/(dn*(1-k) + k); }
-
-/* Мережа завжди щось віддає — і на рівній стіні теж, де насправді нічого
-   не бачить. Міряємо локальну текстурованість: нема градієнта — нема
-   підстав вірити глибині. Такі місця в модель не потрапляють. */
-function confidence(gray, W, H, out){
-  const th = 0.055;
-  for (let y = 0; y < H; y++){
-    const y0 = y>0?y-1:0, y1 = y<H-1?y+1:H-1;
-    for (let x = 0; x < W; x++){
-      const x0 = x>0?x-1:0, x1 = x<W-1?x+1:W-1;
-      const gx = gray[y*W+x1]-gray[y*W+x0], gy = gray[y1*W+x]-gray[y0*W+x];
-      let e = Math.sqrt(gx*gx+gy*gy)/th;
-      const l = gray[y*W+x];
-      if (l < 0.06 || l > 0.97) e *= 0.25;      // тінь і пересвіт брешуть
-      out[y*W+x] = e > 1 ? 1 : e;
-    }
-  }
-  const t = out.slice();
-  for (let y = 1; y < H-1; y++)
-    for (let x = 1; x < W-1; x++){
-      let s = 0;
-      for (let j=-1;j<=1;j++) for (let i=-1;i<=1;i++) s += t[(y+j)*W+x+i];
-      out[y*W+x] = s/9;
-    }
+const L = [];
+function log(t, cls){
+  L.push('<span class="' + (cls||'') + '">' + t + '</span>');
+  if (L.length > 40) L.shift();
+  const el = document.getElementById('log');
+  el.innerHTML = L.join('<br>');
+  el.scrollTop = el.scrollHeight;
 }
 
-/* Відкинуті точки НЕ лишаємо в буфері як NaN: габарит по такому масиву
-   виходить NaN, камера стає в NaN, сцена рендериться чорною. Одразу
-   перенумеровуємо, тому в моделі й експорті дірок-привидів немає. */
-function build(depth, conf, W, H, o){
-  const st = Math.max(1, Math.round(o.step));
-  const gw = Math.floor((W-1)/st)+1, gh = Math.floor((H-1)/st)+1, N = gw*gh;
-  const fx = (W*0.5)/Math.tan(o.hfov*Math.PI/360), cx = W*0.5, cy = H*0.5;
-  let lo = Infinity, hi = -Infinity;
-  for (let i = 0; i < depth.length; i++){ const d = depth[i]; if (d<lo) lo=d; if (d>hi) hi=d; }
-  const span = Math.max(1e-6, hi-lo);
+/* Точних імен файлів у dist перевірити не вдалось — CDN був недоступний.
+   Тому перебираємо кандидатів і показуємо, який спрацював. Мовчазної
+   відмови бути не може: кожна спроба друкується. */
+const SOURCES = [
+  'https://cdn.jsdelivr.net/gh/alanross/AlvaAR@main/dist/alva_ar.js',
+  'https://alanross.github.io/AlvaAR/dist/alva_ar.js',
+  'https://cdn.jsdelivr.net/gh/alanross/AlvaAR@main/examples/public/assets/alva_ar.js',
+  'https://alanross.github.io/AlvaAR/examples/public/assets/alva_ar.js',
+  'https://cdn.jsdelivr.net/gh/alanross/AlvaAR@main/examples/public/alva_ar.js'
+];
 
-  /* глибина у вузлах сітки + хто пройшов поріг довіри */
-  const zs = new Float32Array(N), okv = new Uint8Array(N);
-  let dropConf = 0;
-  for (let gy=0, i=0; gy<gh; gy++){
-    const v = Math.min(H-1, gy*st);
-    for (let gx=0; gx<gw; gx++, i++){
-      const u = Math.min(W-1, gx*st), k = v*W+u;
-      zs[i] = depthToZ((depth[k]-lo)/span, o.range);
-      if (conf && conf[k] < o.confMin){ dropConf++; continue; }
-      okv[i] = 1;
-    }
-  }
-
-  /* Дірки від довіри латаємо: вузол, оточений прийнятими сусідами, майже
-     напевно лежить на тій самій поверхні — просто без текстури. Викидати
-     його означає дірявити суцільну стіну. Глибину беремо з сусідів. */
-  let filled = 0;
-  if (o.fill){
-    for (let pass = 0; pass < 6; pass++){
-      const add = [];
-      for (let gy=1; gy<gh-1; gy++)
-        for (let gx=1; gx<gw-1; gx++){
-          const i = gy*gw+gx;
-          if (okv[i]) continue;
-          let n = 0, sum = 0;
-          for (let j=-1;j<=1;j++) for (let q=-1;q<=1;q++){
-            const m = (gy+j)*gw + gx+q;
-            if (m!==i && okv[m]){ n++; sum += zs[m]; }
-          }
-          /* трьох сусідів досить: дірка від гладкої стіни суцільна, і латати
-         її треба з краю всередину, а не вимагати оточення з усіх боків */
-      if (n >= 3) add.push([i, sum/n]);
-        }
-      if (!add.length) break;
-      for (const [i,z] of add){ okv[i]=1; zs[i]=z; filled++; }
-    }
-  }
-
-  /* Поріг розриву адаптивний: фіксоване відношення ріже там, де глибина
-     природно змінюється (похила підлога, стіна під кутом), і модель
-     розсипається на клапті. Беремо високий перцентиль реальних перепадів
-     у цій сцені — тоді відсікаються справжні межі, а не нахили. */
-  const ratios = [];
-  for (let gy=0; gy<gh-1; gy++)
-    for (let gx=0; gx<gw-1; gx++){
-      const a=gy*gw+gx, b=a+1, c=a+gw, d=c+1;
-      if (!okv[a]||!okv[b]||!okv[c]||!okv[d]) continue;
-      const mx=Math.max(zs[a],zs[b],zs[c],zs[d]), mn=Math.min(zs[a],zs[b],zs[c],zs[d]);
-      ratios.push((mx-mn)/mn);
-    }
-  let cut = o.cut*st;
-  if (o.adaptive && ratios.length > 50){
-    /* Поріг мусить стояти НАД типовим перепадом, інакше він ріже сам нахил
-       поверхні. Перцентиль для цього не годиться: на похилій підлозі
-       перепади розподілені рівно, і 94-й перцентиль виявляється нижчим за
-       фіксований поріг — виміряно, клаптів стало 2 → 64.
-       Беремо медіану й множимо: справжня межа предмета дає перепад на
-       порядок більший за нахил, тому вона все одно відсічеться. */
-    const srt = ratios.slice().sort((x,y)=>x-y);
-    const m = srt[srt.length >> 1];
-    cut = Math.min(Math.max(m * 6, 0.03), 0.6);
-  }
-
-  /* нумеруємо лише те, що лишилось */
-  const map = new Int32Array(N).fill(-1);
-  let kept = 0;
-  for (let i = 0; i < N; i++) if (okv[i]) map[i] = kept++;
-  const pos = new Float32Array(kept*3), uv = new Float32Array(kept*2);
-  for (let gy=0, i=0; gy<gh; gy++){
-    const v = Math.min(H-1, gy*st);
-    for (let gx=0; gx<gw; gx++, i++){
-      const m = map[i]; if (m < 0) continue;
-      const u = Math.min(W-1, gx*st), z = zs[i];
-      pos[m*3] = (u-cx)*z/fx; pos[m*3+1] = -(v-cy)*z/fx; pos[m*3+2] = -z;
-      uv[m*2] = u/(W-1); uv[m*2+1] = 1 - v/(H-1);
-    }
-  }
-  const tri = [];
-  let dropCut = 0;
-  for (let gy=0; gy<gh-1; gy++)
-    for (let gx=0; gx<gw-1; gx++){
-      const a=gy*gw+gx, b=a+1, c=a+gw, d=c+1;
-      const ma=map[a], mb=map[b], mc=map[c], md=map[d];
-      if (ma<0||mb<0||mc<0||md<0) continue;
-      const mx=Math.max(zs[a],zs[b],zs[c],zs[d]), mn=Math.min(zs[a],zs[b],zs[c],zs[d]);
-      if ((mx-mn)/mn > cut){ dropCut++; continue; }
-      tri.push(ma,mc,mb, mb,mc,md);
-    }
-  return { pos, uv, tri:new Uint32Array(tri), count:kept, total:N,
-           dropped:dropConf, filled, dropCut, cut };
-}
-
-/* скільки окремих клаптів у сітці — прямий показник розірваності */
-function pieces(M){
-  if (!M.count) return 0;
-  const par = new Int32Array(M.count);
-  for (let i=0;i<M.count;i++) par[i]=i;
-  const find = a => { while(par[a]!==a){ par[a]=par[par[a]]; a=par[a]; } return a; };
-  for (let i=0;i<M.tri.length;i+=3){
-    const a=find(M.tri[i]), b=find(M.tri[i+1]), c=find(M.tri[i+2]);
-    if(a!==b) par[a]=b;
-    if(find(M.tri[i])!==find(c)) par[find(M.tri[i])]=c;
-  }
-  const seen = new Set();
-  for (let i=0;i<M.count;i++) seen.add(find(i));
-  return seen.size;
-}
-
-function toOBJ(M, mtl){
-  const L = ['# DICH //SCAN', '# масштаб умовний — монокулярна глибина'];
-  if (mtl) L.push('mtllib ' + mtl);
-  for (let i=0;i<M.count;i++)
-    L.push('v '+M.pos[i*3].toFixed(4)+' '+M.pos[i*3+1].toFixed(4)+' '+M.pos[i*3+2].toFixed(4));
-  for (let i=0;i<M.count;i++)
-    L.push('vt '+M.uv[i*2].toFixed(5)+' '+M.uv[i*2+1].toFixed(5));
-  if (mtl) L.push('usemtl scan');
-  for (let i=0;i<M.tri.length;i+=3){
-    const a=M.tri[i]+1, b=M.tri[i+1]+1, c=M.tri[i+2]+1;
-    L.push(`f ${a}/${a} ${b}/${b} ${c}/${c}`);
-  }
-  return L.join('\n');
-}
-function toPLY(M, rgb, W, H){
-  const L = ['ply','format ascii 1.0','comment DICH //SCAN — масштаб умовний',
-    'element vertex '+M.count,'property float x','property float y','property float z',
-    'property uchar red','property uchar green','property uchar blue',
-    'element face '+(M.tri.length/3),'property list uchar int vertex_index','end_header'];
-  for (let i=0;i<M.count;i++){
-    let r=110,g=214,b=130;
-    if (rgb){
-      const u = Math.min(W-1, Math.round(M.uv[i*2]*(W-1)));
-      const v = Math.min(H-1, Math.round((1-M.uv[i*2+1])*(H-1)));
-      const k = (v*W+u)*4; r=rgb[k]; g=rgb[k+1]; b=rgb[k+2];
-    }
-    L.push(M.pos[i*3].toFixed(4)+' '+M.pos[i*3+1].toFixed(4)+' '+M.pos[i*3+2].toFixed(4)+' '+r+' '+g+' '+b);
-  }
-  for (let i=0;i<M.tri.length;i+=3) L.push('3 '+M.tri[i]+' '+M.tri[i+1]+' '+M.tri[i+2]);
-  return L.join('\n');
-}
-globalThis.__SCAN = { depthToZ, confidence, build, pieces, toOBJ, toPLY };
-
-/* ============================================================
-   КАМЕРА, МЕРЕЖА, СЦЕНА
-   ============================================================ */
 const vid = document.getElementById('cam');
-const glc = document.getElementById('gl');
-let stream=null, facing='environment', pipe=null, dev='—', busy=false;
-let MODEL=null, TEXCV=null, TEXRGB=null, TW=0, TH_=0;
-let THREE=null, ren=null, scene=null, cam3=null, ctl=null, obj=null, tex=null;
+const ov  = document.getElementById('ov');
+const octx = ov.getContext('2d');
+const work = document.createElement('canvas');
+const wctx = work.getContext('2d', { willReadFrequently:true });
 
-const msg = (h) => document.getElementById('msg').innerHTML = h||'';
+let stream=null, alva=null, running=false, W=0, H=0;
+let frames=0, tHz=0, lastT=0, tracked=0, lost=0;
+let path=0, lastPos=null, curPos=[0,0,0], everTracked=false;
 
 function cover(vw,vh,cw,ch){
   const cr=cw/ch; let sw,sh;
@@ -318,213 +115,126 @@ function cover(vw,vh,cw,ch){
 }
 function viewSize(){ const v=document.getElementById('view');
   return { w:Math.max(1,v.clientWidth), h:Math.max(1,v.clientHeight) }; }
-/* Кадр беремо тим самим прямокутником, який показує браузер через
-   object-fit:cover. Інакше глибина рахується по краях, яких на екрані
-   немає, і модель не збігається з тим, що бачив користувач. */
-function grab(maxW){
-  const vw=vid.videoWidth, vh=vid.videoHeight;
-  if (!vw) return null;
-  const A=viewSize(), c=cover(vw,vh,A.w,A.h);
-  const w=Math.min(maxW, Math.round(c.sw)), h=Math.max(1, Math.round(w*A.h/A.w));
-  const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
-  const g=cv.getContext('2d',{willReadFrequently:true});
-  if (facing==='user'){ g.translate(w,0); g.scale(-1,1); }
-  g.drawImage(vid, c.sx,c.sy,c.sw,c.sh, 0,0,w,h);
-  return cv;
-}
+
 async function startCam(){
-  if (stream) stream.getTracks().forEach(t=>t.stop());
-  stream = await navigator.mediaDevices.getUserMedia({audio:false,
-    video:{facingMode:facing, width:{ideal:1280}, height:{ideal:720}}});
+  stream = await navigator.mediaDevices.getUserMedia({ audio:false,
+    video:{ facingMode:'environment', width:{ideal:1280}, height:{ideal:720} } });
   vid.srcObject = stream;
   await vid.play().catch(()=>{});
   await new Promise(r => vid.videoWidth ? r() : (vid.onloadedmetadata=()=>r()));
 }
-async function loadNet(){
-  if (pipe) return pipe;
-  msg('Вантажу мережу глибини… <em>перший раз ~50 МБ, далі з кешу</em>');
-  const { pipeline, env } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3');
-  env.allowLocalModels = false;
-  let gpu=false;
-  try { gpu = !!(navigator.gpu && await navigator.gpu.requestAdapter()); } catch(e){}
-  dev = gpu ? 'WebGPU' : 'WASM';
-  document.getElementById('cDev').textContent = dev;
-  const opt = { device: gpu?'webgpu':'wasm', dtype: gpu?'fp16':'q8',
-    progress_callback: p => { if (p.status==='progress' && p.total)
-      msg('Вантажу мережу… <b>'+Math.round(100*p.loaded/p.total)+'%</b>'); } };
-  try { pipe = await pipeline('depth-estimation','onnx-community/depth-anything-v2-small',opt); }
-  catch(e){ pipe = await pipeline('depth-estimation','onnx-community/depth-anything-v2-base',opt); }
-  return pipe;
-}
-function depthOf(out){
-  const pd = out.predicted_depth;
-  if (pd && pd.data && pd.dims){
-    const d = pd.dims;
-    return { d:Float32Array.from(pd.data), w:d[d.length-1], h:d[d.length-2] };
+
+async function loadAlva(){
+  log('Шукаю AlvaAR…');
+  let mod = null, used = null;
+  for (const url of SOURCES){
+    try {
+      log('  пробую ' + url.replace('https://',''));
+      mod = await import(/* @vite-ignore */ url);
+      if (mod && (mod.AlvaAR || mod.default)){ used = url; break; }
+      log('  модуль без AlvaAR', 'wt');
+      mod = null;
+    } catch(e){
+      log('  ✕ ' + (e && e.message ? e.message.slice(0,90) : e), 'wt');
+    }
   }
-  const r = out.depth, ch = r.data.length/(r.width*r.height);
-  const a = new Float32Array(r.width*r.height);
-  for (let i=0;i<a.length;i++) a[i] = r.data[i*ch];
-  return { d:a, w:r.width, h:r.height };
+  if (!mod) throw new Error('жодне джерело не завантажилось');
+  log('✓ узято: ' + used.replace('https://',''), 'ok');
+  return mod.AlvaAR || mod.default;
 }
 
-async function scan(){
-  if (busy) return;
-  busy = true;
+async function begin(){
   const go = document.getElementById('go');
   go.disabled = true;
   try {
-    await loadNet();
-    msg('Знімаю кадр…');
-    const src = grab(512);
-    if (!src) throw new Error('камера не дала кадру');
-    msg('Рахую глибину… <em>' + dev + '</em>');
-    await new Promise(r=>setTimeout(r,20));
-    const t0 = performance.now();
-    const out = await pipe(src.toDataURL('image/jpeg',0.9));
-    const ms = Math.round(performance.now()-t0);
-    const D = depthOf(out);
-
-    /* сірий тієї ж роздільності — під карту довіри */
-    const gcv = document.createElement('canvas'); gcv.width=D.w; gcv.height=D.h;
-    const gg = gcv.getContext('2d',{willReadFrequently:true});
-    gg.drawImage(src, 0,0, D.w, D.h);
-    const im = gg.getImageData(0,0,D.w,D.h).data;
-    const gray = new Float32Array(D.w*D.h), conf = new Float32Array(D.w*D.h);
-    for (let i=0,j=0;i<gray.length;i++,j+=4)
-      gray[i] = (im[j]*0.299+im[j+1]*0.587+im[j+2]*0.114)/255;
-    confidence(gray, D.w, D.h, conf);
-    TEXRGB = im; TW = D.w; TH_ = D.h;
-
-    msg('Будую сітку…');
-    MODEL = build(D.d, conf, D.w, D.h, P);
-    const pct = Math.round(100*MODEL.count/Math.max(1,MODEL.total));
-    document.getElementById('cPts').textContent = MODEL.count;
-    const cp = document.getElementById('cConfPill');
-    document.getElementById('cConf').textContent = pct + '%';
-    cp.className = 'chip' + (pct<25?' e':pct<50?' w':'');
-    if (!MODEL.count || !MODEL.tri.length){
-      msg('<em>Нічого не лишилось.</em> Тут замало текстури — підійди ближче, додай світла, або знизь ДОВІРУ в ⚙');
-      busy=false; go.disabled=false; return;
-    }
-    TEXCV = grab(1440);
-    await show();
-    const cov = Math.round(100*MODEL.count/Math.max(1,MODEL.total));
-    msg(`<b>${MODEL.count}</b> точок · <b>${MODEL.tri.length/3|0}</b> граней · покриття <b>${cov}%</b>` +
-        (MODEL.filled ? ` · залатано ${MODEL.filled}` : '') +
-        ` · ${ms} мс<br><em>один ракурс, масштаб умовний</em>`);
+    const AlvaAR = await loadAlva();
+    /* Роздільність трекінгу нижча за камеру: SLAM рахує кожен кадр,
+       і зайві пікселі тут коштують кадрів у секунду, а не якості. */
+    const A = viewSize();
+    W = 480; H = Math.max(1, Math.round(W * A.h / A.w));
+    work.width = W; work.height = H;
+    log(`Ініціалізую SLAM ${W}×${H}…`);
+    alva = await AlvaAR.Initialize(W, H);
+    log('✓ SLAM готовий', 'ok');
+    log('Веди камерою повільно вбік. Трекінг стартує, коли набереться паралакс.', 'wt');
+    running = true;
+    go.textContent = 'ІДЕ';
+    lastT = performance.now();
+    loop();
   } catch(e){
-    msg('<em>Не вийшло:</em> ' + (e && e.message ? e.message : e));
-    console.error(e);
+    log('✕ ' + (e && e.message ? e.message : e), 'no');
+    log('Якщо це CORS або 404 — файли треба покласти поруч із цією сторінкою ' +
+        'і замінити список джерел на локальний шлях.', 'wt');
+    go.disabled = false;
   }
-  busy = false; go.disabled = false;
 }
 
-async function show(){
-  if (!THREE){
-    const t = await import('https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js');
-    const o = await import('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js');
-    THREE = { ...t, OrbitControls:o.OrbitControls };
+function loop(){
+  if (!running) return;
+  requestAnimationFrame(loop);
+  if (!vid.videoWidth) return;
+
+  const c = cover(vid.videoWidth, vid.videoHeight, W, H);
+  wctx.drawImage(vid, c.sx, c.sy, c.sw, c.sh, 0, 0, W, H);
+  const frame = wctx.getImageData(0, 0, W, H);
+
+  let pose = null;
+  try { pose = alva.findCameraPose(frame); }
+  catch(e){ log('findCameraPose впав: ' + (e.message||e), 'no'); running = false; return; }
+
+  let pts = [];
+  try { pts = alva.getFramePoints() || []; } catch(e){}
+
+  const st = document.getElementById('cSt'), stp = document.getElementById('pSt');
+  if (pose && pose.length >= 16){
+    tracked++;
+    if (!everTracked){ everTracked = true; log('✓ ТРЕКІНГ ПІШОВ', 'ok'); }
+    /* поза — матриця 4×4 у стовпцевому порядку, зсув у 12..14 */
+    curPos = [pose[12], pose[13], pose[14]];
+    if (lastPos){
+      const d = Math.hypot(curPos[0]-lastPos[0], curPos[1]-lastPos[1], curPos[2]-lastPos[2]);
+      if (d < 0.5) path += d;                 // стрибок = зрив, у шлях не рахуємо
+    }
+    lastPos = curPos.slice();
+    st.textContent = 'ТРЕКІНГ'; stp.className = 'chip r g';
+  } else {
+    lost++;
+    lastPos = null;
+    st.textContent = everTracked ? 'ЗАГУБИВ' : 'ЧЕКАЮ';
+    stp.className = 'chip r ' + (everTracked ? 'e' : 'w');
   }
-  const T = THREE;
-  glc.style.display = 'block';
-  if (!ren){
-    ren = new T.WebGLRenderer({ canvas:glc, antialias:true });
-    ren.setPixelRatio(Math.min(2, devicePixelRatio||1));
-    scene = new T.Scene(); scene.background = new T.Color(0x030906);
-    cam3 = new T.PerspectiveCamera(52,1,0.01,500);
-    ctl = new T.OrbitControls(cam3, glc);
-    ctl.enableDamping = true; ctl.dampingFactor = .08;
-    (function loop(){ requestAnimationFrame(loop);
-      if (glc.style.display!=='none'){ ctl.update(); ren.render(scene,cam3); } })();
-    addEventListener('resize', fit);
-  }
-  if (obj){ scene.remove(obj); obj.geometry.dispose(); obj.material.dispose(); }
-  const g = new T.BufferGeometry();
-  g.setAttribute('position', new T.BufferAttribute(MODEL.pos,3));
-  g.setAttribute('uv', new T.BufferAttribute(MODEL.uv,2));
-  g.setIndex(new T.BufferAttribute(MODEL.tri,1));
-  if (tex) tex.dispose();
-  tex = new T.CanvasTexture(TEXCV);
-  if (T.SRGBColorSpace) tex.colorSpace = T.SRGBColorSpace;
-  tex.minFilter = T.LinearFilter;
-  obj = new T.Mesh(g, new T.MeshBasicMaterial({ map:tex, side:T.DoubleSide }));
-  scene.add(obj);
-  fit();
-  /* габарит перевіряємо: порожній або NaN означав би камеру в нікуди */
-  const bb = new T.Box3().setFromBufferAttribute(g.getAttribute('position'));
-  const c = bb.getCenter(new T.Vector3()), s = bb.getSize(new T.Vector3());
-  const r = Math.max(s.x,s.y,s.z);
-  if ([c.x,c.y,c.z,r].every(Number.isFinite) && r > 1e-6){
-    ctl.target.copy(c); cam3.position.set(c.x, c.y, c.z + r*1.5);
-    cam3.near = r/200; cam3.far = r*40; cam3.updateProjectionMatrix(); ctl.update();
-  }
-  document.getElementById('acts').style.display = 'none';
-  document.getElementById('res').classList.add('on');
-  document.getElementById('opts').classList.remove('on');
-}
-function fit(){
-  if (!ren) return;
+
+  /* точки, які SLAM реально бачить — це найпряміший доказ, що воно живе */
   const A = viewSize();
-  ren.setSize(A.w, A.h, false);
-  cam3.aspect = A.w/A.h; cam3.updateProjectionMatrix();
-}
-function back(){
-  glc.style.display = 'none';
-  document.getElementById('acts').style.display = 'flex';
-  document.getElementById('res').classList.remove('on');
-  msg('');
+  if (ov.width !== A.w || ov.height !== A.h){ ov.width = A.w; ov.height = A.h; }
+  octx.clearRect(0, 0, A.w, A.h);
+  const sx = A.w / W, sy = A.h / H;
+  octx.fillStyle = pose ? 'rgba(106,213,130,.9)' : 'rgba(255,193,60,.75)';
+  for (const p of pts) octx.fillRect(p.x*sx - 1.5, p.y*sy - 1.5, 3, 3);
+
+  document.getElementById('cPts').textContent = pts.length;
+  document.getElementById('cPath').textContent = path.toFixed(2);
+  const pp = document.getElementById('pPath');
+  pp.className = 'chip ' + (path > 0.6 ? 'g' : path > 0.2 ? 'w' : '');
+
+  frames++;
+  const now = performance.now();
+  if (now - lastT > 500){
+    tHz = frames * 1000 / (now - lastT);
+    document.getElementById('cFps').textContent = tHz.toFixed(1);
+    frames = 0; lastT = now;
+    if (everTracked && tracked + lost > 0){
+      const keep = Math.round(100 * tracked / (tracked + lost));
+      if (keep < 60) log(`утримання ${keep}% — трекінг рветься`, 'wt');
+    }
+  }
 }
 
-/* ---------- експорт ---------- */
-function save(name, data, type){
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([data], { type:type||'text/plain' }));
-  a.download = name; a.click();
-  setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
-}
-function exportOBJ(){
-  if (!MODEL) return;
-  const id = Date.now();
-  /* OBJ сам текстуру не носить: потрібні три файли поруч —
-     геометрія, матеріал і картинка. Кладемо їх з однаковим іменем. */
-  save(`dich-${id}.obj`, toOBJ(MODEL, `dich-${id}.mtl`));
-  save(`dich-${id}.mtl`,
-    `newmtl scan\nKa 1 1 1\nKd 1 1 1\nd 1\nillum 1\nmap_Kd dich-${id}.png\n`);
-  TEXCV.toBlob(b => save(`dich-${id}.png`, b, 'image/png'), 'image/png');
-  msg('Збережено <b>три файли</b>: .obj, .mtl і .png — тримай їх в одній теці, інакше текстура не підхопиться');
-}
-function exportPLY(){
-  if (!MODEL) return;
-  save(`dich-${Date.now()}.ply`, toPLY(MODEL, TEXRGB, TW, TH_));
-  msg('Збережено <b>PLY</b> — один файл, колір у вершинах');
-}
-
-/* ---------- UI ---------- */
-const bind = (id, key, fmt) => {
-  const el = document.getElementById(id), out = el.parentElement.querySelector('output');
-  const upd = () => { P[key] = parseFloat(el.value);
-    out.textContent = (fmt||(v=>v.toFixed(2)))(P[key]); };
-  el.addEventListener('input', upd); upd();
-};
-bind('sConf','confMin'); bind('sStep','step', v=>String(v|0));
-bind('sRange','range', v=>v.toFixed(1)); bind('sCut','cut');
-for (const [id,key] of [['bFill','fill'],['bAuto','adaptive']]){
-  const el = document.getElementById(id);
-  el.classList.toggle('on', P[key]);
-  el.addEventListener('click', () => { P[key] = !P[key]; el.classList.toggle('on', P[key]); });
-}
-document.getElementById('bOpt').addEventListener('click', e => {
-  const on = document.getElementById('opts').classList.toggle('on');
-  e.currentTarget.classList.toggle('on', on);
-});
-document.getElementById('go').addEventListener('click', scan);
-document.getElementById('bObj').addEventListener('click', exportOBJ);
-document.getElementById('bPly').addEventListener('click', exportPLY);
-document.getElementById('bAgain').addEventListener('click', back);
-document.getElementById('bCam').addEventListener('click', async () => {
-  facing = facing==='environment' ? 'user' : 'environment';
-  try { await startCam(); } catch(e){ msg('<em>камера:</em> '+(e.message||e)); }
+document.getElementById('go').addEventListener('click', begin);
+document.getElementById('bClr').addEventListener('click', () => {
+  path = 0; lastPos = null; tracked = 0; lost = 0; L.length = 0;
+  document.getElementById('log').innerHTML = '';
+  log('лічильники скинуто');
 });
 document.getElementById('start').addEventListener('click', async () => {
   const err = document.getElementById('err');
@@ -533,8 +243,8 @@ document.getElementById('start').addEventListener('click', async () => {
     if (!isSecureContext) throw new Error('потрібен HTTPS');
     await startCam();
     document.getElementById('boot').classList.add('hide');
-    msg('Наведи на предмет і тисни СКАНУВАТИ');
-    loadNet().catch(e => msg('<em>мережа:</em> '+(e.message||e)));
+    log('Камера: ' + vid.videoWidth + '×' + vid.videoHeight, 'ok');
+    log('Тисни СТАРТ ТРЕКІНГУ.');
   } catch(e){ err.textContent = 'Не пішло: ' + (e.message||e); }
 });
 </script>
