@@ -17,30 +17,43 @@ button{font-family:var(--mono);border:0;background:0 0;color:inherit}
 #view video,#view canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
 #cam{z-index:1} #ov{z-index:2}
 #bar{position:fixed;z-index:4;top:env(safe-area-inset-top);left:0;right:0;
-  display:flex;gap:6px;align-items:center;padding:11px 13px;flex-wrap:wrap}
-.tag{font-size:14px;font-weight:800;letter-spacing:.13em;color:var(--hot)}
-.tag s{text-decoration:none;color:var(--accent);font-weight:400;font-size:10px;letter-spacing:.2em}
-.chip{background:rgba(4,14,9,.8);border:1px solid rgba(106,213,130,.2);border-radius:99px;
-  padding:4px 10px;font-size:9.5px;letter-spacing:.09em;color:var(--ink);white-space:nowrap}
+  display:flex;gap:5px;align-items:center;padding:10px 12px;flex-wrap:wrap}
+.tag{font-size:13px;font-weight:800;letter-spacing:.13em;color:var(--hot);width:100%;margin-bottom:2px}
+.tag s{text-decoration:none;color:var(--accent);font-weight:400;font-size:9px;letter-spacing:.2em}
+.chip{background:rgba(4,14,9,.82);border:1px solid rgba(106,213,130,.2);border-radius:99px;
+  padding:4px 9px;font-size:9px;letter-spacing:.08em;color:var(--ink);white-space:nowrap}
 .chip b{color:var(--hot)} .chip.g{border-color:rgba(106,213,130,.6)} .chip.g b{color:var(--accent)}
 .chip.w{border-color:rgba(255,193,60,.5)} .chip.w b{color:var(--amber)}
 .chip.e{border-color:rgba(223,47,46,.55)} .chip.e b{color:var(--red)}
-#bar .r{margin-left:auto}
-#log{position:fixed;z-index:4;left:13px;right:13px;top:calc(env(safe-area-inset-top) + 46px);
-  font-size:11px;line-height:1.7;color:var(--ink);text-shadow:0 0 10px #000;max-height:52%;overflow-y:auto}
+#log{position:fixed;z-index:4;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 74px);
+  font-size:10.5px;line-height:1.75;color:var(--ink);text-shadow:0 0 10px #000;
+  max-height:46%;overflow-y:auto}
 #log b{color:var(--hot)} #log .ok{color:var(--accent)} #log .no{color:var(--red)} #log .wt{color:var(--amber)}
 #dock{position:fixed;z-index:4;left:0;right:0;bottom:0;
-  padding:0 13px calc(env(safe-area-inset-bottom) + 16px);display:flex;gap:9px}
-#go{flex:1;height:54px;border-radius:99px;background:var(--accent);color:#03150c;
-  font-size:12.5px;font-weight:700;letter-spacing:.13em}
+  padding:0 12px calc(env(safe-area-inset-bottom) + 14px)}
+#cfg{display:flex;gap:6px;align-items:center;margin-bottom:9px;flex-wrap:wrap}
+.tg{background:rgba(4,14,9,.82);border:1px solid rgba(106,213,130,.22);border-radius:99px;
+  padding:7px 12px;font-size:9.5px;letter-spacing:.1em;color:var(--ink)}
+.tg.on{border-color:var(--accent);color:var(--accent)}
+.tg:disabled{opacity:.35}
+#fovbox{flex:1;min-width:150px;background:rgba(4,14,9,.82);border:1px solid rgba(106,213,130,.22);
+  border-radius:14px;padding:6px 11px}
+#fovbox label{display:flex;justify-content:space-between;font-size:9px;letter-spacing:.08em;color:var(--ink)}
+#fovbox label b{color:var(--hot)}
+#fov{width:100%;margin:4px 0 0;accent-color:var(--accent);height:16px}
+#row{display:flex;gap:8px}
+#go{flex:1;height:52px;border-radius:99px;background:var(--accent);color:#03150c;
+  font-size:12px;font-weight:700;letter-spacing:.13em}
 #go:disabled{opacity:.45}
-.mini{width:54px;height:54px;border-radius:99px;background:rgba(4,14,9,.8);
-  border:1px solid rgba(106,213,130,.22);font-size:14px;color:var(--ink)}
+#go.run{background:rgba(4,14,9,.85);border:1px solid var(--red);color:var(--red)}
+.mini{width:52px;height:52px;border-radius:99px;background:rgba(4,14,9,.82);
+  border:1px solid rgba(106,213,130,.22);font-size:13px;color:var(--ink)}
+.mini:disabled{opacity:.35}
 #boot{position:fixed;inset:0;z-index:9;background:var(--bg);display:flex;flex-direction:column;
-  align-items:center;justify-content:center;gap:16px;padding:28px;text-align:center}
-#boot h1{margin:0;font-size:25px;font-weight:800;letter-spacing:.14em;color:var(--hot)}
-#boot h1 s{text-decoration:none;color:var(--accent);font-weight:400;font-size:15px;letter-spacing:.22em}
-#boot p{margin:0;max-width:330px;font-size:11px;line-height:1.85;color:var(--ink)}
+  align-items:center;justify-content:center;gap:15px;padding:28px;text-align:center}
+#boot h1{margin:0;font-size:24px;font-weight:800;letter-spacing:.14em;color:var(--hot)}
+#boot h1 s{text-decoration:none;color:var(--accent);font-weight:400;font-size:14px;letter-spacing:.22em}
+#boot p{margin:0;max-width:335px;font-size:11px;line-height:1.85;color:var(--ink)}
 #stamp{font-size:9px;letter-spacing:.18em;color:var(--amber)}
 #start{background:var(--accent);color:#03150c;border-radius:99px;padding:14px 40px;
   font-size:12.5px;font-weight:700;letter-spacing:.14em}
@@ -53,199 +66,357 @@ button{font-family:var(--mono);border:0;background:0 0;color:inherit}
   <video id="cam" playsinline muted autoplay></video>
   <canvas id="ov"></canvas>
 </div>
+
 <div id="bar">
   <div class="tag">DICH <s>//TRACK</s></div>
-  <div class="chip r" id="pSt"><b id="cSt">—</b></div>
+  <div class="chip" id="pSt"><b id="cSt">—</b></div>
+  <div class="chip" id="pKeep"><b id="cKeep">—</b>УТРИМ</div>
+  <div class="chip" id="pBrk"><b id="cBrk">0</b>ЗРИВІВ</div>
   <div class="chip"><b id="cPts">0</b>ОЗНАК</div>
-  <div class="chip"><b id="cFps">0</b>Гц</div>
-  <div class="chip" id="pPath"><b id="cPath">0.00</b>ШЛЯХ</div>
+  <div class="chip"><b id="cSlam">0</b>/<b id="cCam">0</b>Гц</div>
+  <div class="chip"><b id="cF">—</b>ФОКУС</div>
 </div>
+
 <div id="log"></div>
+
 <div id="dock">
-  <button class="mini" id="bClr">↺</button>
-  <button id="go">СТАРТ ТРЕКІНГУ</button>
+  <div id="cfg">
+    <button class="tg" id="tCrop">КРОП</button>
+    <div id="fovbox">
+      <label><span>ПОЛЕ КАМЕРИ</span><b id="fovv">70°</b></label>
+      <input id="fov" type="range" min="40" max="110" step="1" value="70">
+    </div>
+  </div>
+  <div id="row">
+    <button class="mini" id="bReset" disabled>↺</button>
+    <button id="go">СТАРТ ТРЕКІНГУ</button>
+    <button class="mini" id="bCopy">⧉</button>
+  </div>
 </div>
+
 <div id="boot">
   <h1>DICH <s>//TRACK</s></h1>
   <div id="stamp"></div>
   <p>Проба трекінгу. Перевіряє, чи AlvaAR тримає позу камери на цьому
-     телефоні — до того, як на ньому щось будувати.</p>
+     телефоні — і чи винен у зривах кроп кадру.</p>
   <button id="start">ПУСК</button>
   <div id="err"></div>
 </div>
 
 <script type="module">
-const BUILD = 'T1 · проба AlvaAR';
+const BUILD = 'T2 · інтринсики A/B';
 document.getElementById('stamp').textContent = 'ЗБІРКА ' + BUILD;
 
+/* Перевірено по репозиторію alanross/AlvaAR (гілка main):
+   dist/alva_ar.js існує, експорт іменований — export { AlvaAR }.
+   Сигнатура: AlvaAR.Initialize( width, height, fov = 45 ).
+   Фокус усередині: fovH/fovV розводяться за аспектом, f = min(fx, fy). */
+const SOURCES = [
+  'https://cdn.jsdelivr.net/gh/alanross/AlvaAR@main/dist/alva_ar.js',
+  'https://alanross.github.io/AlvaAR/dist/alva_ar.js',
+  'https://cdn.jsdelivr.net/gh/alanross/AlvaAR@main/examples/public/assets/alva_ar.js'
+];
+
+const $ = id => document.getElementById(id);
 const L = [];
 function log(t, cls){
-  L.push('<span class="' + (cls||'') + '">' + t + '</span>');
-  if (L.length > 40) L.shift();
-  const el = document.getElementById('log');
+  L.push('<span class="' + (cls || '') + '">' + t + '</span>');
+  if (L.length > 60) L.shift();
+  const el = $('log');
   el.innerHTML = L.join('<br>');
   el.scrollTop = el.scrollHeight;
 }
 
-/* Точних імен файлів у dist перевірити не вдалось — CDN був недоступний.
-   Тому перебираємо кандидатів і показуємо, який спрацював. Мовчазної
-   відмови бути не може: кожна спроба друкується. */
-const SOURCES = [
-  'https://cdn.jsdelivr.net/gh/alanross/AlvaAR@main/dist/alva_ar.js',
-  'https://alanross.github.io/AlvaAR/dist/alva_ar.js',
-  'https://cdn.jsdelivr.net/gh/alanross/AlvaAR@main/examples/public/assets/alva_ar.js',
-  'https://alanross.github.io/AlvaAR/examples/public/assets/alva_ar.js',
-  'https://cdn.jsdelivr.net/gh/alanross/AlvaAR@main/examples/public/alva_ar.js'
-];
-
-const vid = document.getElementById('cam');
-const ov  = document.getElementById('ov');
-const octx = ov.getContext('2d');
+const vid = $('cam'), ov = $('ov'), octx = ov.getContext('2d');
 const work = document.createElement('canvas');
 const wctx = work.getContext('2d', { willReadFrequently:true });
 
-let stream=null, alva=null, running=false, W=0, H=0;
-let frames=0, tHz=0, lastT=0, tracked=0, lost=0;
-let path=0, lastPos=null, curPos=[0,0,0], everTracked=false;
+let AlvaAR = null, alva = null, running = false;
+let SW = 0, SH = 0;                 // кадр, що реально йде в SLAM
+let crop = false, fovH = 70, alvaFov = 45, focal = 0;
 
-function cover(vw,vh,cw,ch){
-  const cr=cw/ch; let sw,sh;
-  if (vw/vh>cr){ sh=vh; sw=vh*cr; } else { sw=vw; sh=vw/cr; }
-  return { sx:(vw-sw)/2, sy:(vh-sh)/2, sw, sh };
+const d2r = d => d * Math.PI / 180;
+
+/* Точна копія арифметики AlvaAR.getCameraIntrinsics — щоб чип ФОКУС
+   показував те саме число, яким користується сам SLAM, а не моє уявлення. */
+function focalOf(w, h, fov){
+  const a = w / h;
+  const H = w > h ? fov * a : fov;
+  const V = w > h ? fov : fov * a;
+  return Math.min((w * 0.5) / Math.tan(d2r(H * 0.5)), (h * 0.5) / Math.tan(d2r(V * 0.5)));
 }
-function viewSize(){ const v=document.getElementById('view');
-  return { w:Math.max(1,v.clientWidth), h:Math.max(1,v.clientHeight) }; }
+/* Зворотна задача: який fov передати, щоб гориз. поле дорівнювало fovH. */
+function fovFor(w, h, fovHoriz){ return w > h ? fovHoriz / (w / h) : fovHoriz; }
+
+function viewSize(){ const v = $('view'); return { w:Math.max(1,v.clientWidth), h:Math.max(1,v.clientHeight) }; }
+function coverRect(vw, vh, cw, ch){
+  const cr = cw / ch; let sw, sh;
+  if (vw / vh > cr){ sh = vh; sw = vh * cr; } else { sw = vw; sh = vw / cr; }
+  return { sx:(vw - sw) / 2, sy:(vh - sh) / 2, sw, sh };
+}
+
+/* ── лічильники ────────────────────────────────────────────────── */
+const WIN = 90;                     // вікно утримання, кадрів
+let win = [], winOk = 0;
+let everTracked = false, t0 = 0, firstMs = 0, firstFrames = 0;
+let breaks = 0, runLen = 0, worstRun = 0, ptsAtBreak = [];
+let slamN = 0, camN = 0, lastHz = 0, framesTotal = 0;
+let lastVT = -1;
+
+function pushWin(ok){
+  win.push(ok); if (ok) winOk++;
+  if (win.length > WIN){ if (win.shift()) winOk--; }
+}
+function resetCounters(){
+  win = []; winOk = 0; everTracked = false; firstMs = 0; firstFrames = 0;
+  breaks = 0; runLen = 0; worstRun = 0; ptsAtBreak = []; framesTotal = 0;
+  t0 = performance.now();
+}
 
 async function startCam(){
-  stream = await navigator.mediaDevices.getUserMedia({ audio:false,
+  const stream = await navigator.mediaDevices.getUserMedia({ audio:false,
     video:{ facingMode:'environment', width:{ideal:1280}, height:{ideal:720} } });
   vid.srcObject = stream;
   await vid.play().catch(()=>{});
-  await new Promise(r => vid.videoWidth ? r() : (vid.onloadedmetadata=()=>r()));
+  await new Promise(r => vid.videoWidth ? r() : (vid.onloadedmetadata = () => r()));
 }
 
 async function loadAlva(){
+  if (AlvaAR) return AlvaAR;
   log('Шукаю AlvaAR…');
-  let mod = null, used = null;
   for (const url of SOURCES){
     try {
-      log('  пробую ' + url.replace('https://',''));
-      mod = await import(/* @vite-ignore */ url);
-      if (mod && (mod.AlvaAR || mod.default)){ used = url; break; }
+      log('  ' + url.replace('https://','').slice(0,54));
+      const mod = await import(/* @vite-ignore */ url);
+      const K = mod && (mod.AlvaAR || mod.default);
+      if (K){ log('✓ узято', 'ok'); AlvaAR = K; return K; }
       log('  модуль без AlvaAR', 'wt');
-      mod = null;
-    } catch(e){
-      log('  ✕ ' + (e && e.message ? e.message.slice(0,90) : e), 'wt');
-    }
+    } catch(e){ log('  ✕ ' + String(e && e.message || e).slice(0,80), 'wt'); }
   }
-  if (!mod) throw new Error('жодне джерело не завантажилось');
-  log('✓ узято: ' + used.replace('https://',''), 'ok');
-  return mod.AlvaAR || mod.default;
+  throw new Error('жодне джерело не завантажилось');
+}
+
+function planFrame(){
+  const A = viewSize(), vw = vid.videoWidth, vh = vid.videoHeight;
+  if (crop){
+    /* режим T1: ріжемо під аспект екрана, fov лишаємо дефолтним */
+    SW = 480; SH = Math.max(1, Math.round(SW * A.h / A.w));
+    alvaFov = 45;
+  } else {
+    /* повний кадр, нічого не викидаємо, fov рахуємо з поля камери */
+    SW = 640; SH = Math.max(1, Math.round(SW * vh / vw));
+    alvaFov = fovFor(SW, SH, fovH);
+  }
+  work.width = SW; work.height = SH;
+  focal = focalOf(SW, SH, alvaFov);
+  $('cF').textContent = focal.toFixed(0);
 }
 
 async function begin(){
-  const go = document.getElementById('go');
+  const go = $('go');
   go.disabled = true;
   try {
-    const AlvaAR = await loadAlva();
-    /* Роздільність трекінгу нижча за камеру: SLAM рахує кожен кадр,
-       і зайві пікселі тут коштують кадрів у секунду, а не якості. */
-    const A = viewSize();
-    W = 480; H = Math.max(1, Math.round(W * A.h / A.w));
-    work.width = W; work.height = H;
-    log(`Ініціалізую SLAM ${W}×${H}…`);
-    alva = await AlvaAR.Initialize(W, H);
+    const K = await loadAlva();
+    planFrame();
+
+    if (crop){
+      const kept = 100 * (SW / SH) * vid.videoHeight / vid.videoWidth;
+      log(`РЕЖИМ КРОП — у SLAM іде ${kept.toFixed(0)}% ширини кадру, fov 45°`, 'wt');
+      log(`фокус ${focal.toFixed(0)} px при полі ${(2*Math.atan(SW*0.5/focal)*180/Math.PI).toFixed(1)}°`, 'wt');
+    } else {
+      log(`РЕЖИМ ПОВНИЙ КАДР — поле ${fovH}°, fov→AlvaAR ${alvaFov.toFixed(1)}`, 'ok');
+      log(`фокус ${focal.toFixed(0)} px, кадр ${SW}×${SH}`, 'ok');
+    }
+
+    log(`Ініціалізую SLAM…`);
+    alva = await K.Initialize(SW, SH, alvaFov);
     log('✓ SLAM готовий', 'ok');
-    log('Веди камерою повільно вбік. Трекінг стартує, коли набереться паралакс.', 'wt');
+    log('Веди камерою вбік, повільно, без ривків.', 'wt');
+
+    resetCounters();
     running = true;
-    go.textContent = 'ІДЕ';
-    lastT = performance.now();
-    loop();
+    go.disabled = false; go.classList.add('run'); go.textContent = 'СТОП';
+    $('bReset').disabled = false;
+    setCfgEnabled(false);
+    lastVT = -1; lastHz = performance.now(); slamN = camN = 0;
+    pump();
   } catch(e){
-    log('✕ ' + (e && e.message ? e.message : e), 'no');
-    log('Якщо це CORS або 404 — файли треба покласти поруч із цією сторінкою ' +
-        'і замінити список джерел на локальний шлях.', 'wt');
+    log('✕ ' + String(e && e.message || e), 'no');
+    log('Якщо це CORS або 404 — поклади alva_ar.js поруч зі сторінкою.', 'wt');
     go.disabled = false;
   }
 }
 
-function loop(){
-  if (!running) return;
-  requestAnimationFrame(loop);
-  if (!vid.videoWidth) return;
+function stop(){
+  running = false;
+  const go = $('go');
+  go.classList.remove('run'); go.textContent = 'СТАРТ ТРЕКІНГУ';
+  setCfgEnabled(true);
+  report();
+}
 
-  const c = cover(vid.videoWidth, vid.videoHeight, W, H);
-  wctx.drawImage(vid, c.sx, c.sy, c.sw, c.sh, 0, 0, W, H);
-  const frame = wctx.getImageData(0, 0, W, H);
+function setCfgEnabled(on){
+  $('tCrop').disabled = !on;
+  $('fov').disabled = !on;
+}
+
+/* Кадри в SLAM ідуть лише нові. rAF ходить 60 Гц, камера — 30:
+   без цієї перевірки половина кадрів у SLAM була б дублями. */
+function pump(){
+  if (!running) return;
+  if (vid.requestVideoFrameCallback){
+    vid.requestVideoFrameCallback(() => { step(); pump(); });
+  } else {
+    requestAnimationFrame(() => {
+      if (vid.currentTime !== lastVT){ lastVT = vid.currentTime; step(); }
+      pump();
+    });
+  }
+}
+
+function step(){
+  if (!vid.videoWidth || !alva) return;
+  camN++;
+
+  if (crop){
+    const c = coverRect(vid.videoWidth, vid.videoHeight, SW, SH);
+    wctx.drawImage(vid, c.sx, c.sy, c.sw, c.sh, 0, 0, SW, SH);
+  } else {
+    wctx.drawImage(vid, 0, 0, SW, SH);
+  }
+  const frame = wctx.getImageData(0, 0, SW, SH);
 
   let pose = null;
   try { pose = alva.findCameraPose(frame); }
-  catch(e){ log('findCameraPose впав: ' + (e.message||e), 'no'); running = false; return; }
+  catch(e){ log('findCameraPose впав: ' + (e.message || e), 'no'); running = false; stop(); return; }
 
   let pts = [];
   try { pts = alva.getFramePoints() || []; } catch(e){}
 
-  const st = document.getElementById('cSt'), stp = document.getElementById('pSt');
-  if (pose && pose.length >= 16){
-    tracked++;
-    if (!everTracked){ everTracked = true; log('✓ ТРЕКІНГ ПІШОВ', 'ok'); }
-    /* поза — матриця 4×4 у стовпцевому порядку, зсув у 12..14 */
-    curPos = [pose[12], pose[13], pose[14]];
-    if (lastPos){
-      const d = Math.hypot(curPos[0]-lastPos[0], curPos[1]-lastPos[1], curPos[2]-lastPos[2]);
-      if (d < 0.5) path += d;                 // стрибок = зрив, у шлях не рахуємо
+  slamN++; framesTotal++;
+  const ok = !!(pose && pose.length >= 16);
+  pushWin(ok);
+
+  if (ok){
+    if (!everTracked){
+      everTracked = true;
+      firstMs = performance.now() - t0; firstFrames = framesTotal;
+      log(`✓ ПОЗА ВЗЯТА — ${(firstMs/1000).toFixed(1)}с, ${firstFrames} кадрів, ${pts.length} ознак`, 'ok');
     }
-    lastPos = curPos.slice();
-    st.textContent = 'ТРЕКІНГ'; stp.className = 'chip r g';
-  } else {
-    lost++;
-    lastPos = null;
-    st.textContent = everTracked ? 'ЗАГУБИВ' : 'ЧЕКАЮ';
-    stp.className = 'chip r ' + (everTracked ? 'e' : 'w');
+    if (runLen > 0){
+      log(`  піднявся через ${runLen} кадр(ів)`, 'ok');
+      if (runLen > worstRun) worstRun = runLen;
+      runLen = 0;
+    }
+  } else if (everTracked){
+    if (runLen === 0){
+      breaks++; ptsAtBreak.push(pts.length);
+      log(`зрив #${breaks} — на кадрі було ${pts.length} ознак`, 'wt');
+    }
+    runLen++;
+    if (runLen > worstRun) worstRun = runLen;
   }
 
-  /* точки, які SLAM реально бачить — це найпряміший доказ, що воно живе */
+  drawPts(pts, ok);
+  paintChips(pts.length, ok);
+}
+
+function drawPts(pts, ok){
   const A = viewSize();
   if (ov.width !== A.w || ov.height !== A.h){ ov.width = A.w; ov.height = A.h; }
   octx.clearRect(0, 0, A.w, A.h);
-  const sx = A.w / W, sy = A.h / H;
-  octx.fillStyle = pose ? 'rgba(106,213,130,.9)' : 'rgba(255,193,60,.75)';
-  for (const p of pts) octx.fillRect(p.x*sx - 1.5, p.y*sy - 1.5, 3, 3);
+  octx.fillStyle = ok ? 'rgba(106,213,130,.9)' : 'rgba(255,193,60,.75)';
 
-  document.getElementById('cPts').textContent = pts.length;
-  document.getElementById('cPath').textContent = path.toFixed(2);
-  const pp = document.getElementById('pPath');
-  pp.className = 'chip ' + (path > 0.6 ? 'g' : path > 0.2 ? 'w' : '');
-
-  frames++;
-  const now = performance.now();
-  if (now - lastT > 500){
-    tHz = frames * 1000 / (now - lastT);
-    document.getElementById('cFps').textContent = tHz.toFixed(1);
-    frames = 0; lastT = now;
-    if (everTracked && tracked + lost > 0){
-      const keep = Math.round(100 * tracked / (tracked + lost));
-      if (keep < 60) log(`утримання ${keep}% — трекінг рветься`, 'wt');
-    }
+  if (crop){
+    const sx = A.w / SW, sy = A.h / SH;
+    for (const p of pts) octx.fillRect(p.x * sx - 1.5, p.y * sy - 1.5, 3, 3);
+    return;
+  }
+  /* Повний кадр: SLAM бачить ширше, ніж екран. Кладемо точки через ту саму
+     геометрію, що й object-fit:cover — частина ляже за межі екрана, і це
+     чесно показує, скільки поля кроп у тебе забирав. */
+  const va = vid.videoWidth / vid.videoHeight, sa = A.w / A.h;
+  let dw, dh, ox, oy;
+  if (va > sa){ dh = A.h; dw = A.h * va; } else { dw = A.w; dh = A.w / va; }
+  ox = (A.w - dw) / 2; oy = (A.h - dh) / 2;
+  for (const p of pts){
+    const x = ox + (p.x / SW) * dw, y = oy + (p.y / SH) * dh;
+    octx.fillRect(x - 1.5, y - 1.5, 3, 3);
   }
 }
 
-document.getElementById('go').addEventListener('click', begin);
-document.getElementById('bClr').addEventListener('click', () => {
-  path = 0; lastPos = null; tracked = 0; lost = 0; L.length = 0;
-  document.getElementById('log').innerHTML = '';
-  log('лічильники скинуто');
+function paintChips(n, ok){
+  $('cPts').textContent = n;
+  const st = $('cSt'), stp = $('pSt');
+  st.textContent = ok ? 'ТРЕКІНГ' : (everTracked ? 'ЗАГУБИВ' : 'ЧЕКАЮ');
+  stp.className = 'chip ' + (ok ? 'g' : everTracked ? 'e' : 'w');
+
+  /* Утримання — за вікном останніх кадрів, а не за весь запуск.
+     Кадри до першої пози в утримання не входять узагалі. */
+  const kp = $('cKeep'), kpp = $('pKeep');
+  if (!everTracked){ kp.textContent = '—'; kpp.className = 'chip'; }
+  else {
+    const k = Math.round(100 * winOk / Math.max(1, win.length));
+    kp.textContent = k + '%';
+    kpp.className = 'chip ' + (k >= 85 ? 'g' : k >= 60 ? 'w' : 'e');
+  }
+  $('cBrk').textContent = breaks;
+  $('pBrk').className = 'chip ' + (breaks === 0 ? '' : breaks < 4 ? 'w' : 'e');
+
+  const now = performance.now();
+  if (now - lastHz > 500){
+    $('cSlam').textContent = (slamN * 1000 / (now - lastHz)).toFixed(0);
+    $('cCam').textContent  = (camN  * 1000 / (now - lastHz)).toFixed(0);
+    slamN = camN = 0; lastHz = now;
+  }
+}
+
+function report(){
+  log('── ПІДСУМОК ' + (crop ? 'КРОП' : 'ПОВНИЙ КАДР') + ' ──', 'wt');
+  if (!everTracked){ log('пози не було жодного разу за ' + framesTotal + ' кадрів', 'no'); return; }
+  const k = Math.round(100 * winOk / Math.max(1, win.length));
+  const med = ptsAtBreak.length
+    ? ptsAtBreak.slice().sort((a,b)=>a-b)[Math.floor(ptsAtBreak.length/2)] : '—';
+  log(`фокус ${focal.toFixed(0)} px · старт ${(firstMs/1000).toFixed(1)}с / ${firstFrames} кадрів`);
+  log(`утримання у вікні ${k}% · зривів ${breaks} · найдовший ${worstRun} кадр(ів)`);
+  log(`ознак у момент зриву, медіана: ${med}`);
+  log(med !== '—' && med < 60
+      ? 'мало ознак перед зривом → змаз або бідна текстура, не геометрія'
+      : 'ознак вистачало → винна геометрія: фокус, поле або різкий рух', 'wt');
+}
+
+/* ── органи керування ──────────────────────────────────────────── */
+$('go').addEventListener('click', () => running ? stop() : begin());
+$('bReset').addEventListener('click', () => {
+  if (alva){ try { alva.reset(); log('SLAM скинуто, карта будується заново', 'wt'); } catch(e){ log('reset впав: '+e, 'no'); } }
+  resetCounters();
 });
-document.getElementById('start').addEventListener('click', async () => {
-  const err = document.getElementById('err');
+$('bCopy').addEventListener('click', async () => {
+  const txt = L.join('\n').replace(/<[^>]+>/g, '');
+  try { await navigator.clipboard.writeText(txt); log('журнал у буфері', 'ok'); }
+  catch(e){ log('буфер не дався', 'wt'); }
+});
+$('tCrop').addEventListener('click', () => {
+  crop = !crop;
+  $('tCrop').classList.toggle('on', crop);
+  $('fovbox').style.opacity = crop ? '.4' : '1';
+  if (vid.videoWidth) planFrame();
+});
+$('fov').addEventListener('input', e => {
+  fovH = +e.target.value; $('fovv').textContent = fovH + '°';
+  if (vid.videoWidth) planFrame();
+});
+$('start').addEventListener('click', async () => {
+  const err = $('err');
   err.textContent = 'Камеру шукаю…';
   try {
     if (!isSecureContext) throw new Error('потрібен HTTPS');
     await startCam();
-    document.getElementById('boot').classList.add('hide');
+    $('boot').classList.add('hide');
+    planFrame();
     log('Камера: ' + vid.videoWidth + '×' + vid.videoHeight, 'ok');
-    log('Тисни СТАРТ ТРЕКІНГУ.');
-  } catch(e){ err.textContent = 'Не пішло: ' + (e.message||e); }
+    log('Спершу прогони як є. Тоді увімкни КРОП і прогони те саме — різниця й буде відповіддю.');
+  } catch(e){ err.textContent = 'Не пішло: ' + (e.message || e); }
 });
 </script>
 </body>
