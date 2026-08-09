@@ -58,9 +58,9 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
   border-radius:50%;background:var(--accent);box-shadow:0 0 10px rgba(106,213,130,.55)}
 input[type=range]::-moz-range-thumb{width:16px;height:16px;border:0;border-radius:50%;background:var(--accent)}
 .pills{display:flex;gap:5px;flex-wrap:wrap;padding:3px 0 7px}
-.tg,.pre,.md,.vb{padding:8px 12px;border-radius:99px;font-size:9.5px;letter-spacing:.1em;
+.tg,.pre,.md,.vb,.lv{padding:8px 12px;border-radius:99px;font-size:9.5px;letter-spacing:.1em;
   color:var(--ink);background:rgba(255,255,255,.03);border:1px solid rgba(106,213,130,.16)}
-.tg.on,.md.on,.vb.on{color:var(--hot);background:rgba(0,49,30,.7);border-color:rgba(106,213,130,.5)}
+.tg.on,.md.on,.vb.on,.lv.on{color:var(--hot);background:rgba(0,49,30,.7);border-color:rgba(106,213,130,.5)}
 .pre.hot{border-color:rgba(255,193,60,.45);color:var(--amber)}
 .sect{font-size:8.5px;letter-spacing:.2em;color:var(--amber);padding:9px 0 2px;opacity:.85}
 
@@ -193,6 +193,14 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border:0;border-radiu
         <button class="tg on" data-tg="icp">ICP</button>
       </div>
       <div id="rowsScan"></div>
+      <div class="sect">ЖИВИЙ РЕЛЬЄФ</div>
+      <div class="pills">
+        <button class="tg" id="bLive">● РЕЛЬЄФ</button>
+        <button class="lv" data-lv="flat">ГЛИБИНА</button>
+        <button class="lv on" data-lv="mesh">ПОВЕРХНЯ</button>
+        <button class="lv" data-lv="wire">СІТКА</button>
+      </div>
+      <div id="rowsLive"></div>
     </div>
 
     <div class="grp" data-g="model">
@@ -240,7 +248,7 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border:0;border-radiu
 /* ============================================================
    ПАРАМЕТРИ
    ============================================================ */
-const BUILD = 'H5 · цілий файл';
+const BUILD = 'L1 · живий рельєф';
 const P = {
   /* детектор */
   gain:      3.4,
@@ -265,6 +273,16 @@ const P = {
   icp:       true,   // суміщення хмар перед злиттям
   dcut:      0.06,   // поріг розриву глибини для граней
   parallax:  4.0,    // мінімальний кут паралакса для тріангуляції, градуси
+  /* живий рельєф */
+  live:      false,  // мережа глибини в реальному часі
+  lview:    'mesh',  // ГЛИБИНА / СІТКА / ПОВЕРХНЯ
+  near:      0,      // ближня межа дальності
+  far:       1,      // дальня межа
+  confMin:   0.12,   // поріг довіри
+  range:     6,      // у скільки разів дальнє далі за ближнє
+  reliefK:   1,      // підсилення рельєфу
+  cutK:      0.06,   // поріг розриву глибини
+  step:      2,      // проріджування
   smooth:    1.0,    // пріор гладкості траєкторії камери (виміряно на 4 сідах)
   /* тумблери */
   lock:  true,  verts: true,  rigid:  false,   // виміряно: у світовій системі шкодить
@@ -291,6 +309,12 @@ const ROWS = [
   { t:'scan', k:'hfov',    l:'ПОЛЕ ЗОРУ', min:40,   max:90,   st:1    },
   { t:'scan', k:'parallax',l:'ПАРАЛАКС',  min:0.5,  max:8,    st:0.1  },
   { t:'scan', k:'smooth',  l:'ГЛАДКІСТЬ', min:0,    max:4,    st:0.1  },
+  { t:'live', k:'confMin', l:'ДОВІРА',    min:0,    max:0.9,  st:0.02 },
+  { t:'live', k:'near',    l:'БЛИЖНЯ',    min:0,    max:0.9,  st:0.01 },
+  { t:'live', k:'far',     l:'ДАЛЬНЯ',    min:0.1,  max:1,    st:0.01 },
+  { t:'live', k:'range',   l:'ДІАПАЗОН',  min:2,    max:20,   st:0.5  },
+  { t:'live', k:'cutK',    l:'РОЗРИВ',    min:0.01, max:0.4,  st:0.01 },
+  { t:'live', k:'step',    l:'ЩІЛЬНІСТЬ', min:1,    max:6,    st:1    },
   { t:'scan', k:'dstep',   l:'ЩІЛЬНІСТЬ', min:1,    max:6,    st:1    },
   { t:'scan', k:'dcut',    l:'РОЗРИВ',    min:0.01, max:0.4,  st:0.01 }
 ];
@@ -2462,7 +2486,6 @@ function drawViewport(){
   octx.fillText('масштаб умовний — монокулярно він не спостережуваний', 18, 68);
 }
 
-/* ---------- експорт OBJ ---------- */
 function exportOBJ(){
   const L = ['# DICH //EDGE scan', '# масштаб умовний (монокулярна реконструкція)'];
   for (let i = 0; i < SM.n; i++)
@@ -3082,17 +3105,21 @@ async function openViewer(){
   const T = await loadThree();
   const c = ensureCanvas3();
   c.style.display = 'block';
+  if (VP.on && sc3) sc3.background = new T.Color(0x030906);
+  if (VP.on && sc3) sc3.background = new T.Color(0x030906);
   if (!ren3){
-    ren3 = new T.WebGLRenderer({ canvas:c, antialias:true });
+    ren3 = new T.WebGLRenderer({ canvas:c, antialias:true, alpha:true });
     ren3.setPixelRatio(Math.min(2, devicePixelRatio || 1));
-    sc3 = new T.Scene(); sc3.background = new T.Color(0x030906);
+    sc3 = new T.Scene(); sc3.background = null;
     cam3 = new T.PerspectiveCamera(55, 1, 0.01, 1000);
     ctl3 = new T.OrbitControls(cam3, c);
     ctl3.enableDamping = true; ctl3.dampingFactor = 0.08;
     sc3.add(new T.AmbientLight(0xffffff, 0.8));
     const dl = new T.DirectionalLight(0xDAFFC7, 1.0); dl.position.set(1,1,1); sc3.add(dl);
     (function loop(){ requestAnimationFrame(loop);
-      if (ctl3 && c.style.display !== 'none'){ ctl3.update(); ren3.render(sc3, cam3); }
+      if (!ctl3 || c.style.display === 'none') return;
+      if (VP.on){ ctl3.update(); ren3.render(sc3, cam3); }
+      else if (P.live && liveCam) ren3.render(sc3, liveCam);
     })();
   }
   resize3();
@@ -3100,8 +3127,10 @@ async function openViewer(){
 }
 function resize3(){
   if (!ren3) return;
-  ren3.setSize(innerWidth, innerHeight, false);
-  cam3.aspect = innerWidth / innerHeight; cam3.updateProjectionMatrix();
+  const st = document.getElementById('stage');
+  const w = st.clientWidth || innerWidth, h = st.clientHeight || innerHeight;
+  ren3.setSize(w, h, false);
+  cam3.aspect = w / h; cam3.updateProjectionMatrix();
 }
 function closeViewer(){
   const c = document.getElementById('gl3');
@@ -3178,6 +3207,67 @@ function applyMode3(){
   if (objLine) objLine.visible = lineOn;
 }
 
+/* Камера рендера збігається з тією, з якої знято глибину, тому
+   перепроєкція лягає точно на відео. Поле зору рахується з реальних
+   пропорцій карти глибини, а не з припущення. */
+let liveObj = null, liveTex = null, liveCam = null;
+function updateLiveMesh(){
+  if (!TH || !ren3 || !P.live || P.lview === 'flat') return;
+  if (!liveNeedsBuild || !liveD) return;
+  liveNeedsBuild = false;
+  const r = buildRelief(liveD, liveConf, liveW, liveH, P);
+  liveRelief = r;
+  if (liveObj){ sc3.remove(liveObj); liveObj.geometry.dispose(); liveObj.material.dispose(); liveObj = null; }
+  if (!r.count || !r.tri.length) return;
+  const g = new TH.BufferGeometry();
+  g.setAttribute('position', new TH.BufferAttribute(r.pos, 3));
+  g.setAttribute('uv', new TH.BufferAttribute(r.uv, 2));
+  if (P.lview === 'wire'){
+    g.setIndex(new TH.BufferAttribute(edgesFromTris(r.tri), 1));
+    liveObj = new TH.LineSegments(g, new TH.LineBasicMaterial({
+      color:0x6AD582, transparent:true, opacity:0.55 }));
+  } else {
+    g.setIndex(new TH.BufferAttribute(r.tri, 1));
+    const cv = grabTexture(1024);
+    if (cv){
+      if (liveTex) liveTex.dispose();
+      liveTex = new TH.CanvasTexture(cv);
+      if (TH.SRGBColorSpace) liveTex.colorSpace = TH.SRGBColorSpace;
+      liveTex.minFilter = TH.LinearFilter;
+    }
+    liveObj = new TH.Mesh(g, new TH.MeshBasicMaterial({
+      map: liveTex || null, color: liveTex ? 0xffffff : 0x6AD582, side:TH.DoubleSide }));
+  }
+  sc3.add(liveObj);
+  if (!liveCam) liveCam = new TH.PerspectiveCamera(50, 1, 0.01, 500);
+  liveCam.fov = 2*Math.atan(Math.tan(P.hfov*Math.PI/360) * (liveH/liveW)) * 180/Math.PI;
+  liveCam.aspect = liveW/liveH;
+  liveCam.position.set(0,0,0); liveCam.lookAt(0,0,-1);
+  liveCam.updateProjectionMatrix();
+}
+async function setLive(on){
+  P.live = on;
+  document.getElementById('bLive').classList.toggle('on', on);
+  if (!on){
+    if (liveObj && sc3){ sc3.remove(liveObj); liveObj = null; }
+    if (!VP.on){ const c = document.getElementById('gl3'); if (c) c.style.display = 'none'; }
+    hint('Рельєф вимкнено', false);
+    return;
+  }
+  hint('Вантажу мережу глибини, перший раз ~50 МБ', true);
+  try {
+    await loadDepth();
+    await openViewer();
+    if (sc3 && !VP.on) sc3.background = null;
+    resize3();
+    hint('Рельєф живий. Наведи на предмет з текстурою', false);
+  } catch (e){
+    P.live = false;
+    document.getElementById('bLive').classList.remove('on');
+    hint('Мережа не пішла: ' + (e && e.message ? e.message : e), true);
+  }
+}
+
 function exportDenseOBJ(){
   const L = ['# DICH //EDGE dense scan', '# масштаб умовний'];
   if (dense && dense.n)
@@ -3194,6 +3284,159 @@ function exportDenseOBJ(){
   a.download = 'dich-scan-' + Date.now() + '.obj';
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+/* ============================================================
+   ЖИВИЙ РЕЛЬЄФ
+   ============================================================
+   Щільна глибина прямо в кадрі, з текстурою з камери. Не після
+   обробки — зараз. Мережа працює своїм темпом, кадр не чекає на неї.
+   ============================================================ */
+let liveD = null, liveW = 0, liveH = 0, liveConf = null, liveGray = null;
+let liveBusy = false, liveMs = 0, liveSide = 320, liveTexCv = null;
+let liveRelief = null, liveNeedsBuild = false;
+
+/* Мережа завжди щось віддає — і на рівній стіні теж, де насправді нічого
+   не бачить. Апаратний лідар там просто не повертає точку. Міряємо
+   локальну текстурованість: нема градієнта — нема підстав вірити. */
+function confidenceMap(gray, W, H, out){
+  const th = 0.055;
+  for (let y = 0; y < H; y++){
+    const y0 = y > 0 ? y-1 : 0, y1 = y < H-1 ? y+1 : H-1;
+    for (let x = 0; x < W; x++){
+      const x0 = x > 0 ? x-1 : 0, x1 = x < W-1 ? x+1 : W-1;
+      const gx = gray[y*W+x1] - gray[y*W+x0], gy = gray[y1*W+x] - gray[y0*W+x];
+      let e = Math.sqrt(gx*gx + gy*gy) / th;
+      const l = gray[y*W+x];
+      if (l < 0.06 || l > 0.97) e *= 0.25;      // тінь і пересвіт брешуть
+      out[y*W+x] = e > 1 ? 1 : e;
+    }
+  }
+  const tmp = out.slice();
+  for (let y = 1; y < H-1; y++)
+    for (let x = 1; x < W-1; x++){
+      let s = 0;
+      for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) s += tmp[(y+j)*W+x+i];
+      out[y*W+x] = s/9;
+    }
+}
+
+function depthToZ(dn, range){ const k = 1/range; return 1/(dn*(1-k) + k); }
+
+/* Відкинуті точки НЕ лишаємо в буфері як NaN: Box3 по такому масиву
+   дає NaN-межі, isEmpty() їх не ловить, камера стає в NaN і сцена
+   рендериться чорною. Тому одразу перенумеровуємо. */
+function buildRelief(depth, conf, W, H, o){
+  const step = Math.max(1, Math.round(o.step));
+  const gw = Math.floor((W-1)/step)+1, gh = Math.floor((H-1)/step)+1;
+  const N = gw*gh;
+  const fx = (W*0.5)/Math.tan(o.hfov*Math.PI/360), cx = W*0.5, cy = H*0.5;
+  let lo = Infinity, hi = -Infinity;
+  for (let i = 0; i < depth.length; i++){ const d = depth[i]; if (d<lo) lo=d; if (d>hi) hi=d; }
+  const span = Math.max(1e-6, hi-lo);
+  const zs = new Float32Array(N), map = new Int32Array(N).fill(-1);
+  let kept = 0, dropConf = 0;
+  for (let gy = 0, i = 0; gy < gh; gy++){
+    const v = Math.min(H-1, gy*step);
+    for (let gx = 0; gx < gw; gx++, i++){
+      const u = Math.min(W-1, gx*step), k = v*W+u;
+      const dn = (depth[k]-lo)/span;
+      if (dn < o.near || dn > o.far) continue;
+      if (conf && conf[k] < o.confMin){ dropConf++; continue; }
+      zs[i] = depthToZ(dn, o.range) * o.reliefK;
+      map[i] = kept++;
+    }
+  }
+  const pos = new Float32Array(kept*3), uv = new Float32Array(kept*2);
+  for (let gy = 0, i = 0; gy < gh; gy++){
+    const v = Math.min(H-1, gy*step);
+    for (let gx = 0; gx < gw; gx++, i++){
+      const m = map[i]; if (m < 0) continue;
+      const u = Math.min(W-1, gx*step), z = zs[i];
+      pos[m*3] = (u-cx)*z/fx; pos[m*3+1] = -(v-cy)*z/fx; pos[m*3+2] = -z;
+      uv[m*2] = u/(W-1); uv[m*2+1] = 1 - v/(H-1);
+    }
+  }
+  /* грань пропускаємо на розриві глибини — інакше на межах предметів
+     тягнеться плівка від переднього плану до фону. Поріг росте з кроком:
+     ширший квад природно має більший перепад. */
+  const tri = [];
+  for (let gy = 0; gy < gh-1; gy++)
+    for (let gx = 0; gx < gw-1; gx++){
+      const a = gy*gw+gx, b = a+1, c = a+gw, d = c+1;
+      const ma=map[a], mb=map[b], mc=map[c], md=map[d];
+      if (ma<0||mb<0||mc<0||md<0) continue;
+      const za=zs[a],zb=zs[b],zc=zs[c],zd=zs[d];
+      const mx=Math.max(za,zb,zc,zd), mn=Math.min(za,zb,zc,zd);
+      if ((mx-mn)/mn > o.cutK*step) continue;
+      tri.push(ma,mc,mb, mb,mc,md);
+    }
+  return { pos, uv, tri:new Uint32Array(tri), count:kept, total:N, dropConf };
+}
+function edgesFromTris(tri){
+  const seen = new Set(), out = [];
+  for (let i = 0; i < tri.length; i += 3){
+    const t = [tri[i], tri[i+1], tri[i+2]];
+    for (let e = 0; e < 3; e++){
+      const a = t[e], b = t[(e+1)%3];
+      const k = a < b ? a*4294967296+b : b*4294967296+a;
+      if (seen.has(k)) continue;
+      seen.add(k); out.push(a, b);
+    }
+  }
+  return new Uint32Array(out);
+}
+
+/* кадр у повній роздільності — під текстуру, окремо від геометрії */
+function grabTexture(maxW){
+  const vw = vid.videoWidth, vh = vid.videoHeight;
+  if (!vw) return null;
+  const c = cover(vw, vh, pw, ph);
+  const w = Math.min(maxW, Math.round(c.sw));
+  const h = Math.max(1, Math.round(w * ph / pw));
+  if (!liveTexCv) liveTexCv = document.createElement('canvas');
+  liveTexCv.width = w; liveTexCv.height = h;
+  const g = liveTexCv.getContext('2d');
+  if (facing === 'user'){ g.translate(w, 0); g.scale(-1, 1); }
+  g.drawImage(vid, c.sx, c.sy, c.sw, c.sh, 0, 0, w, h);
+  return liveTexCv;
+}
+
+async function liveInfer(){
+  if (liveBusy || !vid.videoWidth) return;
+  liveBusy = true;
+  try {
+    if (!depthPipe) await loadDepth();
+    const c = cover(vid.videoWidth, vid.videoHeight, pw, ph);
+    const W = Math.round(liveSide), H = Math.max(1, Math.round(W * ph / pw));
+    const cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    const g = cv.getContext('2d', { willReadFrequently:true });
+    if (facing === 'user'){ g.translate(W, 0); g.scale(-1, 1); }
+    g.drawImage(vid, c.sx, c.sy, c.sw, c.sh, 0, 0, W, H);
+    const t0 = performance.now();
+    const out = await depthPipe(cv.toDataURL('image/jpeg', 0.85));
+    liveMs = performance.now() - t0;
+    /* тримаємо близько чверті секунди на прохід */
+    if (liveMs > 420 && liveSide > 192) liveSide = Math.max(192, liveSide - 64);
+    else if (liveMs < 150 && liveSide < 448) liveSide = Math.min(448, liveSide + 64);
+    const D = depthOf(out);
+    liveD = D.d; liveW = D.w; liveH = D.h;
+    if (!liveGray || liveGray.length !== liveW*liveH){
+      liveGray = new Float32Array(liveW*liveH);
+      liveConf = new Float32Array(liveW*liveH);
+    }
+    cv.width = liveW; cv.height = liveH;
+    const g2 = cv.getContext('2d', { willReadFrequently:true });
+    if (facing === 'user'){ g2.translate(liveW, 0); g2.scale(-1, 1); }
+    g2.drawImage(vid, c.sx, c.sy, c.sw, c.sh, 0, 0, liveW, liveH);
+    const im = g2.getImageData(0, 0, liveW, liveH).data;
+    for (let i = 0, j = 0; i < liveW*liveH; i++, j += 4)
+      liveGray[i] = (im[j]*0.299 + im[j+1]*0.587 + im[j+2]*0.114)/255;
+    confidenceMap(liveGray, liveW, liveH, liveConf);
+    liveNeedsBuild = true;
+  } catch (e){ hint('Глибина спіткнулась: ' + (e && e.message ? e.message : e), true); }
+  liveBusy = false;
 }
 
 /* ============================================================
@@ -3559,6 +3802,8 @@ function render(){
   if (grabGray()){
     detectStage();
     if (P.lock) lockStage();
+    if (P.live && !VP.on){ if (!liveBusy) liveInfer(); updateLiveMesh(); }
+    if (P.live && !VP.on){ if (!liveBusy) liveInfer(); updateLiveMesh(); }
     drawOverlay();
   }
 
@@ -3615,7 +3860,8 @@ function render(){
 function buildRows(){
   const box = { frame:document.getElementById('rowsFrame'),
                 lock:document.getElementById('rowsLock'),
-                scan:document.getElementById('rowsScan') };
+                scan:document.getElementById('rowsScan'),
+                live:document.getElementById('rowsLive') };
   for (const k in box) box[k].innerHTML = '';
   ROWS.forEach(r => {
     if (!r.k) return;
@@ -3630,6 +3876,7 @@ function buildRows(){
       out.textContent = fmt(P[r.k], r.st);
       if (r.k === 'res') resize();
       if (r.k === 'temporal') B.normSeeded = false;
+      if (r.t === 'live') liveNeedsBuild = true;
     });
     (box[r.t] || box.frame).appendChild(row);
   });
@@ -3968,6 +4215,22 @@ ovc.addEventListener('pointermove', ev => {
   }
   ev.preventDefault();
 });
+
+document.getElementById('bLive').addEventListener('click', () => setLive(!P.live));
+document.querySelectorAll('.lv').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.lv').forEach(x => x.classList.toggle('on', x===b));
+  P.lview = b.dataset.lv;
+  liveNeedsBuild = true;
+  if (P.lview === 'flat' && liveObj && sc3){ sc3.remove(liveObj); liveObj = null; }
+}));
+
+document.getElementById('bLive').addEventListener('click', () => setLive(!P.live));
+document.querySelectorAll('.lv').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.lv').forEach(x => x.classList.toggle('on', x===b));
+  P.lview = b.dataset.lv;
+  liveNeedsBuild = true;
+  if (P.lview === 'flat' && liveObj && sc3){ sc3.remove(liveObj); liveObj = null; }
+}));
 
 document.getElementById('bForget').addEventListener('click', e => {
   resetTracks();
