@@ -240,7 +240,7 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border:0;border-radiu
 /* ============================================================
    ПАРАМЕТРИ
    ============================================================ */
-const BUILD = 'H3 · вкладки';
+const BUILD = 'H5 · цілий файл';
 const P = {
   /* детектор */
   gain:      3.4,
@@ -265,6 +265,7 @@ const P = {
   icp:       true,   // суміщення хмар перед злиттям
   dcut:      0.06,   // поріг розриву глибини для граней
   parallax:  4.0,    // мінімальний кут паралакса для тріангуляції, градуси
+  smooth:    1.0,    // пріор гладкості траєкторії камери (виміряно на 4 сідах)
   /* тумблери */
   lock:  true,  verts: true,  rigid:  false,   // виміряно: у світовій системі шкодить
   memory:true,  arrows: true,  tri: false,  ring: false,
@@ -289,6 +290,7 @@ const ROWS = [
   { t:'lock', k:'world',   l:'СВІТ',      min:2,    max:12,   st:1    },
   { t:'scan', k:'hfov',    l:'ПОЛЕ ЗОРУ', min:40,   max:90,   st:1    },
   { t:'scan', k:'parallax',l:'ПАРАЛАКС',  min:0.5,  max:8,    st:0.1  },
+  { t:'scan', k:'smooth',  l:'ГЛАДКІСТЬ', min:0,    max:4,    st:0.1  },
   { t:'scan', k:'dstep',   l:'ЩІЛЬНІСТЬ', min:1,    max:6,    st:1    },
   { t:'scan', k:'dcut',    l:'РОЗРИВ',    min:0.01, max:0.4,  st:0.01 }
 ];
@@ -982,6 +984,22 @@ function resetTracks(){
   clRoots = new Int32Array(MAXV);
   vFreeN = 0; eFreeN = 0; vCnt = 0; eCnt = 0; clCount = 0;
   Wax = 1; Way = 0; Wbx = 0; Wby = 0;
+  /* Стан, що переживав скидання і робив прогони невідтворюваними.
+     rngState — головний: RANSAC в оцінці руху камери брав щоразу інший
+     відрізок послідовності, давав інший напрямок базису, і вся модель
+     успадковувала випадковий старт. Виміряно: 38, 9 і 34 кадри з тих
+     самих вхідних даних, розбіжність поз 988% розмаху.
+     normSeeded тягнув поле яскравості з попереднього прогону,
+     flowBudget і degrade лишались зниженими після деградації. */
+  rngState = 0x9E3779B9 >>> 0;
+  /* M живе на рівні модуля, а на нульовому кадрі fitSimilarity ще не
+     викликається (піраміда порожня) — тому composeW() брав трансформ
+     з ПОПЕРЕДНЬОГО прогону і псував світ з першого ж кадру. */
+  M.ax = 1; M.ay = 0; M.bx = 0; M.by = 0;
+  inlierRatio = 0; transMag = 0; transDX = 0; transDY = 0; gmeLost = true;
+  flowBudget = 110;
+  degrade = 0; degradeT = 0;
+  if (B) B.normSeeded = false;
   driftRes = 0; memTotal = 0; memOff = 0; memVis = 0;
   evicted = 0; rebases = 0;
   pyrReady = false; frameNo = 0;
@@ -1695,6 +1713,8 @@ let curC = new Float32Array(3);
 let poseMode = 'none';       // 'none' | 'imu' | 'xr'
 let scaleFixed = false;      // базис уже призначений
 let resErr = 0, parMax = 0, pts3d = 0, poseLost = true;
+const prevC1 = new Float32Array(3), prevC2 = new Float32Array(3);
+let haveC1 = false, haveC2 = false;
 
 function poseSlot(){
   poseHead = (poseHead + 1) % POSEN;
@@ -1742,6 +1762,7 @@ function reset3d(){
   curQ[0]=curQ[1]=curQ[2]=0; curQ[3]=1;
   curC[0]=curC[1]=curC[2]=0;
   resErr=0; parMax=0; pts3d=0;
+  haveC1=false; haveC2=false;
   sealed = false;
 }
 
@@ -1916,6 +1937,22 @@ function resection(){
     n++;
   }
   if (n < 6) return false;
+  /* Резекція рахує позу з самих променів, незалежно від сусідніх кадрів.
+     Шум по 3D-точках б'є прямо в позицію: при глибині ~4 одиниці й базисі
+     1 похибка кількох відсотків по точках дає десятки відсотків по позі.
+     Виміряно: на прямому проході шлях камери виходив у 2.6 раза довшим
+     за розмах — траєкторія смикалась туди-сюди.
+     Камера в руці не телепортується, тому вносимо це знання в рівняння:
+     прогноз від попередніх двох кадрів як пріор, з вагою від сили даних. */
+  if (haveC1 && P.smooth > 0){
+    const pr = [0,0,0];
+    if (haveC2){
+      for (let a = 0; a < 3; a++) pr[a] = prevC1[a] + (prevC1[a] - prevC2[a]) * 0.8;
+    } else { pr[0]=prevC1[0]; pr[1]=prevC1[1]; pr[2]=prevC1[2]; }
+    const wp = (resA[0] + resA[3] + resA[5]) / 3 * P.smooth;
+    resA[0] += wp; resA[3] += wp; resA[5] += wp;
+    resB[0] += wp*pr[0]; resB[1] += wp*pr[1]; resB[2] += wp*pr[2];
+  }
   if (!solve3(resA[0],resA[1],resA[2],resA[3],resA[4],resA[5],
               resB[0],resB[1],resB[2], _x3)) return false;
   /* другий прохід — без точок з великою похибкою відстані до променя */
@@ -1951,12 +1988,26 @@ function resection(){
       resB[2]+= m02*X + m12*Y + m22*Z;
       m++;
     }
-    if (m >= 6) solve3(resA[0],resA[1],resA[2],resA[3],resA[4],resA[5],
-                       resB[0],resB[1],resB[2], _x3);
+    if (m >= 6){
+      if (haveC1 && P.smooth > 0){
+        const pr = [0,0,0];
+        if (haveC2){ for (let a=0;a<3;a++) pr[a] = prevC1[a] + (prevC1[a]-prevC2[a])*0.8; }
+        else { pr[0]=prevC1[0]; pr[1]=prevC1[1]; pr[2]=prevC1[2]; }
+        const wp = (resA[0]+resA[3]+resA[5])/3 * P.smooth;
+        resA[0]+=wp; resA[3]+=wp; resA[5]+=wp;
+        resB[0]+=wp*pr[0]; resB[1]+=wp*pr[1]; resB[2]+=wp*pr[2];
+      }
+      solve3(resA[0],resA[1],resA[2],resA[3],resA[4],resA[5],
+             resB[0],resB[1],resB[2], _x3);
+    }
   }
   const step = Math.sqrt((_x3[0]-curC[0])**2 + (_x3[1]-curC[1])**2 + (_x3[2]-curC[2])**2);
   if (!isFinite(step) || step > 2.0) return false;      // стрибок = розбіжність
   curC[0]=_x3[0]; curC[1]=_x3[1]; curC[2]=_x3[2];
+  prevC2[0]=prevC1[0]; prevC2[1]=prevC1[1]; prevC2[2]=prevC1[2];
+  haveC2 = haveC1;
+  prevC1[0]=curC[0]; prevC1[1]=curC[1]; prevC1[2]=curC[2];
+  haveC1 = true;
   resErr = step;
   return true;
 }
@@ -2508,33 +2559,63 @@ function fitScaleShift(depth, dw, dh, poseIdx){
     X.push(sampleBilinear(depth, dw, dh, u, v));
     Y.push(1 / r[2]);
   }
-  if (X.length < 8) return null;
+  const n0 = X.length;
+  if (n0 < 8) return null;
+
+  /* Стики ліній лежать на поверхнях предмета, тому по глибині вони
+     збираються у ТІСНІ ЗГУСТКИ — ребра куба окремо, стіна окремо.
+     Рівнозважений МНК іде за численнішим згустком і промахує повз
+     другий: виміряно стале 0.96 на стіні проти 0.65 на кубі.
+     Тому вагу дає не точка, а КОШИК діапазону — тоді пряма мусить
+     пройти через обидва згустки. */
+  const NB = 8;
+  let lo = Infinity, hi = -Infinity;
+  for (let i = 0; i < n0; i++){ const v = X[i]; if (v < lo) lo = v; if (v > hi) hi = v; }
+  const span = hi - lo;
+  const cnt = new Int32Array(NB), bin = new Int32Array(n0);
+  for (let i = 0; i < n0; i++){
+    let b = span > 1e-9 ? ((X[i]-lo)/span*NB)|0 : 0;
+    if (b < 0) b = 0; else if (b >= NB) b = NB-1;
+    bin[i] = b; cnt[b]++;
+  }
+  let filled = 0;
+  for (let b = 0; b < NB; b++) if (cnt[b]) filled++;
+  const wt = new Float64Array(n0);
+  for (let i = 0; i < n0; i++) wt[i] = 1 / cnt[bin[i]];
+
   const solve = (keep) => {
-    let sxx = 0, sx1 = 0, s1 = 0, sxy = 0, sy1 = 0, n = 0;
-    for (let i = 0; i < X.length; i++){
+    let sxx=0, sx1=0, s1=0, sxy=0, sy1=0, n=0;
+    for (let i = 0; i < n0; i++){
       if (keep && !keep[i]) continue;
-      sxx += X[i]*X[i]; sx1 += X[i]; s1 += 1; sxy += X[i]*Y[i]; sy1 += Y[i]; n++;
+      const g = wt[i];
+      sxx += g*X[i]*X[i]; sx1 += g*X[i]; s1 += g;
+      sxy += g*X[i]*Y[i]; sy1 += g*Y[i]; n++;
     }
     const det = sxx*s1 - sx1*sx1;
-    if (n < 6 || Math.abs(det) < 1e-12) return null;
+    if (n < 6 || Math.abs(det) < 1e-14) return null;
     return { a:(sxy*s1 - sx1*sy1)/det, b:(sxx*sy1 - sx1*sxy)/det, n };
   };
   let f = solve(null);
   if (!f) return null;
-  /* відсів: один промах у розріджених точках перекошує обидва параметри */
-  const res = X.map((x, i) => Math.abs(f.a*x + f.b - Y[i]));
-  const srt = [...res].sort((p, q2) => p - q2);
-  const cut = srt[Math.max(0, Math.min(srt.length-1, (srt.length*0.7)|0))];
+  /* відсів: один промах серед розріджених точок перекошує обидва параметри */
+  const res = X.map((x,i) => Math.abs(f.a*x + f.b - Y[i]));
+  const srt = [...res].sort((p,q2) => p-q2);
+  const cut = srt[Math.max(0, Math.min(srt.length-1, (srt.length*0.75)|0))];
   const keep = res.map(v => v <= cut);
   const f2 = solve(keep);
   if (f2) f = f2;
-  if (!(f.a > 1e-9)) return null;          // диспаритет мусить рости з наближенням
-  let acc = 0, m = 0;
-  for (let i = 0; i < X.length; i++){
+  if (!(f.a > 1e-9)) return null;
+  /* Одна вузька смуга глибин не визначає прямої: нахил тримається
+     лише на шумі. Краще відмовитись, ніж видати впевнене сміття. */
+  if (filled < 2 || span < 1e-6) return null;
+  let acc = 0, m = 0, wsum = 0;
+  for (let i = 0; i < n0; i++){
     if (!keep[i]) continue;
-    const e = f.a*X[i] + f.b - Y[i]; acc += e*e; m++;
+    const e = f.a*X[i] + f.b - Y[i];
+    acc += wt[i]*e*e; wsum += wt[i]; m++;
   }
-  f.rms = m ? Math.sqrt(acc/m) : -1;
+  f.rms = wsum > 0 ? Math.sqrt(acc/wsum) : -1;
+  f.bins = filled; f.span = span;
   return f;
 }
 
@@ -2675,37 +2756,73 @@ function stageReset(){ STG.length = 0;
 }
 
 /* ---------- головний прохід після СТОП ---------- */
-async function densifyScan(){
-  if (!shots.length || !SM.n){ fuseLog = 'нема кадрів або розріджених точок'; return false; }
+async function densifyScan(haveSfM){
+  if (!shots.length){ fuseLog = 'нема кадрів'; return false; }
+  const solo = !haveSfM || !SM.n;
   await loadDepth();
-  const frames = [];
-  let okFit = 0, rmsSum = 0;
+  const maps = [], fits = [], idxs = [], rgbs = [];
+  let rmsSum = 0;
   const tmp = document.createElement('canvas');
   const tctx = tmp.getContext('2d', { willReadFrequently:true });
   for (let s = 0; s < shots.length; s++){
-    hint('Глибина ' + (s+1) + '/' + shots.length + ' (' + depthDev + ')', true);
-    await new Promise(r => setTimeout(r, 0));
+    await stage('глибина ' + (s+1) + '/' + shots.length + '…', '', 34 + 50*(s+1)/shots.length);
     const sh = shots[s];
     let out;
     try { out = await depthPipe(sh.url); } catch (e){ continue; }
     const D = depthOf(out);
-    const fit = fitScaleShift(D.d, D.w, D.h, sh.kf);
-    if (!fit) continue;
-    okFit++; rmsSum += fit.rms;
-    /* колір під роздільність карти глибини */
+    let fit = null;
+    if (!solo && sh.kf >= 0) fit = fitScaleShift(D.d, D.w, D.h, sh.kf);
+    if (!fit) fit = fitFromRange(D.d, 6);        // без поз — умовний діапазон
+    if (solo){                                   // один кадр: камера в початку
+      kfQ[0]=0; kfQ[1]=0; kfQ[2]=0; kfQ[3]=1;
+      kfC[0]=0; kfC[1]=0; kfC[2]=0;
+      sh.kf = 0;
+    }
+    rmsSum += fit.rms;
     const img = new Image();
     await new Promise(r => { img.onload = r; img.onerror = r; img.src = sh.url; });
     tmp.width = D.w; tmp.height = D.h;
     tctx.drawImage(img, 0, 0, D.w, D.h);
-    const rgb = tctx.getImageData(0, 0, D.w, D.h).data;
-    frames.push(densifyFrame(D.d, D.w, D.h, rgb, sh.kf, fit, Math.round(P.dstep), P.dcut));
+    maps.push(D); fits.push(fit); idxs.push(sh.kf);
+    rgbs.push(tctx.getImageData(0, 0, D.w, D.h).data);
   }
-  if (!frames.length){ fuseLog = 'жоден кадр не прив\u2019язався до масштабу'; return false; }
-  /* розмір вокселя від розміру самої моделі */
+  if (!maps.length){ fuseLog = 'жоден кадр не дав глибини'; return false; }
+  if (solo){                                     /* без поз злиття неможливе */
+    const best = Math.min(maps.length - 1, maps.length >> 1);
+    const f = densifyFrame(maps[best].d, maps[best].w, maps[best].h, rgbs[best],
+                           0, fits[best], Math.round(P.dstep), P.dcut);
+    dense = { frames:[f], pos:f.pos, col:f.col, n:f.count };
+    SM.rad = 1;
+    fuseLog = 'рельєф з одного кадру, ' + f.count + ' точок (масштаб умовний)';
+    return true;
+  }
+
+  const step = Math.round(P.dstep), cut = P.dcut;
+  const mk = () => maps.map((D, i) =>
+    densifyFrame(D.d, D.w, D.h, rgbs[i], idxs[i], fits[i], step, cut));
+
+  /* Масштаб глибини тепер уточнює ICP, а не повторна прив'язка: вона
+     спиралась на ту саму позу і тягнула масштаб назад, тобто два методи
+     воювали за одну величину. Кожен робить те, що справді спостерігає:
+     SfM — зсув (нев'язка перепроєкції), ICP — поворот і масштаб. */
+  let frames = mk();
+  let icpLog = null;
+  if (P.icp && frames.length > 1){
+    await stage('суміщаю хмари (ICP)…', '', 88);
+    icpLog = icpRefine(frames, idxs, SM.rad, { iters:14 });
+    for (let i = 0; i < fits.length; i++){
+      const sc = icpLog.scales[i] || 1;
+      if (sc > 0.2 && sc < 5){ fits[i] = { a:fits[i].a/sc, b:fits[i].b/sc, n:fits[i].n, rms:fits[i].rms }; }
+    }
+    frames = mk();
+  }
+
   const voxel = Math.max(1e-4, SM.rad * 0.012);
   const fused = fuseFrames(frames, voxel);
   dense = { frames, pos:fused.pos, col:fused.col, n:fused.n };
-  fuseLog = `кадрів ${okFit}/${shots.length}, точок ${fused.n}, невязка прив\u2019язки ${(rmsSum/Math.max(1,okFit)).toFixed(4)}`;
+  fuseLog = `кадрів ${maps.length}/${shots.length}, точок ${fused.n}, ` +
+            `прив\u2019язка ${(rmsSum/maps.length).toFixed(4)}` +
+            (icpLog && icpLog.done ? `, ICP ${icpLog.rms0.toFixed(4)}→${icpLog.rms1.toFixed(4)} на ${icpLog.done} кадрах` : '');
   return true;
 }
 
