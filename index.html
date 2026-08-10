@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&display=swap"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#07080B}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+a{color:#D2FF3E;text-decoration:none}
+a:hover{color:#3EE0D0}
+input[type=range]{-webkit-appearance:none;appearance:none;width:110px;height:3px;border-radius:999px;background:#333947;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:999px;background:var(--acc,#D2FF3E);cursor:pointer}
+input[type=range]::-moz-range-thumb{width:15px;height:15px;border:none;border-radius:999px;background:var(--acc,#D2FF3E);cursor:pointer}
+input[type=number]{font-family:inherit}
+video{display:none}
+@keyframes bl{50%{opacity:.15}}
+</style>
+</helmet>
+<div id="app" style="--acc:#D2FF3E;--acc2:#3EE0D0;position:fixed;inset:0;background:#07080B;color:#F1F3F8;font-family:Inter,system-ui,sans-serif;overflow:hidden;user-select:none;-webkit-tap-highlight-color:transparent">
+
+<video id="video" playsinline="" muted=""></video>
+<canvas id="gl" style="position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab"></canvas>
+
+<div id="hud" style="position:absolute;top:14px;left:14px;z-index:5;display:none;flex-direction:column;gap:7px;pointer-events:none">
+  <div style="font-family:'Space Grotesk';font-weight:700;font-size:16px;letter-spacing:-.01em">DICH<span style="color:var(--acc)">·</span>SPACE</div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;max-width:430px">
+    <div style="background:rgba(20,23,31,.92);border:1px solid rgba(255,255,255,.09);border-radius:999px;padding:6px 11px;font-size:10.5px;color:#7d8496;display:flex;align-items:center;gap:6px;line-height:1;white-space:nowrap"><span id="d-model" style="width:6px;height:6px;border-radius:999px;background:#7d8496;flex:0 0 auto"></span><span id="t-model"></span></div>
+    <div style="background:rgba(20,23,31,.92);border:1px solid rgba(255,255,255,.09);border-radius:999px;padding:6px 11px;font-size:10.5px;color:#7d8496;display:flex;align-items:center;gap:5px;line-height:1;white-space:nowrap"><span id="t-fps" style="color:#F1F3F8;font-variant-numeric:tabular-nums"></span>fps</div>
+    <div style="background:rgba(20,23,31,.92);border:1px solid rgba(255,255,255,.09);border-radius:999px;padding:6px 11px;font-size:10.5px;color:#7d8496;display:flex;align-items:center;gap:5px;line-height:1;white-space:nowrap"><span id="t-ms" style="color:#F1F3F8;font-variant-numeric:tabular-nums"></span>ms</div>
+    <div id="p-cloud" style="background:rgba(20,23,31,.92);border:1px solid rgba(255,255,255,.09);border-radius:999px;padding:6px 11px;font-size:10.5px;color:#7d8496;display:none;align-items:center;gap:6px;line-height:1;white-space:nowrap"><span style="width:6px;height:6px;border-radius:999px;background:#FF5C6C;animation:bl .9s steps(1) infinite;flex:0 0 auto"></span><span id="t-pts" style="color:#F1F3F8;font-variant-numeric:tabular-nums"></span>тчк</div>
+    <div id="p-ang" style="background:rgba(20,23,31,.92);border:1px solid rgba(255,255,255,.09);border-radius:999px;padding:6px 11px;font-size:10.5px;color:#7d8496;display:none;align-items:center;gap:5px;line-height:1;white-space:nowrap"><span id="t-ang" style="color:var(--acc);font-variant-numeric:tabular-nums"></span></div>
+  </div>
+</div>
+
+<div id="legend" style="position:absolute;left:14px;bottom:98px;z-index:5;display:none;align-items:center;gap:9px;pointer-events:none">
+  <div id="lbar" style="width:5px;height:108px;border-radius:999px;background:linear-gradient(180deg,#D2FF3E,#6BF09E,#3EE0D0)"></div>
+  <div style="display:flex;flex-direction:column;justify-content:space-between;height:108px;font-size:9.5px;color:#7d8496;font-variant-numeric:tabular-nums">
+    <span id="t-near">0.6 м</span><span id="t-far">6.0 м</span>
+  </div>
+</div>
+
+<div id="dock" style="position:absolute;left:50%;transform:translateX(-50%);bottom:18px;z-index:6;display:none">
+  <div style="background:rgba(20,23,31,.92);border:1px solid rgba(255,255,255,.09);border-radius:16px;padding:6px;display:flex;gap:3px;box-shadow:0 18px 44px rgba(0,0,0,.5)">
+    <button id="b-scan" style="border-radius:12px;padding:9px 13px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:9px;color:#7d8496;min-width:62px"><span style="font-size:15px;line-height:1">◎</span>Скан</button>
+    <button id="b-cap" style="border-radius:12px;padding:9px 13px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:9px;color:#7d8496;min-width:62px"><span style="font-size:15px;line-height:1">＋</span>Захопити</button>
+    <button id="b-freeze" style="border-radius:12px;padding:9px 13px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:9px;color:#7d8496;min-width:62px"><span style="font-size:15px;line-height:1">❄</span>Стоп</button>
+    <button id="b-fit" style="border-radius:12px;padding:9px 13px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:9px;color:#7d8496;min-width:62px"><span style="font-size:15px;line-height:1">⛶</span>Кадр</button>
+    <button id="b-clear2" style="border-radius:12px;padding:9px 13px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:9px;color:#7d8496;min-width:62px"><span style="font-size:15px;line-height:1">⌫</span>Стерти</button>
+    <button id="b-panel" style="border-radius:12px;padding:9px 13px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:9px;color:#7d8496;min-width:62px"><span style="font-size:15px;line-height:1">⚙</span>Панель</button>
+  </div>
+</div>
+
+<div id="hint" style="position:absolute;left:50%;transform:translateX(-50%);bottom:92px;z-index:5;font-size:11.5px;color:#7d8496;display:none;pointer-events:none;transition:opacity .6s;text-align:center;line-height:1.6;max-width:520px"></div>
+<div id="toast" style="position:absolute;left:50%;transform:translateX(-50%);top:20px;z-index:12;background:rgba(20,23,31,.96);border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:9px 17px;font-size:12px;color:var(--acc);opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap"></div>
+
+<div id="panel" style="position:absolute;right:14px;top:14px;bottom:14px;width:306px;z-index:7;display:none;flex-direction:column;background:rgba(17,20,27,.94);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.09);border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,.55);overflow:hidden">
+  <div style="display:flex;gap:2px;padding:8px;border-bottom:1px solid rgba(255,255,255,.07);flex:0 0 auto">
+    <button class="tabb" data-tab="d" style="flex:1;font-size:11px;padding:8px 0;border-radius:10px;color:#7d8496">Глибина</button>
+    <button class="tabb" data-tab="v" style="flex:1;font-size:11px;padding:8px 0;border-radius:10px;color:#7d8496">Вигляд</button>
+    <button class="tabb" data-tab="s" style="flex:1;font-size:11px;padding:8px 0;border-radius:10px;color:#7d8496">Скан</button>
+    <button class="tabb" data-tab="x" style="flex:1;font-size:11px;padding:8px 0;border-radius:10px;color:#7d8496">Експорт</button>
+  </div>
+
+  <div id="tab-d" style="flex:1;overflow-y:auto;padding:4px 15px 16px">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:11px 0">
+      <div><div style="font-size:12.5px;font-weight:500">Джерело глибини</div><div style="font-size:10.5px;color:#7d8496;margin-top:3px;line-height:1.45;max-width:132px">прев'ю — рельєф із яскравості кадру, без моделі</div></div>
+      <div id="src-seg" style="display:flex;flex-direction:column;background:#0F121A;border:1px solid rgba(255,255,255,.09);border-radius:12px;padding:3px;gap:2px;flex:0 0 auto">
+        <button data-s="preview" style="font-size:10.5px;padding:6px 10px;border-radius:9px;color:#7d8496;text-align:left">Прев'ю</button>
+        <button data-s="small" style="font-size:10.5px;padding:6px 10px;border-radius:9px;color:#7d8496;text-align:left">Швидка модель</button>
+        <button data-s="base" style="font-size:10.5px;padding:6px 10px;border-radius:9px;color:#7d8496;text-align:left">Якісна модель</button>
+        <button data-s="metric" style="font-size:10.5px;padding:6px 10px;border-radius:9px;color:#7d8496;text-align:left">Метрична (м)</button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid rgba(255,255,255,.07)">
+      <div style="font-size:12.5px;font-weight:500">Обробка</div>
+      <div id="p-seg" style="display:flex;background:#0F121A;border:1px solid rgba(255,255,255,.09);border-radius:999px;padding:3px;gap:2px">
+        <button data-p="gpu" style="font-size:10.5px;padding:6px 9px;border-radius:999px;color:#7d8496">GPU</button>
+        <button data-p="cpu" style="font-size:10.5px;padding:6px 9px;border-radius:999px;color:#7d8496">CPU</button>
+        <button data-p="auto" style="font-size:10.5px;padding:6px 9px;border-radius:999px;color:#7d8496">Авто</button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid rgba(255,255,255,.07)">
+      <div><div style="font-size:12.5px;font-weight:500">Щільність сітки</div><div style="font-size:10.5px;color:#7d8496;margin-top:3px" id="t-grid"></div></div>
+      <div id="q-seg" style="display:flex;background:#0F121A;border:1px solid rgba(255,255,255,.09);border-radius:999px;padding:3px;gap:2px">
+        <button data-q="0" style="font-size:10.5px;padding:6px 8px;border-radius:999px;color:#7d8496">S</button>
+        <button data-q="1" style="font-size:10.5px;padding:6px 8px;border-radius:999px;color:#7d8496">M</button>
+        <button data-q="2" style="font-size:10.5px;padding:6px 8px;border-radius:999px;color:#7d8496">L</button>
+        <button data-q="3" style="font-size:10.5px;padding:6px 8px;border-radius:999px;color:#7d8496">XL</button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid rgba(255,255,255,.07)">
+      <div><div style="font-size:12.5px;font-weight:500">Діапазон, м</div><div style="font-size:10.5px;color:#7d8496;margin-top:3px;line-height:1.45;max-width:126px">задає реальний масштаб експорту</div></div>
+      <div style="display:flex;gap:6px;align-items:center;flex:0 0 auto">
+        <input id="n-near" type="number" step="0.1" min="0.1" max="40" value="0.6" style="width:56px;background:#0F121A;border:1px solid rgba(255,255,255,.09);border-radius:9px;color:#F1F3F8;font-size:11.5px;padding:7px 8px;text-align:center"/>
+        <span style="color:#7d8496;font-size:11px">–</span>
+        <input id="n-far" type="number" step="0.5" min="0.5" max="120" value="6" style="width:56px;background:#0F121A;border:1px solid rgba(255,255,255,.09);border-radius:9px;color:#F1F3F8;font-size:11.5px;padding:7px 8px;text-align:center"/>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid rgba(255,255,255,.07)">
+      <div><div style="font-size:12.5px;font-weight:500">Автодіапазон</div><div style="font-size:10.5px;color:#7d8496;margin-top:3px;line-height:1.45;max-width:126px">підбирає межі під сцену (метрична модель)</div></div>
+      <div id="ar-seg" style="display:flex;background:#0F121A;border:1px solid rgba(255,255,255,.09);border-radius:999px;padding:3px;gap:2px">
+        <button data-a="0" style="font-size:10.5px;padding:6px 9px;border-radius:999px;color:#7d8496">Вимк</button>
+        <button data-a="1" style="font-size:10.5px;padding:6px 9px;border-radius:999px;color:#7d8496">Увімк</button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid rgba(255,255,255,.07)">
+      <div><div style="font-size:12.5px;font-weight:500">Розрив поверхні</div><div style="font-size:10.5px;color:#7d8496;margin-top:3px;line-height:1.45;max-width:126px">менше = менше «шкіри» між об'єктами</div></div>
+      <input id="s-brk" type="range" min="1" max="25" value="7"/>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid rgba(255,255,255,.07)">
+      <div><div style="font-size:12.5px;font-weight:500">Згладжування</div><div style="font-size:10.5px;color:#7d8496;margin-top:3px;line-height:1.45;max-width:126px">по контурах кадру, не поперек них</div></div>
+      <div id="sm-seg" style="display:flex;background:#0F121A;border:1px solid rgba(255,255,255,.09);border-radius:999px;padding:3px;gap:2px">
+        <button data-sm="0" style="font-size:10.5px;padding:6px 9px;border-radius:999px;color:#7d8496">0</button>
+        <button data-sm="1" style="font-size:10.5px;padding:6px 9px;border-radius:999px;color:#7d8496">1</button>
+        <button data-sm="2" style="font-size:10.5px;padding:6px 9px;border-radius:999px;color:#7d8496">2</button>
+        <button data-sm="3" style="font-size:10.5px;padding:6px 9px;border-radius:999px;color:#7d8496">3</button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid rgba(255,255,255,.07)">
+      <div><div style="font-size:12.5px;font-weight:500">Часове згладжування</div><div style="font-size:10.5px;color:#7d8496;margin-top:3px;line-height:1.45;max-width:126px">прибирає мерехтіння між кадрами</div></div>
+      <input id="s-tmp" type="range" min="0" max="90" value="55"/>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid rgba(255,255,255,.07)">
+      <div><div style="font-size:12.5px;font-weight:500">Відкидати далеке</div><div style="font-size:10.5px;color:#7d8496;margin-top:3px;line-height:1.45;max-width:126px">небо й «нескінченність» не малюються</div></div>
+      <div id="cf-seg" style="display:flex;background:#0F121A;border:1px solid rgba(255,255,255,.09);border-radius:999px;padding:3px;gap:2px">
+        <button data-cf="0" style="font-size:10.5px;padding:6px 9px;border-radius:999px;color:#7d8496">Вимк</button>
+        <button data-cf="1" style="font-size:10.5px;padding:6px 9px;border-radius:999px;color:#7d8496">Увімк</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-v" style="flex:1;overflow-y:auto;padding:4px 15px 16px;display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 0">
+      <div style="font-size:12.5px;font-weight:500">Режим</div>
+      <div id="m-seg" style="display:flex;background:#0F121A;border:1px solid rgba(255,255,255,.09);border-radius:999px;padding:3px;gap:2px;flex-wrap:wrap;justify-content:flex-end">
+        <button data-m="wire" style="font-size:10.5px;padding:6px 9px;border-radius:999px;color:#7d8496">Каркас</button>
+        <button data-m="surf" style="font-size:10.5px;padding:6px 9px;border-radius:999px;color:#7d8496">Поверхня</button>
+        <button data-m="pts" style="font-size:10.5px;padding:6px 9px;border-radius:999px;color:#7d8496">Точки</button>
+        <button data-m="both" style="font-size:10.5px;padding:6px 9px;border-radius:999px;color:#7d8496">Усе</button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid rgba(255,255,255,.07)">
+      <div style="font-size:12.5px;font-weight:500">Палітра</div>
+      <div id="pal-seg" style="display:flex;background:#0F121A;border:1px solid rgba(255,255,255,.09);border-radius:999px;padding:3px;gap:2px;flex-wrap:wrap;justify-content:flex-end">
+        <button data-p="0" style="font-size:10.5px;padding:6px 9px;border-radius:999px;color:#7d8496">Лайм</button>
+        <button data-p="1" style="font-size:10.5px;padding:6px 9px;border-radius:999px;color:#7d8496">Термо</button>
+        <button data-p="2" style="font-size:10.5px;padding:6px 9px;border-radius:999px;color:#7d8496">Лід</button>
+        <button data-p="3" style="font-size:10.5px;padding:6px 9px;border-radius:999px;color:#7d8496">Моно</button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid rgba(255,255,255,.07)">
+      <div><div style="font-size:12.5px;font-weight:500">Відтінок палітри</div><div style="font-size:10.5px;color:#7d8496;margin-top:3px;line-height:1.45;max-width:126px">0 — кольори з камери, 100 — схема</div></div>
+      <input id="s-tint" type="range" min="0" max="100" value="34"/>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid rgba(255,255,255,.07)">
+      <div style="font-size:12.5px;font-weight:500">Освітлення</div><input id="s-lit" type="range" min="0" max="100" value="72"/>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid rgba(255,255,255,.07)">
+      <div style="font-size:12.5px;font-weight:500">Туман удалині</div><input id="s-fog" type="range" min="0" max="100" value="40"/>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid rgba(255,255,255,.07)">
+      <div style="font-size:12.5px;font-weight:500">Відео-фон</div><input id="s-vid" type="range" min="0" max="100" value="16"/>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid rgba(255,255,255,.07)">
+      <div style="font-size:12.5px;font-weight:500">Розмір точок</div><input id="s-pt" type="range" min="3" max="40" value="9"/>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid rgba(255,255,255,.07)">
+      <div style="font-size:12.5px;font-weight:500">Яскравість хмари</div><input id="s-boost" type="range" min="60" max="260" value="120"/>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid rgba(255,255,255,.07)">
+      <div><div style="font-size:12.5px;font-weight:500">У стоп-кадрі</div><div style="font-size:10.5px;color:#7d8496;margin-top:3px;line-height:1.45;max-width:126px">що лишається на екрані</div></div>
+      <div id="fz-seg" style="display:flex;background:#0F121A;border:1px solid rgba(255,255,255,.09);border-radius:999px;padding:3px;gap:2px">
+        <button data-f="model" style="font-size:10.5px;padding:6px 9px;border-radius:999px;color:#7d8496">Модель</button>
+        <button data-f="all" style="font-size:10.5px;padding:6px 9px;border-radius:999px;color:#7d8496">Усе</button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid rgba(255,255,255,.07)">
+      <div style="font-size:12.5px;font-weight:500">Камера</div>
+      <div id="c-seg" style="display:flex;background:#0F121A;border:1px solid rgba(255,255,255,.09);border-radius:999px;padding:3px;gap:2px">
+        <button data-c="environment" style="font-size:10.5px;padding:6px 9px;border-radius:999px;color:#7d8496">Тил</button>
+        <button data-c="user" style="font-size:10.5px;padding:6px 9px;border-radius:999px;color:#7d8496">Фронт</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-s" style="flex:1;overflow-y:auto;padding:4px 15px 16px;display:none">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:11px 0">
+      <div><div style="font-size:12.5px;font-weight:500">Спосіб накопичення</div><div style="font-size:10.5px;color:#7d8496;margin-top:3px;line-height:1.45;max-width:120px">на десктопі камера стоїть — обертається об'єкт</div></div>
+      <div id="acc-seg" style="display:flex;flex-direction:column;background:#0F121A;border:1px solid rgba(255,255,255,.09);border-radius:12px;padding:3px;gap:2px;flex:0 0 auto">
+        <button data-ac="none" style="font-size:10.5px;padding:6px 10px;border-radius:9px;color:#7d8496;text-align:left">Один кадр</button>
+        <button data-ac="turn" style="font-size:10.5px;padding:6px 10px;border-radius:9px;color:#7d8496;text-align:left">Поворотний стіл</button>
+        <button data-ac="gyro" style="font-size:10.5px;padding:6px 10px;border-radius:9px;color:#7d8496;text-align:left">Гіроскоп</button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid rgba(255,255,255,.07)">
+      <div><div style="font-size:12.5px;font-weight:500">Крок повороту</div><div style="font-size:10.5px;color:#7d8496;margin-top:3px" id="t-step">15°</div></div>
+      <input id="s-step" type="range" min="3" max="45" value="15"/>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid rgba(255,255,255,.07)">
+      <div><div style="font-size:12.5px;font-weight:500">Авто-захоплення</div><div style="font-size:10.5px;color:#7d8496;margin-top:3px;line-height:1.45;max-width:126px">кадр сам додається кожні N секунд</div></div>
+      <div id="auto-seg" style="display:flex;background:#0F121A;border:1px solid rgba(255,255,255,.09);border-radius:999px;padding:3px;gap:2px">
+        <button data-au="0" style="font-size:10.5px;padding:6px 8px;border-radius:999px;color:#7d8496">Вимк</button>
+        <button data-au="1500" style="font-size:10.5px;padding:6px 8px;border-radius:999px;color:#7d8496">1.5с</button>
+        <button data-au="3000" style="font-size:10.5px;padding:6px 8px;border-radius:999px;color:#7d8496">3с</button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid rgba(255,255,255,.07)">
+      <div><div style="font-size:12.5px;font-weight:500">Відстань до осі</div><div style="font-size:10.5px;color:#7d8496;margin-top:3px" id="t-axis">1.20 м</div></div>
+      <input id="s-axis" type="range" min="20" max="500" value="120"/>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid rgba(255,255,255,.07)">
+      <div><div style="font-size:12.5px;font-weight:500">Радіус зрізу</div><div style="font-size:10.5px;color:#7d8496;margin-top:3px" id="t-rad">1.20 м</div></div>
+      <input id="s-rad" type="range" min="5" max="400" value="120"/>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid rgba(255,255,255,.07)">
+      <div><div style="font-size:12.5px;font-weight:500">Висота зрізу</div><div style="font-size:10.5px;color:#7d8496;margin-top:3px" id="t-hgt">2.00 м</div></div>
+      <input id="s-hgt" type="range" min="10" max="500" value="200"/>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid rgba(255,255,255,.07)">
+      <div><div style="font-size:12.5px;font-weight:500">Воксель злиття</div><div style="font-size:10.5px;color:#7d8496;margin-top:3px" id="t-vox">8 мм</div></div>
+      <input id="s-vox" type="range" min="2" max="60" value="8"/>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid rgba(255,255,255,.07)">
+      <div><div style="font-size:12.5px;font-weight:500">Кут вручну</div><div style="font-size:10.5px;color:#7d8496;margin-top:3px;line-height:1.45;max-width:126px">якщо стіл крутиш нерівномірно</div></div>
+      <div style="display:flex;gap:4px">
+        <button id="b-ang-m" style="background:#0F121A;border:1px solid rgba(255,255,255,.09);border-radius:9px;padding:7px 11px;font-size:12px">−</button>
+        <button id="b-ang-0" style="background:#0F121A;border:1px solid rgba(255,255,255,.09);border-radius:9px;padding:7px 9px;font-size:10.5px;color:#7d8496">0°</button>
+        <button id="b-ang-p" style="background:#0F121A;border:1px solid rgba(255,255,255,.09);border-radius:9px;padding:7px 11px;font-size:12px">+</button>
+      </div>
+    </div>
+    <button id="b-clear" style="width:100%;background:#0F121A;color:#F1F3F8;border:1px solid rgba(255,255,255,.09);border-radius:12px;padding:12px;font-size:12.5px;font-weight:500;margin-top:12px">Стерти хмару</button>
+  </div>
+
+  <div id="tab-x" style="flex:1;overflow-y:auto;padding:14px 15px 16px;display:none">
+    <div style="font-size:11px;color:#7d8496;line-height:1.6;margin-bottom:12px">Геометрія в метрах за діапазоном із вкладки «Глибина». Меш — із поточного кадру, хмара — з накопичених ракурсів.</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button id="x-obj" style="background:var(--acc);color:#0B0C11;border-radius:12px;padding:13px;font-size:13px;font-weight:600;font-family:'Space Grotesk'">Меш OBJ + нормалі</button>
+      <button id="x-ply" style="background:#0F121A;color:#F1F3F8;border:1px solid rgba(255,255,255,.09);border-radius:12px;padding:13px;font-size:12.5px;font-weight:500">Меш PLY з кольорами</button>
+      <button id="x-cloud" style="background:#0F121A;color:#F1F3F8;border:1px solid rgba(255,255,255,.09);border-radius:12px;padding:13px;font-size:12.5px;font-weight:500">Хмара точок PLY</button>
+      <button id="x-png" style="background:#0F121A;color:#F1F3F8;border:1px solid rgba(255,255,255,.09);border-radius:12px;padding:13px;font-size:12.5px;font-weight:500">Знімок екрана PNG</button>
+    </div>
+    <div id="x-info" style="font-size:10.5px;color:#7d8496;line-height:1.6;margin-top:14px;font-variant-numeric:tabular-nums"></div>
+  </div>
+</div>
+
+<div id="start" style="position:absolute;inset:0;z-index:20;background:radial-gradient(140% 100% at 50% -10%,#161a25,#07080B 60%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:32px;text-align:center">
+  <div style="font-family:'Space Grotesk';font-weight:700;font-size:clamp(40px,7vw,72px);letter-spacing:-.035em;line-height:1">DICH<span style="color:var(--acc)">·</span>SPACE</div>
+  <div style="font-size:11px;color:#7d8496;letter-spacing:.32em;text-transform:uppercase">простір у 3D · v6</div>
+  <div style="font-size:13.5px;color:#7d8496;max-width:430px;line-height:1.75">Камера читає глибину кадру й будує обʼємну поверхню в метрах. Постав предмет на щось поворотне, увімкни <span style="color:var(--acc);font-weight:600">Скан</span> — ракурси зіллються в одну модель. Усе рахується на пристрої.</div>
+  <button id="go" style="background:var(--acc);color:#0B0C11;border-radius:14px;padding:15px 46px;font-size:15px;font-weight:600;font-family:'Space Grotesk';margin-top:6px;box-shadow:0 12px 36px rgba(210,255,62,.2)">УВІМКНУТИ КАМЕРУ</button>
+  <div id="err" style="color:#FF5C6C;font-size:12px;min-height:16px;max-width:400px;line-height:1.5"></div>
+  <div style="font-size:10.5px;color:#4d5361;letter-spacing:.06em;margin-top:6px">мишка — оберт · колесо — зум · Space — захопити кадр · F — кадрувати</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#D2FF3E&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;#D2FF3E&quot;,&quot;#3EE0D0&quot;,&quot;#FF8A3D&quot;,&quot;#E8EAF0&quot;],&quot;section&quot;:&quot;Вигляд&quot;},&quot;panelSide&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;left&quot;,&quot;options&quot;:[&quot;right&quot;,&quot;left&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Вигляд&quot;},&quot;showStats&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Вигляд&quot;}}">
+class Component extends DCLogic {
+  componentDidMount(){
+    if(this._b) return; this._b=true;
+    const acc=this.props.accent, ap=document.getElementById('app');
+    if(acc&&ap) ap.style.setProperty('--acc',acc);
+    if(this.props.panelSide==='left'&&document.getElementById('panel')){
+      const p=document.getElementById('panel'); p.style.right='auto'; p.style.left='14px'; if(ap) ap.dataset.side='left';
+      const h=document.getElementById('hud'); h.style.left='auto'; h.style.right='14px'; h.style.alignItems='flex-end';
+    }
+    if(this.props.showStats===false){ const h=document.getElementById('hud'); if(h) h.dataset.nostats='1'; }
+    const wait=()=>{ if(window.THREE) this.app(); else setTimeout(wait,80); }; wait();
+  }
+
+  app(){
+  const $=id=>document.getElementById(id);
+  const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+  const video=$('video'), glc=$('gl');
+
+  const FOV=62;
+  const LEVELS=[{w:160,pr:1},{w:256,pr:1.25},{w:352,pr:1.5},{w:480,pr:1.75}];
+  const MAXP=420000;
+  const PAL=[
+    [[0.824,1,0.243],[0.42,0.94,0.62],[0.243,0.878,0.816]],
+    [[1,0.95,0.55],[1,0.42,0.2],[0.3,0.03,0.35]],
+    [[0.92,0.98,1],[0.42,0.72,0.95],[0.07,0.2,0.55]],
+    [[1,1,1],[0.55,0.57,0.62],[0.13,0.14,0.18]]
+  ];
+  const MODELS={
+    small:{label:'Швидка',ids:['onnx-community/depth-anything-v2-small','Xenova/depth-anything-small-hf'],metric:false,side:[252,182]},
+    base:{label:'Якісна',ids:['onnx-community/depth-anything-v2-base','onnx-community/depth-anything-V2-Base-hf','Xenova/dpt-hybrid-midas'],metric:false,side:[364,238]},
+    metric:{label:'Метрична',ids:['onnx-community/depth-anything-V2-metric-indoor-small-hf','onnx-community/depth-anything-v2-metric-indoor-small','Xenova/glpn-nyu'],metric:true,side:[252,182]}
+  };
+
+  let renderer,scene,cam,bgScene,bgCam,bgMat,matS,matL,matC,surf,lines,points,geoS,geoL;
+  let liveGroup=null,cloud=null,cloudGeo=null,cpAttr=null,crAttr=null,ctAttr=null;
+  let cloudPos=null,cloudRGB=null,cloudT=null,cloudCount=0,vox=new Map();
+  let DW=0,DH=0,dArr=[null,null],dTex=[null,null],latest=0,haveDepth=false;
+  let qLevel=1,procMode='auto',forceCpu=false,curDev='',dispMode='both';
+  let src='preview',accMode='none',scanning=false,frozen=false,facing='environment';
+  let nearM=0.6,farM=6,autoRange=false,smooth=2,tmpMix=0.55,cullFar=true;
+  let stepDeg=15,autoMs=0,axisD=1.2,cropR=1.2,cropH=2,voxMM=8,theta=0,lastAuto=0;
+  let stream=null,vTex=null,freezeTex=null,freezeCanvas=null,pendingShot=false,gyroOK=false;
+  let gLo=null,gHi=null;
+  const view={yaw:0.35,pitch:0.22,zoom:1,tYaw:0.35,tPitch:0.22,tZoom:1,px:0,py:0,tpx:0,tpy:0};
+  const qDev=new THREE.Quaternion(),qRef=new THREE.Quaternion(),qW=new THREE.Quaternion();
+  let calibrated=false;
+  const vT=new THREE.Vector3(),qT=new THREE.Quaternion();
+  const uNearC={value:new THREE.Vector3().fromArray(PAL[0][0])};
+  const uMidC={value:new THREE.Vector3().fromArray(PAL[0][1])};
+  const uFarC={value:new THREE.Vector3().fromArray(PAL[0][2])};
+  const BGC=new THREE.Vector3(0.027,0.031,0.043);
+
+  let toastT=null;
+  const toast=m=>{ const t=$('toast'); t.textContent=m; t.style.opacity='1';
+    clearTimeout(toastT); toastT=setTimeout(()=>t.style.opacity='0',2200); };
+  const ACC=()=>getComputedStyle($('app')).getPropertyValue('--acc').trim()||'#D2FF3E';
+
+  /* ── UI helpers ───────────────────────────────────────────── */
+  function press(b,on){
+    b.style.background=on?ACC():'none';
+    b.style.color=on?'#0B0C11':'#7d8496';
+    b.style.fontWeight=on?'600':'400';
+  }
+  function seg(id,key,val,cb){
+    const bs=[...document.querySelectorAll('#'+id+' button')];
+    bs.forEach(b=>{ press(b,b.dataset[key]===String(val));
+      b.onclick=()=>{ bs.forEach(o=>press(o,o===b)); cb(b.dataset[key]); }; });
+  }
+  function segSet(id,key,val){ document.querySelectorAll('#'+id+' button').forEach(b=>press(b,b.dataset[key]===String(val))); }
+  function dock(id,on){ const b=$(id); b.style.background=on?ACC():'none'; b.style.color=on?'#0B0C11':'#7d8496'; }
+  function dockRec(id,on){ const b=$(id); b.style.background=on?'#FF5C6C':'none'; b.style.color=on?'#fff':'#7d8496'; }
+
+  /* ── camera ───────────────────────────────────────────────── */
+  async function startCam(){
+    if(stream) stream.getTracks().forEach(t=>t.stop());
+    stream=await navigator.mediaDevices.getUserMedia({audio:false,
+      video:{facingMode:facing,width:{ideal:1280},height:{ideal:720}}});
+    video.srcObject=stream; await video.play();
+  }
+
+  /* ── shaders ──────────────────────────────────────────────── */
+  const VERT=`
+uniform sampler2D uDA,uDB; uniform sampler2D uTex;
+uniform float uMix,uTan,uAspect,uNearM,uFarM,uBreak,uLit,uCullFar,uFog,uPointSize,uMirror;
+uniform vec2 uTexel,uVScale;
+uniform vec3 uNearC,uMidC,uFarC;
+varying vec3 vDep; varying float vFog,vLight,vCull; varying vec2 vUv;
+float tB(vec2 g){ return texture2D(uDB,g).r; }
+vec3 P(vec2 g,float t){ float z=uNearM+t*(uFarM-uNearM);
+  return vec3((g.x-0.5)*2.0*uTan*uAspect*z,(0.5-g.y)*2.0*uTan*z,-z); }
+void main(){
+  vec2 g=position.xy;
+  float t=mix(texture2D(uDA,g).r,tB(g),uMix);
+  vec2 ex=vec2(uTexel.x,0.0), ey=vec2(0.0,uTexel.y);
+  float tl=tB(g-ex), tr=tB(g+ex), tu=tB(g-ey), td=tB(g+ey);
+  float d=max(max(abs(tr-t),abs(tl-t)),max(abs(td-t),abs(tu-t)));
+  vCull=(d>uBreak||(uCullFar>0.5&&t>0.988))?1.0:0.0;
+  vec3 p=P(g,t);
+  vec3 n=normalize(cross(P(g+ex,tr)-P(g-ex,tl),P(g+ey,td)-P(g-ey,tu)));
+  if(n.z<0.0) n=-n;
+  n=normalize(normalMatrix*n);
+  float key=max(0.0,dot(n,normalize(vec3(0.38,0.6,0.7)))), face=abs(n.z);
+  vLight=mix(1.0,0.2+0.5*key+0.34*face,uLit);
+  vDep=t<0.5?mix(uNearC,uMidC,t*2.0):mix(uMidC,uFarC,(t-0.5)*2.0);
+  vFog=clamp(t*uFog,0.0,1.0);
+  vec2 uv=(vec2(g.x,1.0-g.y)-0.5)*uVScale+0.5; if(uMirror>0.5) uv.x=1.0-uv.x; vUv=uv;
+  vec4 mv=modelViewMatrix*vec4(p,1.0);
+  gl_PointSize=uPointSize/max(0.35,-mv.z);
+  gl_Position=projectionMatrix*mv;
+}`;
+  const FRAG_S=`precision mediump float;
+uniform sampler2D uTex; uniform float uTint; uniform vec3 uBg;
+varying vec2 vUv; varying float vFog,vLight,vCull; varying vec3 vDep;
+void main(){ if(vCull>0.5) discard;
+  vec3 c=mix(texture2D(uTex,vUv).rgb,vDep,uTint)*vLight;
+  gl_FragColor=vec4(mix(c,uBg,vFog),1.0); }`;
+  const FRAG_L=`precision mediump float;
+uniform vec3 uBg;
+varying float vFog,vLight,vCull; varying vec3 vDep;
+void main(){ if(vCull>0.5) discard; gl_FragColor=vec4(mix(vDep,uBg,vFog),1.0); }`;
+  const CV=`uniform float uSize,uTint,uFog,uBoost; uniform vec3 uNearC,uMidC,uFarC;
+attribute float aT; attribute vec3 aRGB; varying vec3 vC; varying float vF;
+void main(){ vec4 mv=modelViewMatrix*vec4(position,1.0);
+  vec3 pal=aT<0.5?mix(uNearC,uMidC,aT*2.0):mix(uMidC,uFarC,(aT-0.5)*2.0);
+  vC=mix(aRGB,pal,uTint)*uBoost; vF=clamp(aT*uFog,0.0,1.0);
+  gl_PointSize=uSize/max(0.35,-mv.z); gl_Position=projectionMatrix*mv; }`;
+  const CF=`precision mediump float; uniform vec3 uBg; varying vec3 vC; varying float vF;
+void main(){ gl_FragColor=vec4(mix(vC,uBg,vF),1.0); }`;
+  const BV=`varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.0,1.0);}`;
+  const BF=`precision mediump float;uniform sampler2D uTex;uniform vec2 uScale;uniform float uMirror,uOpacity;
+varying vec2 vUv;void main(){vec2 uv=(vUv-0.5)*uScale+0.5;if(uMirror>0.5)uv.x=1.0-uv.x;
+gl_FragColor=vec4(texture2D(uTex,uv).rgb*uOpacity,1.0);}`;
+
+  /* ── gfx ──────────────────────────────────────────────────── */
+  let scaleU,mirU,shared;
+  function initGFX(){
+    renderer=new THREE.WebGLRenderer({canvas:glc,antialias:true,alpha:false,powerPreference:'high-performance',stencil:false,preserveDrawingBuffer:true});
+    renderer.autoClear=false; renderer.setClearColor(0x07080B,1);
+    scene=new THREE.Scene(); cam=new THREE.PerspectiveCamera(FOV,1,0.05,400);
+    bgScene=new THREE.Scene(); bgCam=new THREE.Camera();
+    vTex=new THREE.VideoTexture(video);
+    vTex.minFilter=vTex.magFilter=THREE.LinearFilter; vTex.generateMipmaps=false;
+    scaleU={value:new THREE.Vector2(1,1)}; mirU={value:0};
+    bgMat=new THREE.ShaderMaterial({uniforms:{uTex:{value:vTex},uScale:scaleU,uMirror:mirU,uOpacity:{value:0.16}},
+      vertexShader:BV,fragmentShader:BF,depthTest:false,depthWrite:false});
+    bgScene.add(new THREE.Mesh(new THREE.PlaneBufferGeometry(2,2),bgMat));
+
+    buildDepthTex();
+    shared={uDA:{value:dTex[0]},uDB:{value:dTex[1]},uMix:{value:1},
+      uTan:{value:Math.tan(FOV*Math.PI/360)},uAspect:{value:1},
+      uNearM:{value:nearM},uFarM:{value:farM},uBreak:{value:0.07},uLit:{value:0.72},
+      uCullFar:{value:1},uFog:{value:0.4},uPointSize:{value:9},uMirror:mirU,
+      uTexel:{value:new THREE.Vector2(1/64,1/64)},uVScale:scaleU,
+      uNearC:uNearC,uMidC:uMidC,uFarC:uFarC,uTex:{value:vTex},uBg:{value:BGC}};
+    matS=new THREE.ShaderMaterial({uniforms:Object.assign({},shared,{uTint:{value:0.34}}),
+      vertexShader:VERT,fragmentShader:FRAG_S,side:THREE.DoubleSide,
+      polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1});
+    matL=new THREE.ShaderMaterial({uniforms:matS.uniforms,vertexShader:VERT,fragmentShader:FRAG_L,transparent:false});
+    matC=new THREE.ShaderMaterial({uniforms:{uSize:{value:11},uTint:{value:0.34},uFog:{value:0.4},
+      uBoost:{value:1.2},uNearC:uNearC,uMidC:uMidC,uFarC:uFarC,uBg:{value:BGC}},
+      vertexShader:CV,fragmentShader:CF});
+
+    liveGroup=new THREE.Group(); scene.add(liveGroup);
+    buildCloud(); buildGrid();
+    addEventListener('resize',onResize); onResize(); applyMode();
+  }
+
+  function buildDepthTex(){
+    const ar=innerWidth/innerHeight, L=LEVELS[qLevel];
+    DW=L.w; DH=Math.max(24,Math.round(L.w/ar));
+    for(let s=0;s<2;s++){
+      dArr[s]=new Float32Array(DW*DH*4);
+      for(let i=0;i<DW*DH;i++){ dArr[s][i*4]=0.55; dArr[s][i*4+3]=1; }
+      if(dTex[s]) dTex[s].dispose();
+      dTex[s]=new THREE.DataTexture(dArr[s],DW,DH,THREE.RGBAFormat,THREE.FloatType);
+      dTex[s].minFilter=dTex[s].magFilter=THREE.NearestFilter;
+      dTex[s].wrapS=dTex[s].wrapT=THREE.ClampToEdgeWrapping;
+      dTex[s].needsUpdate=true;
+    }
+    latest=1;
+    if(shared){ shared.uDA.value=dTex[0]; shared.uDB.value=dTex[1]; shared.uMix.value=1;
+      shared.uTexel.value.set(1/DW,1/DH); }
+    $('t-grid').textContent=DW+'×'+DH+' · '+((DW*DH/1000).toFixed(0))+'k вершин';
+  }
+
+  function buildCloud(){
+    cloudPos=new Float32Array(MAXP*3); cloudRGB=new Float32Array(MAXP*3); cloudT=new Float32Array(MAXP);
+    cloudGeo=new THREE.BufferGeometry();
+    const D=THREE.DynamicDrawUsage||35048;
+    cpAttr=new THREE.BufferAttribute(cloudPos,3); cpAttr.setUsage&&cpAttr.setUsage(D);
+    crAttr=new THREE.BufferAttribute(cloudRGB,3); crAttr.setUsage&&crAttr.setUsage(D);
+    ctAttr=new THREE.BufferAttribute(cloudT,1); ctAttr.setUsage&&ctAttr.setUsage(D);
+    cloudGeo.setAttribute('position',cpAttr); cloudGeo.setAttribute('aRGB',crAttr); cloudGeo.setAttribute('aT',ctAttr);
+    cloudGeo.setDrawRange(0,0);
+    cloudGeo.boundingSphere=new THREE.Sphere(new THREE.Vector3(),200);
+    cloud=new THREE.Points(cloudGeo,matC); cloud.frustumCulled=false; scene.add(cloud);
+  }
+
+  function buildGrid(){
+    if(surf){ liveGroup.remove(surf); liveGroup.remove(lines); liveGroup.remove(points); geoS.dispose(); geoL.dispose(); }
+    const N=DW*DH, pos=new Float32Array(N*3);
+    for(let y=0,i=0;y<DH;y++)for(let x=0;x<DW;x++,i++){
+      pos[i*3]=(x+0.5)/DW; pos[i*3+1]=(y+0.5)/DH; pos[i*3+2]=0; }
+    const IA=N>65000?Uint32Array:Uint16Array;
+    const iL=new IA(N*4); let k=0;
+    for(let y=0;y<DH;y++)for(let x=0;x<DW;x++){
+      const i=y*DW+x;
+      if(x<DW-1){ iL[k++]=i; iL[k++]=i+1; }
+      if(y<DH-1){ iL[k++]=i; iL[k++]=i+DW; } }
+    const iS=new IA((DW-1)*(DH-1)*6); let s=0;
+    for(let y=0;y<DH-1;y++)for(let x=0;x<DW-1;x++){
+      const a=y*DW+x,b=a+1,c=a+DW+1,d=a+DW;
+      iS[s++]=a; iS[s++]=b; iS[s++]=c; iS[s++]=a; iS[s++]=c; iS[s++]=d; }
+    const sph=new THREE.Sphere(new THREE.Vector3(0,0,-farM*0.5),farM*3+10);
+    const pa=new THREE.BufferAttribute(pos,3);
+    geoS=new THREE.BufferGeometry(); geoS.setAttribute('position',pa);
+    geoS.setIndex(new THREE.BufferAttribute(iS,1)); geoS.setDrawRange(0,s); geoS.boundingSphere=sph;
+    geoL=new THREE.BufferGeometry(); geoL.setAttribute('position',pa);
+    geoL.setIndex(new THREE.BufferAttribute(iL,1)); geoL.setDrawRange(0,k); geoL.boundingSphere=sph;
+    surf=new THREE.Mesh(geoS,matS); surf.frustumCulled=false; liveGroup.add(surf);
+    lines=new THREE.LineSegments(geoL,matL); lines.frustumCulled=false; liveGroup.add(lines);
+    points=new THREE.Points(geoL,matL); points.frustumCulled=false; liveGroup.add(points);
+    applyMode();
+  }
+
+  function applyMode(){
+    if(!surf) return;
+    surf.visible=dispMode==='surf'||dispMode==='both';
+    lines.visible=dispMode==='wire'||dispMode==='both';
+    points.visible=dispMode==='pts';
+    segSet('m-seg','m',dispMode);
+  }
+  function onResize(){
+    const w=innerWidth,h=innerHeight;
+    renderer.setPixelRatio(Math.min(devicePixelRatio||1,LEVELS[qLevel].pr));
+    renderer.setSize(w,h,false);
+    cam.aspect=w/h; cam.updateProjectionMatrix();
+    shared.uAspect.value=w/h; updateBgScale();
+    const narrow=w<820;
+    const p=$('panel');
+    if(narrow){ p.style.left='8px'; p.style.right='8px'; p.style.width='auto'; p.style.top='auto'; p.style.bottom='92px'; p.style.maxHeight='56vh'; }
+    else { p.style.width='306px'; p.style.top='14px'; p.style.bottom='14px'; p.style.maxHeight='none';
+      if($('app').dataset.side==='left'){ p.style.left='14px'; p.style.right='auto'; }
+      else { p.style.left='auto'; p.style.right='14px'; } }
+    layoutDock();
+  }
+  function layoutDock(){
+    const d=$('dock'); if(!d) return;
+    const side=$('app').dataset.side==='left'?1:-1;
+    const open=$('panel').style.display==='flex', narrow=innerWidth<820;
+    d.style.left=(open&&!narrow)?'calc(50% + '+(side*160)+'px)':'50%';
+    d.style.bottom=(open&&narrow)?'18px':'18px';
+  }
+  function updateBgScale(){
+    if(!video.videoWidth) return;
+    const va=video.videoWidth/video.videoHeight, sa=innerWidth/innerHeight;
+    scaleU.value.set(va>sa?sa/va:1, va>sa?1:va/sa);
+    mirU.value=facing==='user'?1:0;
+  }
+
+  /* ── luma guide + sampling ────────────────────────────────── */
+  let sampC=null,sampX=null,guide=null,bufA=null,bufB=null,lastPx=null;
+  function samplePixels(w,h){
+    if(!sampC){ sampC=document.createElement('canvas'); sampX=sampC.getContext('2d',{willReadFrequently:true}); }
+    if(sampC.width!==w||sampC.height!==h){ sampC.width=w; sampC.height=h; }
+    const vw=video.videoWidth,vh=video.videoHeight,ar=innerWidth/innerHeight;
+    let sw=vw,sh=vw/ar; if(sh>vh){ sh=vh; sw=vh*ar; }
+    sampX.save(); if(facing==='user'){ sampX.translate(w,0); sampX.scale(-1,1); }
+    sampX.drawImage(video,(vw-sw)/2,(vh-sh)/2,sw,sh,0,0,w,h); sampX.restore();
+    lastPx=sampX.getImageData(0,0,w,h).data;
+    return lastPx;
+  }
+  function updateGuide(px){
+    const n=DW*DH;
+    if(!guide||guide.length!==n) guide=new Float32Array(n);
+    for(let i=0;i<n;i++) guide[i]=(px[i*4]*0.299+px[i*4+1]*0.587+px[i*4+2]*0.114)/255;
+  }
+  function percentiles(d){
+    let mn=Infinity,mx=-Infinity;
+    for(let i=0;i<d.length;i++){ const v=d[i]; if(v<mn)mn=v; if(v>mx)mx=v; }
+    const rr=(mx-mn)||1, H=new Uint32Array(256);
+    for(let i=0;i<d.length;i++) H[((d[i]-mn)/rr*255)|0]++;
+    const n=d.length, loN=n*0.02, hiN=n*0.98;
+    let acc=0, lo=mn, hi=mx, got=false;
+    for(let b=0;b<256;b++){ acc+=H[b];
+      if(!got&&acc>=loN){ lo=mn+(b/255)*rr; got=true; }
+      if(acc>=hiN){ hi=mn+(b/255)*rr; break; } }
+    return [lo,hi];
+  }
+  function edgeSmooth(t){
+    const n=DW*DH;
+    if(!bufB||bufB.length!==n) bufB=new Float32Array(n);
+    let src2=t,dst=bufB;
+    for(let p=0;p<smooth;p++){
+      dst.set(src2);
+      for(let y=1;y<DH-1;y++)for(let x=1;x<DW-1;x++){
+        const i=y*DW+x, g0=guide[i]; let sum=0,w=0;
+        for(let dy=-1;dy<=1;dy++){ const o=i+dy*DW;
+          for(let dx=-1;dx<=1;dx++){ const j=o+dx, dl=guide[j]-g0;
+            const ww=1/(1+dl*dl*420); sum+=src2[j]*ww; w+=ww; } }
+        dst[i]=sum/w;
+      }
+      const tt=src2; src2=dst; dst=tt;
+    }
+    return src2;
+  }
+  function resample(data,dw,dh,map){
+    const n=DW*DH;
+    if(!bufA||bufA.length!==n) bufA=new Float32Array(n);
+    for(let y=0;y<DH;y++){
+      const fy=(y/(DH-1))*(dh-1), y0=fy|0, y1=Math.min(dh-1,y0+1), ty=fy-y0;
+      for(let x=0;x<DW;x++){
+        const fx=(x/(DW-1))*(dw-1), x0=fx|0, x1=Math.min(dw-1,x0+1), tx=fx-x0;
+        const a=data[y0*dw+x0],b=data[y0*dw+x1],c=data[y1*dw+x0],d=data[y1*dw+x1];
+        bufA[y*DW+x]=map((a*(1-tx)+b*tx)*(1-ty)+(c*(1-tx)+d*tx)*ty);
+      }
+    }
+    return bufA;
+  }
+
+  /* ── write a depth frame into the ping-pong texture ───────── */
+  function pushDepth(t,instant){
+    const nx=1-latest, out=dArr[nx], prev=dArr[latest];
+    const k=instant?0:tmpMix;
+    for(let i=0,n=DW*DH;i<n;i++){
+      const v=t[i];
+      out[i*4]=k>0?prev[i*4]*k+v*(1-k):v;
+    }
+    dTex[nx].needsUpdate=true;
+    shared.uDA.value=dTex[latest]; shared.uDB.value=dTex[nx];
+    shared.uMix.value=instant?1:0;
+    latest=nx; haveDepth=true;
+    if($('legend').style.display!=='flex') $('legend').style.display='flex';
+  }
+
+  function previewFrame(){
+    if(!video.videoWidth) return;
+    const px=samplePixels(DW,DH); updateGuide(px);
+    const n=DW*DH;
+    if(!bufA||bufA.length!==n) bufA=new Float32Array(n);
+    for(let i=0;i<n;i++) bufA[i]=1-guide[i];
+    pushDepth(smooth?edgeSmooth(bufA):bufA,true);
+    $('t-ms').textContent='0';
+  }
+
+  function ingest(data,dw,dh,metric){
+    if(!video.videoWidth) return;
+    updateGuide(samplePixels(DW,DH));
+    const pc=percentiles(data); let lo=pc[0],hi=pc[1];
+    if(metric){
+      if(autoRange){
+        if(gLo===null){ gLo=lo; gHi=hi; } else { gLo=gLo*0.9+lo*0.1; gHi=gHi*0.9+hi*0.1; }
+        nearM=clamp(Math.round(gLo*20)/20,0.1,40); farM=clamp(Math.round(gHi*20)/20,nearM+0.2,120);
+        $('n-near').value=nearM.toFixed(2); $('n-far').value=farM.toFixed(2); applyRange();
+      }
+      const rng=(farM-nearM)||1;
+      pushDepth(edgeSmooth(resample(data,dw,dh,v=>clamp((v-nearM)/rng,0,1))));
+    } else {
+      if(scanning){ if(gLo===null){ gLo=lo; gHi=hi; } lo=gLo=Math.min(gLo,lo); hi=gHi=Math.max(gHi,hi); }
+      else { gLo=lo; gHi=hi; }
+      const rng=(hi-lo)||1;
+      pushDepth(edgeSmooth(resample(data,dw,dh,v=>1-clamp((v-lo)/rng,0,1))));
+    }
+    maybeAuto(performance.now());
+  }
+
+  function applyRange(){
+    shared.uNearM.value=nearM; shared.uFarM.value=farM;
+    $('t-near').textContent=nearM.toFixed(2).replace(/0$/,'')+' м';
+    $('t-far').textContent=farM.toFixed(2).replace(/0$/,'')+' м';
+  }
+
+  /* ── accumulation ─────────────────────────────────────────── */
+  function poseApply(x,y,z){
+    if(accMode==='gyro'){ vT.set(x,y,z).applyQuaternion(qW); return true; }
+    const rx=x, ry=y, rz=z+axisD;
+    const c=Math.cos(-theta), s=Math.sin(-theta);
+    const ox=c*rx+s*rz, oz=-s*rx+c*rz;
+    if(Math.sqrt(ox*ox+oz*oz)>cropR||Math.abs(ry)>cropH*0.5) return false;
+    vT.set(ox,ry,oz); return true;
+  }
+  function voxKey(x,y,z,s){
+    const ix=clamp(Math.round(x/s)+512,0,1023),iy=clamp(Math.round(y/s)+512,0,1023),iz=clamp(Math.round(z/s)+512,0,1023);
+    return (ix<<20)|(iy<<10)|iz;
+  }
+  function capture(){
+    if(!haveDepth){ toast('глибини ще немає'); return; }
+    if(accMode==='none'){ toast('обери спосіб накопичення у вкладці «Скан»'); return; }
+    if(accMode==='gyro'&&!gyroOK){ toast('гіроскоп недоступний'); return; }
+    const d=dArr[latest], px=lastPx||samplePixels(DW,DH);
+    const tan=Math.tan(FOV*Math.PI/360), ar=innerWidth/innerHeight, rng=farM-nearM;
+    const s=voxMM/1000, brk=shared.uBreak.value;
+    let added=0, start=cloudCount, seen=0, cropped=0;
+    for(let y=1;y<DH-1;y++)for(let x=1;x<DW-1;x++){
+      if(cloudCount>=MAXP) break;
+      const i=y*DW+x, t=d[i*4];
+      if(t>0.985) continue;
+      const dd=Math.max(Math.abs(d[(i+1)*4]-t),Math.abs(d[(i-1)*4]-t),
+        Math.abs(d[(i+DW)*4]-t),Math.abs(d[(i-DW)*4]-t));
+      if(dd>brk) continue;
+      const z=nearM+t*rng; seen++;
+      if(!poseApply((x/DW-0.5)*2*tan*ar*z,(0.5-y/DH)*2*tan*z,-z)){ cropped++; continue; }
+      const key=voxKey(vT.x,vT.y,vT.z,s);
+      const ex=vox.get(key);
+      if(ex!==undefined){
+        cloudRGB[ex*3]=(cloudRGB[ex*3]+px[i*4]/255)*0.5;
+        cloudRGB[ex*3+1]=(cloudRGB[ex*3+1]+px[i*4+1]/255)*0.5;
+        cloudRGB[ex*3+2]=(cloudRGB[ex*3+2]+px[i*4+2]/255)*0.5;
+        continue;
+      }
+      const n=cloudCount;
+      vox.set(key,n);
+      cloudPos[n*3]=vT.x; cloudPos[n*3+1]=vT.y; cloudPos[n*3+2]=vT.z;
+      cloudRGB[n*3]=px[i*4]/255; cloudRGB[n*3+1]=px[i*4+1]/255; cloudRGB[n*3+2]=px[i*4+2]/255;
+      cloudT[n]=t; cloudCount=n+1; added++;
+    }
+    if(added){
+      cloudGeo.setDrawRange(0,cloudCount);
+      cpAttr.updateRange.offset=start*3; cpAttr.updateRange.count=(cloudCount-start)*3; cpAttr.needsUpdate=true;
+      ctAttr.updateRange.offset=start; ctAttr.updateRange.count=cloudCount-start; ctAttr.needsUpdate=true;
+    }
+    crAttr.needsUpdate=true;
+    $('t-pts').textContent=cloudCount>=1000?(cloudCount/1000).toFixed(1)+'k':cloudCount;
+    if(!added&&!seen){ toast('кадр порожній — глибина ще не готова'); return; }
+    if(!added&&cropped===seen){
+      toast('0 точок: усе поза зрізом · збільш радіус ('+cropR.toFixed(1)+' м) або висоту ('+cropH.toFixed(1)+' м)');
+      $('t-rad').style.color='#FF5C6C'; $('t-hgt').style.color='#FF5C6C';
+      setTimeout(()=>{ $('t-rad').style.color='#7d8496'; $('t-hgt').style.color='#7d8496'; },2600);
+      return;
+    }
+    if(accMode==='turn'){ theta+=stepDeg*Math.PI/180; if(theta>Math.PI*2) theta-=Math.PI*2; showAng(); }
+    if(cloudCount>=MAXP) toast('ліміт точок');
+    else if(added) toast('+'+added+' точок · усього '+(cloudCount>=1000?(cloudCount/1000).toFixed(1)+'k':cloudCount));
+    else toast('нових точок немає — поверни предмет далі');
+  }
+  function showAng(){ $('t-ang').textContent=Math.round(theta*180/Math.PI)+'°'; }
+  function maybeAuto(now){
+    if(!scanning||frozen) return;
+    if(accMode==='turn'&&autoMs&&now-lastAuto>autoMs){ lastAuto=now; capture(); }
+    if(accMode==='gyro'&&gyroOK){
+      updateQW();
+      if(cloudCount===0||qW.angleTo(qT)>stepDeg*Math.PI/180){ qT.copy(qW); capture(); }
+    }
+  }
+  function clearCloud(){ cloudCount=0; vox.clear(); cloudGeo.setDrawRange(0,0); theta=0; showAng(); $('t-pts').textContent='0'; }
+
+  /* ── gyro ─────────────────────────────────────────────────── */
+  const GYRO=(()=>{
+    const zee=new THREE.Vector3(0,0,1), eu=new THREE.Euler(), q0=new THREE.Quaternion();
+    const q1=new THREE.Quaternion(-Math.sqrt(0.5),0,0,Math.sqrt(0.5)); let has=false;
+    function onOri(e){
+      if(e.alpha==null&&e.beta==null&&e.gamma==null) return;
+      has=true; gyroOK=true;
+      const a=THREE.MathUtils.degToRad(e.alpha||0),b=THREE.MathUtils.degToRad(e.beta||0),g=THREE.MathUtils.degToRad(e.gamma||0);
+      let o=0; try{ o=THREE.MathUtils.degToRad((screen.orientation&&screen.orientation.angle)||window.orientation||0); }catch(_){}
+      eu.set(b,a,-g,'YXZ'); qDev.setFromEuler(eu); qDev.multiply(q1); qDev.multiply(q0.setFromAxisAngle(zee,-o));
+    }
+    async function request(){
+      try{
+        const D=window.DeviceOrientationEvent;
+        if(D&&typeof D.requestPermission==='function'){ const r=await D.requestPermission(); if(r!=='granted') return false; }
+        addEventListener('deviceorientation',onOri,{passive:true});
+        await new Promise(r=>setTimeout(r,500)); return has;
+      }catch(e){ return false; }
+    }
+    return {request};
+  })();
+  function updateQW(){ if(calibrated) qW.copy(qRef).multiply(qDev); else qW.copy(qDev); }
+
+  /* ── depth worker ─────────────────────────────────────────── */
+  const WSRC=`
+let est=null,RI=null,TF=null;
+self.onmessage=async e=>{const m=e.data;
+ if(m.type==='load'){
+  let last='';
+  if(!TF){ for(const u of m.urls){ try{ TF=await import(u); TF.env.allowLocalModels=false; RI=TF.RawImage; break; }catch(err){ last=String(err); } } }
+  if(!TF){ postMessage({type:'error',msg:last||'runtime'}); return; }
+  est=null;
+  for(const id of m.ids){
+    if(m.gpu){ try{ est=await TF.pipeline('depth-estimation',id,{device:'webgpu',dtype:'fp16'}); postMessage({type:'ready',dev:'gpu',id}); break; }catch(err){ last=String(err); } }
+    try{ est=await TF.pipeline('depth-estimation',id,{device:'wasm',dtype:'q8'}); postMessage({type:'ready',dev:'cpu',id}); break; }catch(err){ last=String(err); }
+  }
+  if(!est){ postMessage({type:'error',msg:last}); return; }
+  try{ est.processor.image_processor.size={width:m.side,height:m.side}; }catch(_){}
+ } else if(m.type==='size'&&est){ try{ est.processor.image_processor.size={width:m.side,height:m.side}; }catch(_){}
+ } else if(m.type==='frame'&&est){
+  const t0=performance.now();
+  try{
+   const img=new RI(new Uint8ClampedArray(m.buf),m.w,m.h,4);
+   const o=await est(img); let sent=false;
+   try{ const pd=o.predicted_depth;
+    if(pd&&pd.data&&pd.dims){ const dm=pd.dims,rh=dm[dm.length-2],rw=dm[dm.length-1];
+     const f=new Float32Array(pd.data),b=f.buffer;
+     postMessage({type:'depth',raw:1,buf:b,w:rw,h:rh,ms:performance.now()-t0},[b]); sent=true; } }catch(_){}
+   if(!sent){ const d=o.depth,b=d.data.buffer.slice(0);
+     postMessage({type:'depth',raw:0,buf:b,w:d.width,h:d.height,ms:performance.now()-t0},[b]); }
+  }catch(err){ postMessage({type:'error',msg:String(err)}); }
+ }};`;
+
+  const DEPTH=(()=>{
+    let w=null,ready=false,busy=false,last=0,period=340,side=252,inW=320,inC=null,inX=null,slot=null;
+    const URLS=['https://cdn.jsdelivr.net/npm/@huggingface/transformers@3',
+      'https://cdn.jsdelivr.net/npm/@huggingface/transformers',
+      'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2'];
+    const st=(t,c)=>{ $('t-model').textContent=t;
+      $('d-model').style.background=c==='ok'?ACC():c==='bad'?'#FF5C6C':'#3EE0D0';
+      $('d-model').style.animation=c==='load'?'bl 1s steps(1) infinite':'none'; };
+    const gpu=()=>!!navigator.gpu&&procMode!=='cpu'&&!forceCpu;
+    function ensure(){
+      if(w) return true;
+      let u; try{ u=URL.createObjectURL(new Blob([WSRC],{type:'text/javascript'})); }catch(e){ st('помилка','bad'); return false; }
+      try{ w=new Worker(u,{type:'module'}); }catch(e){ st('немає воркера','bad'); return false; }
+      w.onmessage=e=>{
+        const m=e.data;
+        if(m.type==='ready'){ ready=true; busy=false; curDev=m.dev;
+          st(MODELS[slot].label+' · '+(m.dev==='gpu'?'GPU':'CPU'),'ok');
+          side=MODELS[slot].side[m.dev==='gpu'?0:1]; }
+        else if(m.type==='depth'){ busy=false; $('t-ms').textContent=Math.round(m.ms);
+          period=clamp(m.ms*1.05,120,2400); adapt(m.ms);
+          if(!frozen&&src!=='preview') ingest(m.raw?new Float32Array(m.buf):new Uint8ClampedArray(m.buf),m.w,m.h,MODELS[slot].metric); }
+        else if(m.type==='error'){ busy=false; if(!ready) st('модель недоступна','bad'); }
+      };
+      w.onerror=()=>{ if(!ready) st('помилка воркера','bad'); };
+      return true;
+    }
+    function load(s){
+      slot=s; if(!ensure()) return;
+      ready=false; busy=false; gLo=gHi=null; st(MODELS[s].label+'…','load');
+      w.postMessage({type:'load',ids:MODELS[s].ids,gpu:gpu(),side:MODELS[s].side[gpu()?0:1],urls:URLS});
+    }
+    function adapt(ms){ let v=side;
+      if(ms>420&&v>140) v-=28; else if(ms<160&&v<392) v+=28;
+      if(v!==side){ side=v; try{ w.postMessage({type:'size',side}); }catch(e){} } }
+    function send(now){
+      if(!ready||busy||frozen||document.hidden||!video.videoWidth||now-last<period) return;
+      last=now; busy=true;
+      const vw=video.videoWidth,vh=video.videoHeight,ar=innerWidth/innerHeight;
+      let sw=vw,sh=vw/ar; if(sh>vh){ sh=vh; sw=vh*ar; }
+      const W=inW,H=Math.max(16,Math.round(inW/ar));
+      if(!inC){ inC=document.createElement('canvas'); inX=inC.getContext('2d',{willReadFrequently:true}); }
+      if(inC.width!==W||inC.height!==H){ inC.width=W; inC.height=H; }
+      try{
+        inX.save(); if(facing==='user'){ inX.translate(W,0); inX.scale(-1,1); }
+        inX.drawImage(video,(vw-sw)/2,(vh-sh)/2,sw,sh,0,0,W,H); inX.restore();
+        const buf=inX.getImageData(0,0,W,H).data.buffer.slice(0);
+        w.postMessage({type:'frame',buf,w:W,h:H},[buf]);
+      }catch(e){ busy=false; }
+    }
+    return {load,send,reload:()=>{ if(slot) load(slot); },period:()=>period};
+  })();
+
+  /* ── input ────────────────────────────────────────────────── */
+  function bindInput(){
+    const pts=new Map(); let d0=null,pan=false;
+    glc.addEventListener('pointerdown',e=>{
+      pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+      glc.setPointerCapture&&glc.setPointerCapture(e.pointerId);
+      pan=e.button===1||e.button===2||e.shiftKey;
+      glc.style.cursor='grabbing';
+      if(pts.size===2){ const p=[...pts.values()]; d0=Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y); }
+      $('hint').style.opacity='0';
+    });
+    glc.addEventListener('pointermove',e=>{
+      const p=pts.get(e.pointerId); if(!p) return;
+      const dx=e.clientX-p.x, dy=e.clientY-p.y; p.x=e.clientX; p.y=e.clientY;
+      if(pts.size===1){
+        if(pan){ view.tpx-=dx*0.004; view.tpy+=dy*0.004; }
+        else { view.tYaw=clamp(view.tYaw+dx*0.006,-6.5,6.5); view.tPitch=clamp(view.tPitch+dy*0.0045,-1.35,1.35); }
+      } else if(pts.size===2){
+        const q=[...pts.values()], d=Math.hypot(q[0].x-q[1].x,q[0].y-q[1].y);
+        if(d0){ view.tZoom=clamp(view.tZoom*(d/d0),0.2,7); d0=d; }
+      }
+    });
+    const up=e=>{ pts.delete(e.pointerId); if(pts.size<2) d0=null; if(!pts.size){ pan=false; glc.style.cursor='grab'; } };
+    ['pointerup','pointercancel','lostpointercapture'].forEach(v=>glc.addEventListener(v,up));
+    glc.addEventListener('contextmenu',e=>e.preventDefault());
+    glc.addEventListener('wheel',e=>{ e.preventDefault();
+      view.tZoom=clamp(view.tZoom*(e.deltaY>0?0.9:1.11),0.2,7); },{passive:false});
+    addEventListener('keydown',e=>{
+      if(e.target&&/input|textarea/i.test(e.target.tagName)) return;
+      if(e.code==='Space'){ e.preventDefault(); capture(); }
+      else if(e.key==='f'||e.key==='F') fit();
+      else if(e.key==='r'||e.key==='R'){ view.tYaw=0.35; view.tPitch=0.22; view.tZoom=1; view.tpx=view.tpy=0; }
+    });
+  }
+  function fit(){
+    if(accMode!=='none'&&cloudCount>20){
+      let mx=0;
+      for(let i=0;i<cloudCount;i++){ const x=cloudPos[i*3],y=cloudPos[i*3+1],z=cloudPos[i*3+2];
+        const r=Math.sqrt(x*x+y*y+z*z); if(r>mx) mx=r; }
+      view.tZoom=clamp(1.5/Math.max(0.2,mx/cropR),0.2,7);
+    } else view.tZoom=1;
+    view.tpx=view.tpy=0; view.tYaw=0.35; view.tPitch=0.22; toast('кадрування');
+  }
+
+  /* ── export ───────────────────────────────────────────────── */
+  function dl(blob,name){ const u=URL.createObjectURL(blob),a=document.createElement('a');
+    a.href=u; a.download=name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(u),4000); }
+  function stamp(){ const d=new Date(),p=n=>String(n).padStart(2,'0');
+    return d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'_'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds()); }
+  function frameGeo(){
+    const d=dArr[latest], px=lastPx||samplePixels(DW,DH);
+    const tan=Math.tan(FOV*Math.PI/360), ar=innerWidth/innerHeight, rng=farM-nearM, brk=shared.uBreak.value;
+    const N=DW*DH, P=new Float32Array(N*3), T=new Float32Array(N), ok=new Uint8Array(N);
+    for(let y=0,i=0;y<DH;y++)for(let x=0;x<DW;x++,i++){
+      const t=d[i*4], z=nearM+t*rng; T[i]=t;
+      P[i*3]=(x/DW-0.5)*2*tan*ar*z; P[i*3+1]=(0.5-y/DH)*2*tan*z; P[i*3+2]=-z;
+      ok[i]=(t<0.985||!cullFar)?1:0;
+    }
+    const F=[];
+    for(let y=0;y<DH-1;y++)for(let x=0;x<DW-1;x++){
+      const a=y*DW+x,b=a+1,c=a+DW+1,e=a+DW;
+      if(!(ok[a]&&ok[b]&&ok[c]&&ok[e])) continue;
+      if(Math.abs(T[a]-T[b])>brk||Math.abs(T[b]-T[c])>brk||Math.abs(T[c]-T[e])>brk||Math.abs(T[e]-T[a])>brk) continue;
+      F.push(a,b,c,a,c,e);
+    }
+    return {P,T,F,px,N};
+  }
+  function normalsFor(P,N,F){
+    const nr=new Float32Array(N*3);
+    for(let f=0;f<F.length;f+=3){
+      const a=F[f]*3,b=F[f+1]*3,c=F[f+2]*3;
+      const ux=P[b]-P[a],uy=P[b+1]-P[a+1],uz=P[b+2]-P[a+2];
+      const vx=P[c]-P[a],vy=P[c+1]-P[a+1],vz=P[c+2]-P[a+2];
+      const nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx;
+      nr[a]+=nx; nr[a+1]+=ny; nr[a+2]+=nz;
+      nr[b]+=nx; nr[b+1]+=ny; nr[b+2]+=nz;
+      nr[c]+=nx; nr[c+1]+=ny; nr[c+2]+=nz;
+    }
+    for(let i=0;i<N;i++){ const x=nr[i*3],y=nr[i*3+1],z=nr[i*3+2];
+      const L=Math.sqrt(x*x+y*y+z*z)||1; nr[i*3]=x/L; nr[i*3+1]=y/L; nr[i*3+2]=z/L; }
+    return nr;
+  }
+  function exportOBJ(){
+    if(!haveDepth){ toast('глибини ще немає'); return; }
+    const g=frameGeo(); if(!g.F.length){ toast('немає граней — послаб «розрив»'); return; }
+    const used=new Int32Array(g.N).fill(-1); let m=0;
+    for(let i=0;i<g.F.length;i++) if(used[g.F[i]]<0) used[g.F[i]]=m++;
+    const nr=normalsFor(g.P,g.N,g.F);
+    const V=new Array(m),NN=new Array(m);
+    for(let i=0;i<g.N;i++){ const j=used[i]; if(j<0) continue;
+      V[j]='v '+g.P[i*3].toFixed(4)+' '+g.P[i*3+1].toFixed(4)+' '+g.P[i*3+2].toFixed(4);
+      NN[j]='vn '+nr[i*3].toFixed(3)+' '+nr[i*3+1].toFixed(3)+' '+nr[i*3+2].toFixed(3); }
+    const F=[];
+    for(let f=0;f<g.F.length;f+=3){
+      const a=used[g.F[f]]+1,b=used[g.F[f+1]]+1,c=used[g.F[f+2]]+1;
+      F.push('f '+a+'//'+a+' '+b+'//'+b+' '+c+'//'+c);
+    }
+    dl(new Blob(['# DICH SPACE · метри\no space\n'+V.join('\n')+'\n'+NN.join('\n')+'\n'+F.join('\n')+'\n'],
+      {type:'text/plain'}),'DICH_mesh_'+stamp()+'.obj');
+    $('x-info').textContent=m+' вершин · '+(g.F.length/3)+' граней · '+nearM+'–'+farM+' м';
+    toast('OBJ збережено');
+  }
+  function exportPLY(){
+    if(!haveDepth){ toast('глибини ще немає'); return; }
+    const g=frameGeo();
+    const used=new Int32Array(g.N).fill(-1); let m=0;
+    for(let i=0;i<g.F.length;i++) if(used[g.F[i]]<0) used[g.F[i]]=m++;
+    if(!m){ toast('немає граней — послаб «розрив»'); return; }
+    const V=new Array(m);
+    for(let i=0;i<g.N;i++){ const j=used[i]; if(j<0) continue;
+      V[j]=g.P[i*3].toFixed(4)+' '+g.P[i*3+1].toFixed(4)+' '+g.P[i*3+2].toFixed(4)+' '+
+        g.px[i*4]+' '+g.px[i*4+1]+' '+g.px[i*4+2]; }
+    const F=[];
+    for(let f=0;f<g.F.length;f+=3) F.push('3 '+used[g.F[f]]+' '+used[g.F[f+1]]+' '+used[g.F[f+2]]);
+    dl(new Blob([plyHead(m,F.length)+V.join('\n')+'\n'+F.join('\n')+'\n'],{type:'application/octet-stream'}),
+      'DICH_mesh_'+stamp()+'.ply');
+    $('x-info').textContent=m+' вершин · '+F.length+' граней';
+    toast('PLY-меш збережено');
+  }
+  function plyHead(nv,nf){
+    return 'ply\nformat ascii 1.0\ncomment DICH SPACE metres\nelement vertex '+nv+
+      '\nproperty float x\nproperty float y\nproperty float z\nproperty uchar red\nproperty uchar green\nproperty uchar blue\n'+
+      'element face '+nf+'\nproperty list uchar int vertex_index\nend_header\n';
+  }
+  function exportCloud(){
+    if(!cloudCount){ toast('хмара порожня — увімкни Скан і захоплюй ракурси'); return; }
+    const v=new Array(cloudCount);
+    for(let i=0;i<cloudCount;i++)
+      v[i]=cloudPos[i*3].toFixed(4)+' '+cloudPos[i*3+1].toFixed(4)+' '+cloudPos[i*3+2].toFixed(4)+' '+
+        Math.round(cloudRGB[i*3]*255)+' '+Math.round(cloudRGB[i*3+1]*255)+' '+Math.round(cloudRGB[i*3+2]*255);
+    dl(new Blob([plyHead(cloudCount,0)+v.join('\n')+'\n'],{type:'application/octet-stream'}),'DICH_cloud_'+stamp()+'.ply');
+    $('x-info').textContent=cloudCount+' точок · воксель '+voxMM+' мм';
+    toast('хмару збережено');
+  }
+  function grabPNG(){ try{ glc.toBlob(b=>{ if(b){ dl(b,'DICH_'+stamp()+'.png'); toast('знімок збережено'); } },'image/png'); }
+    catch(e){ toast('не вдалося зберегти'); } }
+
+  /* ── freeze ───────────────────────────────────────────────── */
+  function captureFreeze(){
+    try{
+      if(!video.videoWidth) return;
+      if(!freezeCanvas) freezeCanvas=document.createElement('canvas');
+      const w=Math.min(1440,video.videoWidth), h=Math.round(w*video.videoHeight/video.videoWidth);
+      freezeCanvas.width=w; freezeCanvas.height=h;
+      freezeCanvas.getContext('2d').drawImage(video,0,0,w,h);
+      if(freezeTex) freezeTex.dispose();
+      freezeTex=new THREE.CanvasTexture(freezeCanvas);
+      freezeTex.minFilter=freezeTex.magFilter=THREE.LinearFilter; freezeTex.generateMipmaps=false;
+      shared.uTex.value=freezeTex;
+    }catch(e){}
+  }
+  let freezeMode='model';
+  function applyFreezeView(){
+    const base=+$('s-pt').value;
+    if(frozen&&freezeMode==='model'){ bgMat.uniforms.uOpacity.value=0; matC.uniforms.uSize.value=base+6; }
+    else { bgMat.uniforms.uOpacity.value=$('s-vid').value/100; matC.uniforms.uSize.value=base+2; }
+  }
+
+  /* ── loop ─────────────────────────────────────────────────── */
+  let fpsN=0,fpsT=0,prevT=0,pTick=0,pN=0,switched=false,lastPrev=0;
+  function loop(now){
+    requestAnimationFrame(loop);
+    const dt=now-(prevT||now); prevT=now;
+    if(!frozen){
+      if(src==='preview'){ if(now-lastPrev>33){ lastPrev=now; previewFrame(); maybeAuto(now); } }
+      else DEPTH.send(now);
+    }
+    if(shared.uMix.value<1) shared.uMix.value=Math.min(1,shared.uMix.value+dt/Math.max(120,DEPTH.period()*0.75));
+
+    if(accMode==='gyro'&&gyroOK&&!frozen){ updateQW(); liveGroup.quaternion.copy(qW); }
+    else liveGroup.quaternion.identity();
+
+    view.yaw+=(view.tYaw-view.yaw)*0.1; view.pitch+=(view.tPitch-view.pitch)*0.1;
+    view.zoom+=(view.tZoom-view.zoom)*0.12;
+    view.px+=(view.tpx-view.px)*0.12; view.py+=(view.tpy-view.py)*0.12;
+    const turn=accMode==='turn'&&(scanning||cloudCount>0);
+    const cx=view.px, cy=view.py, cz=turn?0:-(nearM+farM)*0.42;
+    const R=(turn?Math.max(cropR*2.4,0.8):(nearM+farM)*0.5)/view.zoom;
+    const cp=Math.cos(view.pitch);
+    cam.position.set(cx+Math.sin(view.yaw)*cp*R, cy+Math.sin(view.pitch)*R, cz+Math.cos(view.yaw)*cp*R);
+    cam.up.set(0,1,0); cam.lookAt(cx,cy,cz);
+
+    renderer.clear();
+    if(bgMat.uniforms.uOpacity.value>0.002) renderer.render(bgScene,bgCam);
+    renderer.clearDepth();
+    renderer.render(scene,cam);
+    if(pendingShot){ pendingShot=false; grabPNG(); }
+    fpsN++; if(now-fpsT>1000){ $('t-fps').textContent=fpsN; fpsN=0; fpsT=now; }
+    pN++;
+    if(now-pTick>2600){
+      const fps=pN/((now-pTick)/1000); pTick=now; pN=0;
+      if(procMode==='auto'&&curDev==='gpu'&&fps<26&&!switched&&src!=='preview'){
+        switched=true; forceCpu=true; DEPTH.reload(); toast('обробку перенесено на CPU');
+      }
+    }
+  }
+
+  /* ── wiring ───────────────────────────────────────────────── */
+  function tab(t){
+    ['d','v','s','x'].forEach(k=>$('tab-'+k).style.display=k===t?'block':'none');
+    document.querySelectorAll('.tabb').forEach(b=>{
+      const on=b.dataset.tab===t;
+      b.style.background=on?'rgba(255,255,255,.07)':'none';
+      b.style.color=on?'#F1F3F8':'#7d8496'; b.style.fontWeight=on?'600':'400'; });
+  }
+  document.querySelectorAll('.tabb').forEach(b=>b.onclick=()=>tab(b.dataset.tab));
+  tab('d');
+
+  seg('src-seg','s','preview',v=>{
+    src=v; gLo=gHi=null;
+    if(v==='preview'){ $('t-model').textContent='прев\u2019ю · без моделі';
+      $('d-model').style.background=ACC(); $('d-model').style.animation='none';
+      if(accMode!=='none') toast('для точності перемкни на модель'); }
+    else DEPTH.load(v);
+  });
+  seg('p-seg','p','auto',v=>{ procMode=v; forceCpu=false; switched=false; if(src!=='preview') DEPTH.reload(); });
+  seg('q-seg','q','1',v=>{ qLevel=+v; buildDepthTex(); buildGrid(); onResize(); haveDepth=false; });
+  seg('ar-seg','a','0',v=>{ autoRange=v==='1'; gLo=gHi=null; });
+  seg('sm-seg','sm','2',v=>{ smooth=+v; });
+  seg('cf-seg','cf','1',v=>{ cullFar=v==='1'; shared.uCullFar.value=cullFar?1:0; });
+  seg('m-seg','m','both',v=>{ dispMode=v; applyMode(); });
+  seg('pal-seg','p','0',v=>{
+    const p=PAL[+v];
+    uNearC.value.fromArray(p[0]); uMidC.value.fromArray(p[1]); uFarC.value.fromArray(p[2]);
+    const c=a=>'rgb('+a.map(x=>Math.round(x*255)).join(',')+')';
+    $('lbar').style.background='linear-gradient(180deg,'+c(p[0])+','+c(p[1])+','+c(p[2])+')';
+  });
+  seg('fz-seg','f','model',v=>{ freezeMode=v; applyFreezeView(); });
+  seg('c-seg','c','environment',async v=>{ facing=v; try{ await startCam(); updateBgScale(); }catch(e){} });
+  seg('auto-seg','au','0',v=>{ autoMs=+v; lastAuto=performance.now(); });
+  seg('acc-seg','ac','none',async v=>{
+    if(v==='gyro'){
+      const ok=await GYRO.request();
+      if(!ok){ toast('гіроскоп недоступний — це десктоп'); segSet('acc-seg','ac',accMode); return; }
+      qRef.copy(qDev); if(qRef.invert) qRef.invert(); else qRef.conjugate(); calibrated=true; qT.identity();
+    }
+    accMode=v; clearCloud();
+    $('p-ang').style.display=v==='turn'?'flex':'none';
+    $('p-cloud').style.display=v==='none'?'none':'flex';
+    if(v==='turn') toast('камера стоїть, об\u2019єкт обертається · Space = кадр');
+    if(v==='gyro') toast('стій на місці й повертайся');
+  });
+
+  const nnum=()=>{ nearM=clamp(parseFloat($('n-near').value)||0.6,0.05,60);
+    farM=clamp(parseFloat($('n-far').value)||6,nearM+0.1,200); applyRange(); };
+  $('n-near').onchange=nnum; $('n-far').onchange=nnum;
+  $('s-brk').oninput=e=>{ shared.uBreak.value=e.target.value/100; };
+  $('s-tmp').oninput=e=>{ tmpMix=e.target.value/100; };
+  $('s-tint').oninput=e=>{ matS.uniforms.uTint.value=e.target.value/100; matC.uniforms.uTint.value=e.target.value/100; };
+  $('s-lit').oninput=e=>{ shared.uLit.value=e.target.value/100; };
+  $('s-fog').oninput=e=>{ shared.uFog.value=e.target.value/100; matC.uniforms.uFog.value=e.target.value/100; };
+  $('s-vid').oninput=()=>applyFreezeView();
+  $('s-pt').oninput=e=>{ shared.uPointSize.value=+e.target.value; applyFreezeView(); };
+  $('s-boost').oninput=e=>{ matC.uniforms.uBoost.value=e.target.value/100; };
+  $('s-step').oninput=e=>{ stepDeg=+e.target.value; $('t-step').textContent=stepDeg+'°'; };
+  $('s-axis').oninput=e=>{ axisD=e.target.value/100; $('t-axis').textContent=axisD.toFixed(2)+' м'; };
+  $('s-rad').oninput=e=>{ cropR=e.target.value/100; $('t-rad').textContent=cropR.toFixed(2)+' м'; };
+  $('s-hgt').oninput=e=>{ cropH=e.target.value/100; $('t-hgt').textContent=cropH.toFixed(2)+' м'; };
+  $('s-vox').oninput=e=>{ voxMM=+e.target.value; $('t-vox').textContent=voxMM+' мм'; if(cloudCount) toast('розмір вокселя діє для нових кадрів'); };
+  $('b-ang-m').onclick=()=>{ theta-=stepDeg*Math.PI/180; showAng(); };
+  $('b-ang-p').onclick=()=>{ theta+=stepDeg*Math.PI/180; showAng(); };
+  $('b-ang-0').onclick=()=>{ theta=0; showAng(); };
+  $('b-clear').onclick=()=>{ clearCloud(); toast('хмару стерто'); };
+  $('b-clear2').onclick=()=>{ clearCloud(); toast('хмару стерто'); };
+  $('b-cap').onclick=()=>capture();
+  $('b-fit').onclick=()=>fit();
+  $('b-panel').onclick=()=>{ const p=$('panel'); const on=p.style.display!=='flex';
+    p.style.display=on?'flex':'none'; dock('b-panel',on); layoutDock(); };
+  $('b-scan').onclick=()=>{
+    if(accMode==='none'){ tab('s'); $('panel').style.display='flex'; dock('b-panel',true); layoutDock();
+      toast('обери спосіб накопичення'); return; }
+    scanning=!scanning; dockRec('b-scan',scanning);
+    if(scanning){ lastAuto=performance.now(); $('p-cloud').style.display='flex';
+      $('hint').textContent=accMode==='turn'
+        ?'повертай предмет на крок і тисни Space (або увімкни авто-захоплення)'
+        :'стій на місці й повільно повертайся навколо себе';
+      $('hint').style.display='block'; $('hint').style.opacity='1';
+      setTimeout(()=>{ $('hint').style.opacity='0'; },5200); toast('скан увімкнено');
+    } else toast('скан зупинено');
+  };
+  $('b-freeze').onclick=()=>{
+    frozen=!frozen; dock('b-freeze',frozen);
+    if(frozen) captureFreeze(); else shared.uTex.value=vTex;
+    applyFreezeView();
+    toast(frozen?'стоп-кадр · крути мишкою':'відтворення');
+  };
+  $('x-obj').onclick=exportOBJ; $('x-ply').onclick=exportPLY;
+  $('x-cloud').onclick=exportCloud; $('x-png').onclick=()=>{ pendingShot=true; };
+
+  $('go').onclick=async()=>{
+    const go=$('go'); go.disabled=true; go.style.opacity='.5'; $('err').textContent='';
+    try{ await startCam(); }
+    catch(e){ $('err').textContent='Камера недоступна: '+(e.message||e.name)+'. Дозволь доступ у налаштуваннях браузера.';
+      go.disabled=false; go.style.opacity='1'; return; }
+    $('start').style.display='none';
+    $('hud').style.display='flex'; $('dock').style.display='block';
+    $('panel').style.display='flex'; dock('b-panel',true); layoutDock();
+    $('hint').textContent='мишка — оберт · колесо — зум · Shift+тяга — панорама';
+    $('hint').style.display='block'; $('hint').style.opacity='1';
+    setTimeout(()=>{ $('hint').style.opacity='0'; },6000);
+    initGFX(); bindInput(); applyRange(); applyFreezeView(); showAng();
+    $('t-model').textContent='прев\u2019ю · без моделі';
+    $('d-model').style.background=ACC(); $('t-pts').textContent='0';
+    video.addEventListener('loadedmetadata',updateBgScale);
+    fpsT=pTick=performance.now(); requestAnimationFrame(loop);
+  };
+  }
+}
+</script>
+</body>
+</html>
