@@ -92,7 +92,7 @@ input[type=range]::-moz-range-thumb{width:17px;height:17px;border:none;border-ra
 <canvas id="gl"></canvas>
 
 <div id="hud">
-  <div class="pill"><span id="brand">DICH<i>·</i>SPACE</span></div>
+  <div class="pill"><span id="brand">DICH<i>·</i>ДИЧЬ</span></div>
   <div class="stats">
     <div class="pill" id="p-cloud"><span class="dot rec"></span><span class="val" id="t-pts">0</span>тчк</div>
     <div class="pill"><span class="dot" id="d-model"></span><span id="t-model">модель…</span></div>
@@ -124,6 +124,9 @@ input[type=range]::-moz-range-thumb{width:17px;height:17px;border:none;border-ra
   <div class="row"><div><div class="rn">Освітлення</div></div><input type="range" id="s-lit" min="0" max="100" value="72"></div>
   <div class="row"><div><div class="rn">Туман удалині</div></div><input type="range" id="s-fog" min="0" max="100" value="45"></div>
   <div class="row"><div><div class="rn">Відтінок палітри</div><div class="rd">0 = чисте відео, 100 = чиста схема</div></div><input type="range" id="s-tint" min="0" max="100" value="38"></div>
+  <div class="row"><div><div class="rn">У стоп-кадрі</div><div class="rd">що показувати після натискання Стоп</div></div>
+    <div class="seg" id="fz-seg"><button data-f="model" aria-pressed="true">Тільки модель</button><button data-f="all">Усе разом</button></div></div>
+  <div class="row"><div><div class="rn">Яскравість моделі</div></div><input type="range" id="s-boost" min="60" max="260" value="125"></div>
   <div class="row"><div><div class="rn">Крок накопичення</div><div class="rd">на скільки треба повернути телефон для нового ракурсу</div></div><input type="range" id="s-step" min="3" max="20" value="8"></div>
   <div class="row"><div><div class="rn">Обробка</div><div class="rd">CPU звільняє відеокарту для рендеру</div></div>
     <div class="seg" id="p-seg"><button data-p="gpu">GPU</button><button data-p="cpu">CPU</button><button data-p="auto" aria-pressed="true">Авто</button></div></div>
@@ -180,7 +183,7 @@ const PALETTES=[
 ];
 let qLevel=1, qAuto=true, procMode='auto', curDev='', forceCpu=false, dispMode='both';
 let scanning=false, frozen=false, gyroOK=false, stepDeg=8;
-let gMin=null, gMax=null, rangeLocked=false;
+let gMin=null, gMax=null, rangeLocked=false, freezeMode='model', calibrated=false;
 const worldMode=()=>gyroOK&&(scanning||cloudCount>0);
 
 let renderer,scene,cam,bgScene,bgCam,bgMat,matS,matL,matC,surf,lines,points,geoS,geoL;
@@ -190,6 +193,9 @@ let GW=0,GH=0,posAttr=null,zPrevAttr=null,zNextAttr=null,nrmAttr=null,idxL=null,
 let facing='environment', stream=null, pendingShot=false, vTex=null;
 const view={yaw:0,pitch:0,roll:0,zoom:1,tYaw:0,tPitch:0,tRoll:0,tZoom:1,drift:0};
 const qDev=new THREE.Quaternion(), qLast=new THREE.Quaternion(), qTmp=new THREE.Quaternion();
+const qRef=new THREE.Quaternion(), qW=new THREE.Quaternion();
+function calibrate(){ qRef.copy(qDev); if(qRef.invert)qRef.invert(); else qRef.conjugate(); calibrated=true; }
+function updateQW(){ if(calibrated) qW.copy(qRef).multiply(qDev); else qW.copy(qDev); }
 const vTmp=new THREE.Vector3();
 
 let toastT=null;
@@ -280,12 +286,12 @@ uniform vec3 uBg;
 varying float vFog; varying vec3 vDep; varying float vLight;
 void main(){ gl_FragColor=vec4(mix(vDep,uBg,vFog),1.0); }`;
 const CLOUD_VERT=`
-uniform float uSize,uTint,uFog; uniform vec3 uNear,uFar;
+uniform float uSize,uTint,uFog,uBoost; uniform vec3 uNear,uFar;
 attribute float aT; attribute vec3 aRGB;
 varying vec3 vC; varying float vF;
 void main(){
   vec4 mv=modelViewMatrix*vec4(position,1.0);
-  vC=mix(aRGB,mix(uNear,uFar,aT),uTint);
+  vC=mix(aRGB,mix(uNear,uFar,aT),uTint)*uBoost;
   vF=clamp(aT*uFog,0.0,1.0);
   gl_PointSize=uSize/max(0.35,-mv.z);
   gl_Position=projectionMatrix*mv;
@@ -325,7 +331,7 @@ function initGFX(){
   matL=new THREE.ShaderMaterial({uniforms:Object.assign({},shared,{uPointSize:{value:11}}),
     vertexShader:LINE_VERT,fragmentShader:LINE_FRAG});
   matC=new THREE.ShaderMaterial({uniforms:{uSize:{value:13},uTint:{value:0.38},uFog:{value:0.45},
-      uNear:uNearV,uFar:uFarV,uBg:{value:BGC}},
+      uBoost:{value:1.25},uNear:uNearV,uFar:uFarV,uBg:{value:BGC}},
     vertexShader:CLOUD_VERT,fragmentShader:CLOUD_FRAG});
 
   liveGroup=new THREE.Group(); scene.add(liveGroup);
@@ -447,7 +453,7 @@ function accumulate(){
       const i=y*GW+x, z0=zn[i], t=clamp((z0-ZNEAR)/ZRANGE,0,1);
       if(t>0.965) continue;                       // «нескінченність» не накопичуємо
       const z=ZNEAR+(z0-ZNEAR)*k;
-      vTmp.set((x/(GW-1)-0.5)*2*tan*aspect*z,(0.5-y/(GH-1))*2*tan*z,-z).applyQuaternion(qDev);
+      vTmp.set((x/(GW-1)-0.5)*2*tan*aspect*z,(0.5-y/(GH-1))*2*tan*z,-z).applyQuaternion(qW);
       cloudPos[n*3]=vTmp.x; cloudPos[n*3+1]=vTmp.y; cloudPos[n*3+2]=vTmp.z;
       cloudRGB[n*3]=px[i*4]/255; cloudRGB[n*3+1]=px[i*4+1]/255; cloudRGB[n*3+2]=px[i*4+2]/255;
       cloudT[n]=t; n++;
@@ -464,8 +470,9 @@ function accumulate(){
 }
 function maybeAccumulate(){
   if(!scanning||frozen||!gyroOK||!haveDepth) return;
-  if(cloudCount===0){ accumulate(); qLast.copy(qDev); return; }
-  if(qDev.angleTo(qLast)>THREE.MathUtils.degToRad(stepDeg)){ accumulate(); qLast.copy(qDev); }
+  updateQW();
+  if(cloudCount===0){ accumulate(); qLast.copy(qW); return; }
+  if(qW.angleTo(qLast)>THREE.MathUtils.degToRad(stepDeg)){ accumulate(); qLast.copy(qW); }
 }
 function clearCloud(){ cloudCount=0; cloudGeo.setDrawRange(0,0); $('t-pts').textContent='0'; }
 
@@ -637,12 +644,13 @@ function loop(now){
     syncU('uT',Math.min(1,matS.uniforms.uT.value+dt/Math.max(200,DEPTH.period()*0.8)));
 
   const wm=worldMode();
-  if(wm){ if(!frozen) liveGroup.quaternion.copy(qDev); }
+  if(wm) updateQW();
+  if(wm){ if(!frozen) liveGroup.quaternion.copy(qW); }
   else liveGroup.quaternion.identity();          // без світового режиму сітка не крутиться
 
   if(wm&&!frozen){
     // вигляд «крізь телефон»: камера повторює орієнтацію пристрою
-    cam.position.set(0,0,0); cam.quaternion.copy(qDev);
+    cam.position.set(0,0,0); cam.quaternion.copy(qW);
   } else {
     view.drift+=0.0015;
     view.yaw+=((view.tYaw+Math.sin(view.drift)*0.04)-view.yaw)*0.09;
@@ -714,23 +722,38 @@ function exportFrame(){
 }
 
 /* ─────────── UI ─────────── */
-$('b-video').onclick=e=>{ const b=e.currentTarget, on=!b.classList.contains('on');
-  b.classList.toggle('on',on); bgMat.uniforms.uOpacity.value=on?($('s-vid').value/100):0; };
+$('b-video').onclick=e=>{ const b=e.currentTarget; b.classList.toggle('on',!b.classList.contains('on')); applyFreezeView(); };
 $('b-mode').onclick=()=>{ dispMode=dispMode==='both'?'wire':dispMode==='wire'?'surf':'both'; applyMode(); };
 $('b-scan').onclick=async e=>{
   const b=e.currentTarget;
   if(!scanning){
     if(!gyroOK){ const ok=await GYRO.request();
       if(!ok){ toast('гіроскоп недоступний — накопичення вимкнено'); return; } }
-    scanning=true; frozen=false; rangeLocked=true; b.classList.add('rec'); $('b-freeze').classList.remove('on');
+    scanning=true; frozen=false; rangeLocked=true; calibrate(); qLast.identity();
+    b.classList.add('rec'); $('b-freeze').classList.remove('on'); applyFreezeView();
     $('p-cloud').style.display='flex';
     $('hint').textContent='стій на місці й повільно повертайся · працює для кімнати, не для предмета зблизька'; $('hint').style.display='block'; $('hint').style.opacity='1';
     setTimeout(()=>{ $('hint').style.opacity='0'; },5000);
     toast('скан увімкнено');
   } else { scanning=false; rangeLocked=false; b.classList.remove('rec'); toast('скан зупинено'); }
 };
+function applyFreezeView(){
+  const modelOnly = frozen && cloudCount>0 && freezeMode==='model';
+  const base=+$('s-pt').value;
+  if(modelOnly){
+    bgMat.uniforms.uOpacity.value=0;              // геть відео
+    liveGroup.visible=false;                      // геть живу сітку — лишається сама модель
+    matC.uniforms.uSize.value=base+7;
+  } else {
+    liveGroup.visible=true;
+    bgMat.uniforms.uOpacity.value=$('b-video').classList.contains('on')?($('s-vid').value/100):0;
+    matC.uniforms.uSize.value=base+2;
+  }
+}
 $('b-freeze').onclick=e=>{ frozen=!frozen; e.currentTarget.classList.toggle('on',frozen);
-  if(frozen){ view.tYaw=0; view.tPitch=0; view.tZoom=1; toast('стоп-кадр · крути пальцем'); } else toast('відтворення'); };
+  applyFreezeView();
+  if(frozen){ view.tYaw=0; view.tPitch=0; view.tZoom=1;
+    toast(cloudCount>0?'модель · крути пальцем':'стоп-кадр'); } else toast('відтворення'); };
 $('b-cfg').onclick=()=>$('sheet').classList.add('show');
 $('b-exp').onclick=()=>$('xsheet').classList.add('show');
 document.querySelectorAll('.s-close').forEach(b=>b.onclick=()=>{
@@ -747,8 +770,11 @@ $('s-lit').oninput=e=>syncU('uLit',e.target.value/100);
 $('s-fog').oninput=e=>syncU('uFog',e.target.value/100);
 $('s-tint').oninput=e=>{ const v=e.target.value/100; matS.uniforms.uTint.value=v; matC.uniforms.uTint.value=v; };
 $('s-step').oninput=e=>{ stepDeg=+e.target.value; };
-$('s-vid').oninput=e=>{ if($('b-video').classList.contains('on')) bgMat.uniforms.uOpacity.value=e.target.value/100; };
-$('s-pt').oninput=e=>{ matL.uniforms.uPointSize.value=+e.target.value; matC.uniforms.uSize.value=+e.target.value+2; };
+$('s-boost').oninput=e=>{ matC.uniforms.uBoost.value=e.target.value/100; };
+document.querySelectorAll('#fz-seg button').forEach(b=>b.onclick=()=>{
+  freezeMode=b.dataset.f; syncSeg('fz-seg','f',freezeMode); applyFreezeView(); });
+$('s-vid').oninput=()=>applyFreezeView();
+$('s-pt').oninput=e=>{ matL.uniforms.uPointSize.value=+e.target.value; applyFreezeView(); };
 document.querySelectorAll('#pal-seg button').forEach(b=>b.onclick=()=>{
   const p=PALETTES[+b.dataset.p]; syncSeg('pal-seg','p',b.dataset.p);
   uNearV.value.fromArray(p[0]); uFarV.value.fromArray(p[1]);
