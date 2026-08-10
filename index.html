@@ -180,6 +180,8 @@ const PALETTES=[
 ];
 let qLevel=1, qAuto=true, procMode='auto', curDev='', forceCpu=false, dispMode='both';
 let scanning=false, frozen=false, gyroOK=false, stepDeg=8;
+let gMin=null, gMax=null, rangeLocked=false;
+const worldMode=()=>gyroOK&&(scanning||cloudCount>0);
 
 let renderer,scene,cam,bgScene,bgCam,bgMat,matS,matL,matC,surf,lines,points,geoS,geoL;
 let liveGroup=null, cloud=null, cloudGeo=null, cpAttr=null, crAttr=null, ctAttr=null;
@@ -488,8 +490,13 @@ self.onmessage=async e=>{const m=e.data;
  } else if(m.type==='frame'&&est){
   const t0=performance.now();
   try{ const img=new RI(new Uint8ClampedArray(m.buf),m.w,m.h,4);
-   const o=await est(img),d=o.depth,b=d.data.buffer.slice(0);
-   postMessage({type:'depth',buf:b,w:d.width,h:d.height,ms:performance.now()-t0},[b]);
+   const o=await est(img); let sent=false;
+   try{ const pd=o.predicted_depth;
+    if(pd&&pd.data&&pd.dims){ const dm=pd.dims, rh=dm[dm.length-2], rw=dm[dm.length-1];
+      const f=new Float32Array(pd.data), b=f.buffer;
+      postMessage({type:'depth',raw:1,buf:b,w:rw,h:rh,ms:performance.now()-t0},[b]); sent=true; } }catch(_){}
+   if(!sent){ const d=o.depth,b=d.data.buffer.slice(0);
+     postMessage({type:'depth',raw:0,buf:b,w:d.width,h:d.height,ms:performance.now()-t0},[b]); }
   }catch(err){ postMessage({type:'error',msg:String(err)}); }
  }};`;
 
@@ -510,7 +517,8 @@ const DEPTH=(()=>{
       if(m.type==='ready'){ ready=true; curDev=m.dev; st(m.dev==='gpu'?'GPU':'CPU','ok');
         side=m.dev==='gpu'?196:154; inW=m.dev==='gpu'?192:160; }
       else if(m.type==='depth'){ busy=false; $('t-ms').textContent=Math.round(m.ms);
-        period=clamp(m.ms*1.05,260,2400); adaptSide(m.ms); ingest(new Uint8ClampedArray(m.buf),m.w,m.h); }
+        period=clamp(m.ms*1.05,260,2400); adaptSide(m.ms);
+        ingest(m.raw?new Float32Array(m.buf):new Uint8ClampedArray(m.buf),m.w,m.h,!!m.raw); }
       else if(m.type==='error'){ busy=false; if(!ready) st('недоступно','bad'); }
     };
     w.onerror=()=>{ if(!ready) st('помилка','bad'); };
@@ -536,15 +544,21 @@ const DEPTH=(()=>{
       w.postMessage({type:'frame',buf,w:W,h:H},[buf]);
     }catch(e){ busy=false; }
   }
-  function ingest(data,dw,dh){
+  function ingest(data,dw,dh,isRaw){
     const zp=zPrevAttr.array, zn=zNextAttr.array, t=matS.uniforms.uT.value;
     for(let i=0;i<zp.length;i++) zp[i]+=(zn[i]-zp[i])*t;
-    let mn=255,mx=0;
+    let mn=Infinity,mx=-Infinity;
     for(let i=0;i<data.length;i++){ const v=data[i]; if(v<mn)mn=v; if(v>mx)mx=v; }
-    const rng=(mx-mn)||1;
+    // ЄДИНА шкала на сесію: інакше кожен ракурс мав би свій масштаб і хмара розсипалась
+    if(!isRaw||gMin===null){ gMin=mn; gMax=mx; }
+    else if(!rangeLocked){
+      gMin=Math.min(gMin,mn); gMax=Math.max(gMax,mx);
+      gMin=gMin*0.96+mn*0.04; gMax=gMax*0.96+mx*0.04;
+    }
+    const lo=gMin, rng=(gMax-gMin)||1;
     for(let y=0;y<GH;y++){ const sy=Math.min(dh-1,(y*dh/GH)|0);
       for(let x=0;x<GW;x++){ const sx=Math.min(dw-1,(x*dw/GW)|0);
-        zn[y*GW+x]=ZNEAR+(1-(data[sy*dw+sx]-mn)/rng)*ZRANGE; } }
+        zn[y*GW+x]=ZNEAR+(1-clamp((data[sy*dw+sx]-lo)/rng,0,1))*ZRANGE; } }
     const iL=idxL.array; let k=0;
     for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){
       const i=y*GW+x;
@@ -622,9 +636,11 @@ function loop(now){
   if(haveDepth&&matS.uniforms.uT.value<1)
     syncU('uT',Math.min(1,matS.uniforms.uT.value+dt/Math.max(200,DEPTH.period()*0.8)));
 
-  if(gyroOK&&!frozen) liveGroup.quaternion.copy(qDev);
+  const wm=worldMode();
+  if(wm){ if(!frozen) liveGroup.quaternion.copy(qDev); }
+  else liveGroup.quaternion.identity();          // без світового режиму сітка не крутиться
 
-  if(gyroOK&&scanning&&!frozen){
+  if(wm&&!frozen){
     // вигляд «крізь телефон»: камера повторює орієнтацію пристрою
     cam.position.set(0,0,0); cam.quaternion.copy(qDev);
   } else {
@@ -633,7 +649,7 @@ function loop(now){
     view.pitch+=((view.tPitch+Math.cos(view.drift*0.7)*0.025)-view.pitch)*0.09;
     view.roll+=(view.tRoll-view.roll)*0.10;
     view.zoom+=(view.tZoom-view.zoom)*0.12;
-    const orbitOrigin=(cloudCount>0);
+    const orbitOrigin=wm;
     const R0=orbitOrigin?ZRANGE*0.9:ZNEAR+ZRANGE*0.45;
     const px=orbitOrigin?0:0, pz=orbitOrigin?0:-(ZNEAR+ZRANGE*0.45);
     const R=R0/view.zoom, cp=Math.cos(view.pitch);
@@ -706,12 +722,12 @@ $('b-scan').onclick=async e=>{
   if(!scanning){
     if(!gyroOK){ const ok=await GYRO.request();
       if(!ok){ toast('гіроскоп недоступний — накопичення вимкнено'); return; } }
-    scanning=true; frozen=false; b.classList.add('rec'); $('b-freeze').classList.remove('on');
+    scanning=true; frozen=false; rangeLocked=true; b.classList.add('rec'); $('b-freeze').classList.remove('on');
     $('p-cloud').style.display='flex';
-    $('hint').textContent='повільно повертайся навколо себе'; $('hint').style.display='block'; $('hint').style.opacity='1';
+    $('hint').textContent='стій на місці й повільно повертайся · працює для кімнати, не для предмета зблизька'; $('hint').style.display='block'; $('hint').style.opacity='1';
     setTimeout(()=>{ $('hint').style.opacity='0'; },5000);
     toast('скан увімкнено');
-  } else { scanning=false; b.classList.remove('rec'); toast('скан зупинено'); }
+  } else { scanning=false; rangeLocked=false; b.classList.remove('rec'); toast('скан зупинено'); }
 };
 $('b-freeze').onclick=e=>{ frozen=!frozen; e.currentTarget.classList.toggle('on',frozen);
   if(frozen){ view.tYaw=0; view.tPitch=0; view.tZoom=1; toast('стоп-кадр · крути пальцем'); } else toast('відтворення'); };
