@@ -63,6 +63,18 @@ video{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
   border-radius:8px;background:var(--amber);color:#03150c;font-size:9px;
   line-height:16px;font-family:var(--mono);font-weight:700}
 #serN:empty{display:none}
+/* Коли є що збирати, кнопка міняє сенс — і має це показувати сама,
+   бо підказку внизу цикл рендера перезаписує щопівсекунди. */
+.dk.ready{border-color:var(--amber);color:#03150c;background:var(--amber)}
+.dk.ready #serN{background:#03150c;color:var(--amber)}
+#serline{position:absolute;z-index:6;left:0;right:0;
+  bottom:calc(env(safe-area-inset-bottom) + 78px);
+  display:none;justify-content:center;pointer-events:none}
+#serline.on{display:flex}
+#serline span{background:rgba(4,14,9,.86);border:1px solid rgba(255,193,60,.4);
+  color:var(--amber);border-radius:999px;padding:7px 14px;
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;
+  backdrop-filter:blur(8px)}
 .dk.on{border-color:rgba(106,213,130,.62);color:var(--hot);background:rgba(0,49,30,.72)}
 .dk.shot{width:60px;height:60px;margin:-6px 1px 0;
   border-color:rgba(255,193,60,.55);color:var(--amber)}
@@ -225,6 +237,7 @@ input[type=range]::-moz-range-thumb{width:17px;height:17px;border:0;border-radiu
     <button class="vb" id="paRe">ЩЕ РАЗ</button>
   </div>
   <button class="vb" id="pClose" style="margin-top:14px">✕ ЗАКРИТИ</button></div>
+<div id="serline"><span></span></div>
 <div id="hintline">Фіксація спить</div>
 
 <div id="boot">
@@ -2464,9 +2477,28 @@ function acceptFrame(f){
   SER.lastT = performance.now();
   seriesBadge();
 }
+function plural(n, one, few, many){
+  const a = n % 100, b = n % 10;
+  return n + ' ' + (a > 10 && a < 20 ? many : b === 1 ? one : b >= 2 && b <= 4 ? few : many);
+}
+/* Стан серії живе окремим рядком: загальні підказки про фіксацію
+   переписуються з циклу рендера і затерли б його за пів секунди. */
 function seriesBadge(){
   const b = document.getElementById('serN');
   if (b) b.textContent = SER.shots || '';
+  const btn = document.getElementById('dSer');
+  if (btn){
+    btn.classList.toggle('on', SER.on);
+    btn.classList.toggle('ready', SER.on && SER.shots > 0);
+    btn.setAttribute('aria-label', !SER.on ? 'Серія'
+      : SER.shots ? 'Зібрати модель' : 'Скасувати серію');
+  }
+  const line = document.getElementById('serline');
+  if (!line) return;
+  line.classList.toggle('on', SER.on && !VP.on);
+  line.firstElementChild.textContent = !SER.shots
+    ? 'СЕРІЯ · ТИСНИ КАДР'
+    : plural(SER.shots, 'КАДР', 'КАДРИ', 'КАДРІВ') + ' · ТАП ПО СЕРІЇ = ЗІБРАТИ';
 }
 
 function seriesStart(){
@@ -2474,13 +2506,10 @@ function seriesStart(){
   SER.ref = null; SER.hash = null; SER.pending = null; SER.pendMap = null;
   SER.cell = 0; SER.lastT = 0;
   simReset();
-  document.getElementById('dSer').classList.add('on');
   seriesBadge();
-  hint('Серія: тисни КАДР. Тапни СЕРІЮ ще раз, щоб зібрати', true);
 }
 function seriesStop(){
-  SER.on = false; SER.pending = null; SER.pendMap = null;
-  document.getElementById('dSer').classList.remove('on');
+  SER.on = false; SER.shots = 0; SER.pending = null; SER.pendMap = null;
   document.getElementById('pact').style.display = 'none';
   seriesBadge();
 }
@@ -3278,6 +3307,7 @@ function setPanel(on, tab){
 /* Док і панель вьюпорта живуть на одному місці й міняються місцями. */
 function setDock(viewer){
   document.getElementById('dock').classList.toggle('off', viewer);
+  document.getElementById('serline').classList.toggle('on', SER.on && !viewer);
   document.getElementById('vbar').classList.toggle('on', viewer);
   document.getElementById('top').style.display = viewer ? 'none' : 'flex';
   document.getElementById('hintline').style.display = viewer ? 'none' : 'block';
