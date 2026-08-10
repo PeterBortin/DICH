@@ -92,7 +92,7 @@ input[type=range]::-moz-range-thumb{width:17px;height:17px;border:none;border-ra
 <canvas id="gl"></canvas>
 
 <div id="hud">
-  <div class="pill"><span id="brand">DICH<i>·</i>ДИЧЬ</span></div>
+  <div class="pill"><span id="brand">DICH<i>·</i>SPACE</span></div>
   <div class="stats">
     <div class="pill" id="p-cloud"><span class="dot rec"></span><span class="val" id="t-pts">0</span>тчк</div>
     <div class="pill"><span class="dot" id="d-model"></span><span id="t-model">модель…</span></div>
@@ -116,6 +116,8 @@ input[type=range]::-moz-range-thumb{width:17px;height:17px;border:none;border-ra
 
 <div id="sheet" class="sheet">
   <h2>Налаштування <button class="s-close">Готово</button></h2>
+  <div class="row"><div><div class="rn">Глибина</div><div class="rd">швидко = рельєф прямо з кадру, 60 fps · точно = нейромодель, повільніше</div></div>
+    <div class="seg" id="src-seg"><button data-s="fast" aria-pressed="true">Швидко</button><button data-s="neural">Точно</button></div></div>
   <div class="row"><div><div class="rn">Палітра</div></div>
     <div class="seg" id="pal-seg"><button data-p="0" aria-pressed="true">Лайм</button><button data-p="1">Термо</button><button data-p="2">Лід</button><button data-p="3">Моно</button></div></div>
   <div class="row"><div><div class="rn">Режим</div><div class="rd">поверхня закриває розриви між обʼєктом і фоном</div></div>
@@ -184,6 +186,7 @@ const PALETTES=[
 let qLevel=1, qAuto=true, procMode='auto', curDev='', forceCpu=false, dispMode='both';
 let scanning=false, frozen=false, gyroOK=false, stepDeg=8;
 let gMin=null, gMax=null, rangeLocked=false, freezeMode='model', calibrated=false;
+let depthSrc='fast', fastNeedsIndex=true, fastFrame=0;
 const worldMode=()=>gyroOK&&(scanning||cloudCount>0);
 
 let renderer,scene,cam,bgScene,bgCam,bgMat,matS,matL,matC,surf,lines,points,geoS,geoL;
@@ -263,7 +266,7 @@ void main(){
   float d1=max(0.0,dot(n,normalize(vec3(0.42,0.56,0.72))));
   float face=abs(n.z);
   vLight=mix(1.0, 0.18+0.52*d1+0.34*face, uLit);
-  vec2 uvv=(g-0.5)*uScale+0.5;
+  vec2 uvv=(vec2(g.x,1.0-g.y)-0.5)*uScale+0.5;   // V у WebGL іде знизу вгору
   if(uMirror>0.5) uvv.x=1.0-uvv.x;
   vTex=uvv;
   gl_Position=projectionMatrix*mv;
@@ -386,7 +389,7 @@ function buildGrid(){
   points=new THREE.Points(geoL,matL); points.frustumCulled=false;
   points.visible=(document.querySelector('#pt-seg button[data-t="1"]').getAttribute('aria-pressed')==='true');
   liveGroup.add(points);
-  haveDepth=false; applyMode();
+  haveDepth=false; fastNeedsIndex=true; applyMode();
 }
 function applyMode(){
   if(!surf) return;
@@ -428,6 +431,48 @@ function computeNormals(){
     nrm[i*3]=nx; nrm[i*3+1]=ny; nrm[i*3+2]=nz;
   }
   nrmAttr.needsUpdate=true;
+}
+
+/* ─────────── ШВИДКЕ джерело глибини: рельєф прямо з кадру (без моделі) ─────────── */
+let fastC=null,fastX=null,lastFast=0;
+function buildFullIndex(){
+  const iL=idxL.array; let k=0;
+  for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){
+    const i=y*GW+x;
+    if(x<GW-1){ iL[k++]=i; iL[k++]=i+1; }
+    if(y<GH-1){ iL[k++]=i; iL[k++]=i+GW; }
+  }
+  geoL.setDrawRange(0,k); idxL.needsUpdate=true;
+  const iS=idxS.array; let s2=0;
+  for(let y=0;y<GH-1;y++)for(let x=0;x<GW-1;x++){
+    const a=y*GW+x,b=a+1,c=a+GW+1,d=a+GW;
+    iS[s2++]=a; iS[s2++]=b; iS[s2++]=c; iS[s2++]=a; iS[s2++]=c; iS[s2++]=d;
+  }
+  geoS.setDrawRange(0,s2); idxS.needsUpdate=true;
+}
+function ingestFast(now){
+  if(frozen||!video.videoWidth||now-lastFast<30) return; lastFast=now;
+  if(!fastC){ fastC=document.createElement('canvas'); fastX=fastC.getContext('2d',{willReadFrequently:true}); }
+  if(fastC.width!==GW||fastC.height!==GH){ fastC.width=GW; fastC.height=GH; fastNeedsIndex=true; }
+  const vw=video.videoWidth,vh=video.videoHeight,ar=innerWidth/innerHeight;
+  let sw=vw,sh=vw/ar; if(sh>vh){ sh=vh; sw=vh*ar; }
+  try{
+    fastX.save(); if(facing==='user'){ fastX.translate(GW,0); fastX.scale(-1,1); }
+    fastX.drawImage(video,(vw-sw)/2,(vh-sh)/2,sw,sh,0,0,GW,GH); fastX.restore();
+    const d=fastX.getImageData(0,0,GW,GH).data;
+    const zn=zNextAttr.array, zp=zPrevAttr.array;
+    for(let i=0;i<zn.length;i++){
+      const l=(d[i*4]*0.299+d[i*4+1]*0.587+d[i*4+2]*0.114)/255;
+      zn[i]=zn[i]*0.62+(ZNEAR+(1-l)*ZRANGE)*0.38;   // мʼяке згладжування в часі
+      zp[i]=zn[i];
+    }
+    zPrevAttr.needsUpdate=true; zNextAttr.needsUpdate=true;
+    syncU('uT',1); haveDepth=true;
+    if(fastNeedsIndex){ buildFullIndex(); fastNeedsIndex=false; }
+    if(((fastFrame++)&1)===0) computeNormals();
+    if($('legend').style.display!=='flex') $('legend').style.display='flex';
+    $('t-ms').textContent='0';
+  }catch(e){}
 }
 
 /* ─────────── накопичення ракурсів ─────────── */
@@ -639,8 +684,8 @@ let fpsN=0,fpsT=0,prevT=0;
 function loop(now){
   requestAnimationFrame(loop);
   const dt=now-(prevT||now); prevT=now;
-  DEPTH.send(now);
-  if(haveDepth&&matS.uniforms.uT.value<1)
+  if(depthSrc==='fast') ingestFast(now); else DEPTH.send(now);
+  if(depthSrc!=='fast'&&haveDepth&&matS.uniforms.uT.value<1)
     syncU('uT',Math.min(1,matS.uniforms.uT.value+dt/Math.max(200,DEPTH.period()*0.8)));
 
   const wm=worldMode();
@@ -727,6 +772,7 @@ $('b-mode').onclick=()=>{ dispMode=dispMode==='both'?'wire':dispMode==='wire'?'s
 $('b-scan').onclick=async e=>{
   const b=e.currentTarget;
   if(!scanning){
+    if(depthSrc==='fast'){ toast('накопичення працює в режимі «Точно»'); return; }
     if(!gyroOK){ const ok=await GYRO.request();
       if(!ok){ toast('гіроскоп недоступний — накопичення вимкнено'); return; } }
     scanning=true; frozen=false; rangeLocked=true; calibrate(); qLast.identity();
@@ -738,14 +784,12 @@ $('b-scan').onclick=async e=>{
   } else { scanning=false; rangeLocked=false; b.classList.remove('rec'); toast('скан зупинено'); }
 };
 function applyFreezeView(){
-  const modelOnly = frozen && cloudCount>0 && freezeMode==='model';
   const base=+$('s-pt').value;
-  if(modelOnly){
-    bgMat.uniforms.uOpacity.value=0;              // геть відео
-    liveGroup.visible=false;                      // геть живу сітку — лишається сама модель
+  liveGroup.visible=true;                          // застиглий меш і Є модель — його видно завжди
+  if(frozen&&freezeMode==='model'){
+    bgMat.uniforms.uOpacity.value=0;               // темний фон для контрасту
     matC.uniforms.uSize.value=base+7;
   } else {
-    liveGroup.visible=true;
     bgMat.uniforms.uOpacity.value=$('b-video').classList.contains('on')?($('s-vid').value/100):0;
     matC.uniforms.uSize.value=base+2;
   }
@@ -771,6 +815,12 @@ $('s-fog').oninput=e=>syncU('uFog',e.target.value/100);
 $('s-tint').oninput=e=>{ const v=e.target.value/100; matS.uniforms.uTint.value=v; matC.uniforms.uTint.value=v; };
 $('s-step').oninput=e=>{ stepDeg=+e.target.value; };
 $('s-boost').oninput=e=>{ matC.uniforms.uBoost.value=e.target.value/100; };
+document.querySelectorAll('#src-seg button').forEach(b=>b.onclick=()=>{
+  depthSrc=b.dataset.s; syncSeg('src-seg','s',depthSrc); fastNeedsIndex=true;
+  if(depthSrc==='fast'){ $('t-model').textContent='ШВИДКО'; $('d-model').className='dot ok';
+    if(scanning){ scanning=false; $('b-scan').classList.remove('rec'); } }
+  else { $('t-model').textContent='модель…'; $('d-model').className='dot load'; DEPTH.init(); }
+  toast(depthSrc==='fast'?'швидкий режим · рельєф із кадру':'нейромодель'); });
 document.querySelectorAll('#fz-seg button').forEach(b=>b.onclick=()=>{
   freezeMode=b.dataset.f; syncSeg('fz-seg','f',freezeMode); applyFreezeView(); });
 $('s-vid').oninput=()=>applyFreezeView();
@@ -799,7 +849,9 @@ $('go').onclick=async()=>{
   $('start').style.display='none';
   $('hud').style.display='flex'; $('dock').style.display='flex'; $('hint').style.display='block';
   setTimeout(()=>{ $('hint').style.opacity='0'; },7000);
-  initGFX(); bindTouch(); DEPTH.init();
+  initGFX(); bindTouch();
+  if(depthSrc==='fast'){ $('t-model').textContent='ШВИДКО'; $('d-model').className='dot ok'; }
+  else DEPTH.init();
   video.addEventListener('loadedmetadata',updateBgScale);
   fpsT=PERF.t0=performance.now(); requestAnimationFrame(loop);
 };
