@@ -119,7 +119,7 @@ input[type=range]::-moz-range-thumb{width:17px;height:17px;border:none;border-ra
   <div class="row"><div><div class="rn">Глибина</div><div class="rd">швидко = рельєф прямо з кадру, 60 fps · точно = нейромодель, повільніше</div></div>
     <div class="seg" id="src-seg"><button data-s="fast" aria-pressed="true">Швидко</button><button data-s="neural">Точно</button></div></div>
   <div class="row"><div><div class="rn">Палітра</div></div>
-    <div class="seg" id="pal-seg"><button data-p="0" aria-pressed="true">Лайм</button><button data-p="1">Термо</button><button data-p="2">Лід</button><button data-p="3">Моно</button></div></div>
+    <div class="seg" id="pal-seg"><button data-p="0" aria-pressed="true">Лайм</button><button data-p="1">Термо</button><button data-p="2">Лід</button><button data-p="3">Моно</button><button data-p="4">Тепло</button></div></div>
   <div class="row"><div><div class="rn">Режим</div><div class="rd">поверхня закриває розриви між обʼєктом і фоном</div></div>
     <div class="seg" id="m-seg"><button data-m="wire">Каркас</button><button data-m="surf">Поверхня</button><button data-m="both" aria-pressed="true">Обидва</button></div></div>
   <div class="row"><div><div class="rn">Сила глибини</div></div><input type="range" id="s-dep" min="40" max="260" value="100"></div>
@@ -175,13 +175,16 @@ const clamp=(v,a,b)=>v<a?a:v>b?b:v;
 const video=$('video'), glc=$('gl');
 
 const FOV=62, ZNEAR=1.2, ZRANGE=7.0, BREAK=ZRANGE*0.085;
-const QP=[{v:3600,pr:1.0},{v:8000,pr:1.2},{v:15000,pr:1.4}];
+const QP_NEURAL=[{v:3600,pr:1.0},{v:8000,pr:1.2},{v:15000,pr:1.4}];
+const QP_FAST=[{v:16000,pr:1.0},{v:45000,pr:1.25},{v:95000,pr:1.5}];   // GPU-режим тягне значно більше
+const QP=()=>depthSrc==='fast'?QP_FAST:QP_NEURAL;
 const MAXP=200000;                                  // ліміт точок у хмарі
 const PALETTES=[
-  [[0.824,1.0,0.243],[0.243,0.878,0.816]],          // лайм → бірюза
-  [[1.0,0.94,0.62],[0.42,0.05,0.36]],               // термо
-  [[0.88,0.96,1.0],[0.09,0.24,0.62]],               // лід
-  [[1.0,1.0,1.0],[0.16,0.17,0.21]]                  // моно
+  [[0.824,1.0,0.243],[0.42,0.94,0.62],[0.243,0.878,0.816]],   // лайм
+  [[1.0,0.95,0.55],[1.0,0.42,0.20],[0.30,0.03,0.35]],         // термо
+  [[0.92,0.98,1.0],[0.42,0.72,0.95],[0.07,0.20,0.55]],        // лід
+  [[1.0,1.0,1.0],[0.55,0.57,0.62],[0.13,0.14,0.18]],          // моно
+  [[1.0,0.16,0.16],[0.20,1.0,0.30],[0.10,0.25,1.0]]           // тепло
 ];
 let qLevel=1, qAuto=true, procMode='auto', curDev='', forceCpu=false, dispMode='both';
 let scanning=false, frozen=false, gyroOK=false, stepDeg=8;
@@ -243,32 +246,41 @@ const GYRO=(()=>{
 
 /* ─────────── шейдери ─────────── */
 const HEAD=`
-uniform float uT,uTan,uAspect,uZNear,uZRange,uDepth,uFog,uLit;
-uniform vec3 uNear,uFar;
+uniform float uT,uTan,uAspect,uZNear,uZRange,uDepth,uFog,uLit,uFast,uMirror;
+uniform vec2 uScale; uniform sampler2D uTex;
+uniform vec3 uNear,uMid,uFar;
 attribute float zPrev,zNext;
 varying float vFog; varying vec3 vDep; varying float vLight;
+vec2 texUv(vec2 g){ vec2 t=(vec2(g.x,1.0-g.y)-0.5)*uScale+0.5; if(uMirror>0.5) t.x=1.0-t.x; return t; }
+float lumaAt(vec2 g){ return dot(texture2D(uTex,texUv(g)).rgb,vec3(0.299,0.587,0.114)); }
+vec3 palette(float t){ return t<0.5 ? mix(uNear,uMid,t*2.0) : mix(uMid,uFar,(t-0.5)*2.0); }
 `;
+// у швидкому режимі висота читається з текстури ПРЯМО У ВЕРШИНІ → CPU не робить нічого
 const BODY=`
-  float z0=mix(zPrev,zNext,uT);
-  float z=uZNear+(z0-uZNear)*uDepth;
   vec2 g=position.xy;
+  float z0=(uFast>0.5) ? (uZNear+(1.0-lumaAt(g))*uZRange) : mix(zPrev,zNext,uT);
+  float z=uZNear+(z0-uZNear)*uDepth;
   vec4 mv=modelViewMatrix*vec4((g.x-0.5)*2.0*uTan*uAspect*z,(0.5-g.y)*2.0*uTan*z,-z,1.0);
   float t=clamp((z0-uZNear)/uZRange,0.0,1.0);
-  vDep=mix(uNear,uFar,t);
+  vDep=palette(t);
   vFog=clamp(t*uFog,0.0,1.0);
 `;
 const SURF_VERT=HEAD+`
-uniform vec2 uScale; uniform float uMirror;
 varying vec2 vTex;
+vec3 P3(vec2 gg,float b){ float z0=uZNear+(1.0-b)*uZRange; float zz=uZNear+(z0-uZNear)*uDepth;
+  return vec3((gg.x-0.5)*2.0*uTan*uAspect*zz,(0.5-gg.y)*2.0*uTan*zz,-zz); }
 void main(){
 `+BODY+`
-  vec3 n=normalize(normalMatrix*normal);
+  vec3 n;
+  if(uFast>0.5){                       // нормалі теж рахуються на GPU
+    float e=0.006;
+    vec3 pC=P3(g,lumaAt(g)), pR=P3(g+vec2(e,0.0),lumaAt(g+vec2(e,0.0))), pD=P3(g+vec2(0.0,e),lumaAt(g+vec2(0.0,e)));
+    n=normalize(cross(pR-pC,pD-pC)); if(n.z<0.0) n=-n; n=normalize(normalMatrix*n);
+  } else n=normalize(normalMatrix*normal);
   float d1=max(0.0,dot(n,normalize(vec3(0.42,0.56,0.72))));
   float face=abs(n.z);
   vLight=mix(1.0, 0.18+0.52*d1+0.34*face, uLit);
-  vec2 uvv=(vec2(g.x,1.0-g.y)-0.5)*uScale+0.5;   // V у WebGL іде знизу вгору
-  if(uMirror>0.5) uvv.x=1.0-uvv.x;
-  vTex=uvv;
+  vTex=texUv(g);
   gl_Position=projectionMatrix*mv;
 }`;
 const SURF_FRAG=`precision mediump float;
@@ -289,12 +301,13 @@ uniform vec3 uBg;
 varying float vFog; varying vec3 vDep; varying float vLight;
 void main(){ gl_FragColor=vec4(mix(vDep,uBg,vFog),1.0); }`;
 const CLOUD_VERT=`
-uniform float uSize,uTint,uFog,uBoost; uniform vec3 uNear,uFar;
+uniform float uSize,uTint,uFog,uBoost; uniform vec3 uNear,uMid,uFar;
 attribute float aT; attribute vec3 aRGB;
 varying vec3 vC; varying float vF;
 void main(){
   vec4 mv=modelViewMatrix*vec4(position,1.0);
-  vC=mix(aRGB,mix(uNear,uFar,aT),uTint)*uBoost;
+  vec3 pal = aT<0.5 ? mix(uNear,uMid,aT*2.0) : mix(uMid,uFar,(aT-0.5)*2.0);
+  vC=mix(aRGB,pal,uTint)*uBoost;
   vF=clamp(aT*uFog,0.0,1.0);
   gl_PointSize=uSize/max(0.35,-mv.z);
   gl_Position=projectionMatrix*mv;
@@ -309,7 +322,8 @@ gl_FragColor=vec4(texture2D(uTex,uv).rgb*uOpacity,1.0);}`;
 
 const BGC=new THREE.Vector3(0.043,0.047,0.067);
 const uNearV={value:new THREE.Vector3().fromArray(PALETTES[0][0])};
-const uFarV={value:new THREE.Vector3().fromArray(PALETTES[0][1])};
+const uMidV={value:new THREE.Vector3().fromArray(PALETTES[0][1])};
+const uFarV={value:new THREE.Vector3().fromArray(PALETTES[0][2])};
 
 function initGFX(){
   renderer=new THREE.WebGLRenderer({canvas:glc,antialias:false,alpha:false,
@@ -326,15 +340,15 @@ function initGFX(){
 
   const shared={uT:{value:1},uTan:{value:Math.tan(FOV*Math.PI/360)},uAspect:{value:1},
     uZNear:{value:ZNEAR},uZRange:{value:ZRANGE},uDepth:{value:1},uFog:{value:0.45},
-    uLit:{value:0.72},uBg:{value:BGC},uNear:uNearV,uFar:uFarV};
-  matS=new THREE.ShaderMaterial({uniforms:Object.assign({},shared,
-      {uTex:{value:vTex},uScale:scaleU,uMirror:mirU,uTint:{value:0.38}}),
+    uLit:{value:0.72},uBg:{value:BGC},uNear:uNearV,uMid:uMidV,uFar:uFarV,
+    uTex:{value:vTex},uScale:scaleU,uMirror:mirU,uFast:{value:depthSrc==='fast'?1:0}};
+  matS=new THREE.ShaderMaterial({uniforms:Object.assign({},shared,{uTint:{value:0.38}}),
     vertexShader:SURF_VERT,fragmentShader:SURF_FRAG,
     side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1});
   matL=new THREE.ShaderMaterial({uniforms:Object.assign({},shared,{uPointSize:{value:11}}),
     vertexShader:LINE_VERT,fragmentShader:LINE_FRAG});
   matC=new THREE.ShaderMaterial({uniforms:{uSize:{value:13},uTint:{value:0.38},uFog:{value:0.45},
-      uBoost:{value:1.25},uNear:uNearV,uFar:uFarV,uBg:{value:BGC}},
+      uBoost:{value:1.25},uNear:uNearV,uMid:uMidV,uFar:uFarV,uBg:{value:BGC}},
     vertexShader:CLOUD_VERT,fragmentShader:CLOUD_FRAG});
 
   liveGroup=new THREE.Group(); scene.add(liveGroup);
@@ -359,7 +373,7 @@ function syncU(name,val){ [matS,matL,matC].forEach(m=>{ if(m&&m.uniforms[name])m
 
 function buildGrid(){
   if(surf){ liveGroup.remove(surf); liveGroup.remove(lines); liveGroup.remove(points); geoS.dispose(); geoL.dispose(); }
-  const budget=QP[qLevel].v, r=clamp(innerHeight/innerWidth,0.4,3);
+  const budget=QP()[qLevel].v, r=clamp(innerHeight/innerWidth,0.4,3);
   GW=Math.max(24,Math.round(Math.sqrt(budget/r))); GH=Math.max(24,Math.round(GW*r));
   const N=GW*GH, pos=new Float32Array(N*3), zp=new Float32Array(N), zn=new Float32Array(N), nr=new Float32Array(N*3);
   for(let y=0,i=0;y<GH;y++)for(let x=0;x<GW;x++,i++){
@@ -371,8 +385,9 @@ function buildGrid(){
   zPrevAttr=new THREE.BufferAttribute(zp,1); zPrevAttr.setUsage&&zPrevAttr.setUsage(DYN);
   zNextAttr=new THREE.BufferAttribute(zn,1); zNextAttr.setUsage&&zNextAttr.setUsage(DYN);
   nrmAttr=new THREE.BufferAttribute(nr,3);   nrmAttr.setUsage&&nrmAttr.setUsage(DYN);
-  idxL=new THREE.BufferAttribute(new Uint16Array(N*4),1); idxL.setUsage&&idxL.setUsage(DYN);
-  idxS=new THREE.BufferAttribute(new Uint16Array((GW-1)*(GH-1)*6),1); idxS.setUsage&&idxS.setUsage(DYN);
+  const IdxA = N>65000 ? Uint32Array : Uint16Array;      // великі сітки не влазять у 16 біт
+  idxL=new THREE.BufferAttribute(new IdxA(N*4),1); idxL.setUsage&&idxL.setUsage(DYN);
+  idxS=new THREE.BufferAttribute(new IdxA((GW-1)*(GH-1)*6),1); idxS.setUsage&&idxS.setUsage(DYN);
   const sphere=new THREE.Sphere(new THREE.Vector3(0,0,-6),60);
 
   geoS=new THREE.BufferGeometry();
@@ -399,7 +414,7 @@ function applyMode(){
 }
 function onResize(){
   const w=innerWidth,h=innerHeight;
-  renderer.setPixelRatio(Math.min(devicePixelRatio||1,QP[qLevel].pr));
+  renderer.setPixelRatio(Math.min(devicePixelRatio||1,QP()[qLevel].pr));
   renderer.setSize(w,h,false);
   cam.aspect=w/h; cam.updateProjectionMatrix();
   syncU('uAspect',w/h); updateBgScale();
@@ -450,29 +465,12 @@ function buildFullIndex(){
   }
   geoS.setDrawRange(0,s2); idxS.needsUpdate=true;
 }
-function ingestFast(now){
-  if(frozen||!video.videoWidth||now-lastFast<30) return; lastFast=now;
-  if(!fastC){ fastC=document.createElement('canvas'); fastX=fastC.getContext('2d',{willReadFrequently:true}); }
-  if(fastC.width!==GW||fastC.height!==GH){ fastC.width=GW; fastC.height=GH; fastNeedsIndex=true; }
-  const vw=video.videoWidth,vh=video.videoHeight,ar=innerWidth/innerHeight;
-  let sw=vw,sh=vw/ar; if(sh>vh){ sh=vh; sw=vh*ar; }
-  try{
-    fastX.save(); if(facing==='user'){ fastX.translate(GW,0); fastX.scale(-1,1); }
-    fastX.drawImage(video,(vw-sw)/2,(vh-sh)/2,sw,sh,0,0,GW,GH); fastX.restore();
-    const d=fastX.getImageData(0,0,GW,GH).data;
-    const zn=zNextAttr.array, zp=zPrevAttr.array;
-    for(let i=0;i<zn.length;i++){
-      const l=(d[i*4]*0.299+d[i*4+1]*0.587+d[i*4+2]*0.114)/255;
-      zn[i]=zn[i]*0.62+(ZNEAR+(1-l)*ZRANGE)*0.38;   // мʼяке згладжування в часі
-      zp[i]=zn[i];
-    }
-    zPrevAttr.needsUpdate=true; zNextAttr.needsUpdate=true;
-    syncU('uT',1); haveDepth=true;
-    if(fastNeedsIndex){ buildFullIndex(); fastNeedsIndex=false; }
-    if(((fastFrame++)&1)===0) computeNormals();
-    if($('legend').style.display!=='flex') $('legend').style.display='flex';
-    $('t-ms').textContent='0';
-  }catch(e){}
+function ingestFast(){
+  // Уся геометрія рахується у вертексному шейдері з відео-текстури.
+  // Тут лишається тільки один раз побудувати індекс.
+  if(fastNeedsIndex){ buildFullIndex(); fastNeedsIndex=false; }
+  if(!haveDepth){ haveDepth=true; $('t-ms').textContent='0';
+    if($('legend').style.display!=='flex') $('legend').style.display='flex'; }
 }
 
 /* ─────────── накопичення ракурсів ─────────── */
@@ -684,7 +682,7 @@ let fpsN=0,fpsT=0,prevT=0;
 function loop(now){
   requestAnimationFrame(loop);
   const dt=now-(prevT||now); prevT=now;
-  if(depthSrc==='fast') ingestFast(now); else DEPTH.send(now);
+  if(depthSrc==='fast') ingestFast(); else DEPTH.send(now);
   if(depthSrc!=='fast'&&haveDepth&&matS.uniforms.uT.value<1)
     syncU('uT',Math.min(1,matS.uniforms.uT.value+dt/Math.max(200,DEPTH.period()*0.8)));
 
@@ -746,8 +744,13 @@ function exportFrame(){
   if(!haveDepth){ toast('спершу дочекайся скану'); return; }
   const zp=zPrevAttr.array, zn=zNextAttr.array, t=matS.uniforms.uT.value, k=matS.uniforms.uDepth.value;
   const N=GW*GH, z=new Float32Array(N);
-  for(let i=0;i<N;i++){ const b=zp[i]+(zn[i]-zp[i])*t; z[i]=ZNEAR+(b-ZNEAR)*k; }
   const px=samplePixels(GW,GH);
+  if(depthSrc==='fast'){                     // у GPU-режимі висота живе у шейдері — рахуємо разово
+    for(let i=0;i<N;i++){ const l=(px[i*4]*0.299+px[i*4+1]*0.587+px[i*4+2]*0.114)/255;
+      z[i]=ZNEAR+((ZNEAR+(1-l)*ZRANGE)-ZNEAR)*k; }
+  } else {
+    for(let i=0;i<N;i++){ const b=zp[i]+(zn[i]-zp[i])*t; z[i]=ZNEAR+(b-ZNEAR)*k; }
+  }
   const tan=Math.tan(FOV*Math.PI/360), aspect=innerWidth/innerHeight, BRK=BREAK*k;
   const v=[];
   for(let y=0,i=0;y<GH;y++)for(let x=0;x<GW;x++,i++){
@@ -783,6 +786,21 @@ $('b-scan').onclick=async e=>{
     toast('скан увімкнено');
   } else { scanning=false; rangeLocked=false; b.classList.remove('rec'); toast('скан зупинено'); }
 };
+let freezeTex=null, freezeCanvas=null;
+function captureFreezeTex(){
+  try{
+    if(!video.videoWidth) return;
+    if(!freezeCanvas) freezeCanvas=document.createElement('canvas');
+    const w=Math.min(1280,video.videoWidth), h=Math.round(w*video.videoHeight/video.videoWidth);
+    freezeCanvas.width=w; freezeCanvas.height=h;
+    freezeCanvas.getContext('2d').drawImage(video,0,0,w,h);
+    if(freezeTex) freezeTex.dispose();
+    freezeTex=new THREE.CanvasTexture(freezeCanvas);
+    freezeTex.minFilter=THREE.LinearFilter; freezeTex.magFilter=THREE.LinearFilter; freezeTex.generateMipmaps=false;
+    matS.uniforms.uTex.value=freezeTex;          // спільний uniform → і меш, і лінії
+  }catch(e){}
+}
+function releaseFreezeTex(){ if(matS) matS.uniforms.uTex.value=vTex; }
 function applyFreezeView(){
   const base=+$('s-pt').value;
   liveGroup.visible=true;                          // застиглий меш і Є модель — його видно завжди
@@ -795,6 +813,7 @@ function applyFreezeView(){
   }
 }
 $('b-freeze').onclick=e=>{ frozen=!frozen; e.currentTarget.classList.toggle('on',frozen);
+  if(frozen) captureFreezeTex(); else releaseFreezeTex();
   applyFreezeView();
   if(frozen){ view.tYaw=0; view.tPitch=0; view.tZoom=1;
     toast(cloudCount>0?'модель · крути пальцем':'стоп-кадр'); } else toast('відтворення'); };
@@ -817,9 +836,11 @@ $('s-step').oninput=e=>{ stepDeg=+e.target.value; };
 $('s-boost').oninput=e=>{ matC.uniforms.uBoost.value=e.target.value/100; };
 document.querySelectorAll('#src-seg button').forEach(b=>b.onclick=()=>{
   depthSrc=b.dataset.s; syncSeg('src-seg','s',depthSrc); fastNeedsIndex=true;
+  syncU('uFast',depthSrc==='fast'?1:0);
+  buildGrid(); onResize();
   if(depthSrc==='fast'){ $('t-model').textContent='ШВИДКО'; $('d-model').className='dot ok';
     if(scanning){ scanning=false; $('b-scan').classList.remove('rec'); } }
-  else { $('t-model').textContent='модель…'; $('d-model').className='dot load'; DEPTH.init(); }
+  else { haveDepth=false; $('t-model').textContent='модель…'; $('d-model').className='dot load'; DEPTH.init(); }
   toast(depthSrc==='fast'?'швидкий режим · рельєф із кадру':'нейромодель'); });
 document.querySelectorAll('#fz-seg button').forEach(b=>b.onclick=()=>{
   freezeMode=b.dataset.f; syncSeg('fz-seg','f',freezeMode); applyFreezeView(); });
@@ -827,9 +848,10 @@ $('s-vid').oninput=()=>applyFreezeView();
 $('s-pt').oninput=e=>{ matL.uniforms.uPointSize.value=+e.target.value; applyFreezeView(); };
 document.querySelectorAll('#pal-seg button').forEach(b=>b.onclick=()=>{
   const p=PALETTES[+b.dataset.p]; syncSeg('pal-seg','p',b.dataset.p);
-  uNearV.value.fromArray(p[0]); uFarV.value.fromArray(p[1]);
+  uNearV.value.fromArray(p[0]); uMidV.value.fromArray(p[1]); uFarV.value.fromArray(p[2]);
   const c=v=>'rgb('+v.map(x=>Math.round(x*255)).join(',')+')';
-  document.querySelector('#legend .bar').style.background='linear-gradient(180deg,'+c(p[0])+','+c(p[1])+')'; });
+  document.querySelector('#legend .bar').style.background=
+    'linear-gradient(180deg,'+c(p[0])+','+c(p[1])+','+c(p[2])+')'; });
 document.querySelectorAll('#m-seg button').forEach(b=>b.onclick=()=>{ dispMode=b.dataset.m; applyMode(); });
 document.querySelectorAll('#pt-seg button').forEach(b=>b.onclick=()=>{ syncSeg('pt-seg','t',b.dataset.t);
   if(points) points.visible=b.dataset.t==='1'; });
