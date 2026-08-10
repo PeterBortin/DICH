@@ -52,17 +52,21 @@ video{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 /* ---------- нижній док: тільки іконки ---------- */
 #dock{position:absolute;z-index:6;left:0;right:0;
   bottom:calc(env(safe-area-inset-bottom) + 18px);
-  display:flex;justify-content:center;gap:12px;pointer-events:none}
+  display:flex;justify-content:center;gap:9px;pointer-events:none}
 #dock.off{display:none}
-.dk{pointer-events:auto;width:54px;height:54px;padding:0;border-radius:50%;
+.dk{position:relative;pointer-events:auto;width:48px;height:48px;padding:0;border-radius:50%;
   background:rgba(4,14,9,.74);border:1px solid rgba(106,213,130,.22);
   color:var(--ink);display:flex;align-items:center;justify-content:center;
   backdrop-filter:blur(8px);transition:border-color .18s,color .18s,background .18s}
-.dk svg{width:23px;height:23px;display:block}
+.dk svg{width:21px;height:21px;display:block}
+#serN{position:absolute;top:-2px;right:-2px;min-width:16px;height:16px;
+  border-radius:8px;background:var(--amber);color:#03150c;font-size:9px;
+  line-height:16px;font-family:var(--mono);font-weight:700}
+#serN:empty{display:none}
 .dk.on{border-color:rgba(106,213,130,.62);color:var(--hot);background:rgba(0,49,30,.72)}
-.dk.shot{width:66px;height:66px;margin:-6px 2px 0;
+.dk.shot{width:60px;height:60px;margin:-6px 1px 0;
   border-color:rgba(255,193,60,.55);color:var(--amber)}
-.dk.shot svg{width:28px;height:28px}
+.dk.shot svg{width:26px;height:26px}
 .dk.shot.on{border-color:var(--amber);color:#03150c;background:var(--amber)}
 .dk:disabled{opacity:.35}
 
@@ -131,6 +135,7 @@ input[type=range]::-moz-range-thumb{width:17px;height:17px;border:0;border-radiu
 #plist .ok{color:var(--accent)}
 #plist .no{color:var(--red)}
 #plist .wt{color:var(--amber)}
+#pact{display:none;gap:8px;margin-top:14px;flex-wrap:wrap}
 #pbar{height:3px;background:rgba(106,213,130,.18);border-radius:2px;margin-top:12px;overflow:hidden}
 #pfill{height:100%;width:0;background:var(--accent);transition:width .3s}
 #hintline{position:absolute;z-index:3;left:16px;right:16px;
@@ -183,6 +188,7 @@ input[type=range]::-moz-range-thumb{width:17px;height:17px;border:0;border-radiu
   <button class="dk on" id="dBase" aria-label="База"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5 12 3l9 4.5-9 4.5z"/><path d="M3 12.4 12 17l9-4.6"/><path d="M3 16.9 12 21.5l9-4.6"/></svg></button>
   <button class="dk" id="dBox" aria-label="Бокси"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3.6" width="8" height="8" rx="1.4"/><rect x="13" y="12.4" width="8" height="8" rx="1.4"/><path d="M13 7.6h8M7 12.4v8" stroke-dasharray="2 2.4"/></svg></button>
   <button class="dk shot" id="dShot" aria-label="Кадр"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.6 21 7.4v9.2L12 21.4 3 16.6V7.4z"/><path d="M3 7.4l9 4.8 9-4.8M12 12.2v9.2"/></svg></button>
+  <button class="dk" id="dSer" aria-label="Серія"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="7.5" y="3.4" width="13" height="13" rx="1.6"/><path d="M4.6 6.6v13a1.6 1.6 0 0 0 1.6 1.6h11"/><path d="M11 9.9h6M11 13.1h6"/></svg><span id="serN"></span></button>
   <button class="dk" id="dCam" aria-label="Камера"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.2 9.2A8.4 8.4 0 0 1 18.6 6.6"/><path d="M19.8 14.8A8.4 8.4 0 0 1 5.4 17.4"/><path d="M18.9 3.2v3.6h-3.6M5.1 20.8v-3.6h3.6"/><circle cx="12" cy="12" r="2.6"/></svg></button>
   <button class="dk" id="dSet" aria-label="Налаштування"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h9M17 17h3"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="15" cy="17" r="2"/></svg></button>
 </div>
@@ -213,6 +219,11 @@ input[type=range]::-moz-range-thumb{width:17px;height:17px;border:0;border-radiu
 
 <div id="procp"><div id="ptitle">ОБРОБКА</div><div id="plist"></div>
   <div id="pbar"><div id="pfill"></div></div>
+  <div id="pact">
+    <button class="vb" id="paYes">ПРИЙНЯТИ</button>
+    <button class="vb" id="paNo">ВІДКИНУТИ</button>
+    <button class="vb" id="paRe">ЩЕ РАЗ</button>
+  </div>
   <button class="vb" id="pClose" style="margin-top:14px">✕ ЗАКРИТИ</button></div>
 <div id="hintline">Фіксація спить</div>
 
@@ -222,8 +233,8 @@ input[type=range]::-moz-range-thumb{width:17px;height:17px;border:0;border-radiu
   <p>Контури залипають на об'єкті й лягають у світову памʼять: водиш камерою по частинах —
      каркас накопичується і не тане поза кадром.</p>
   <p style="color:var(--amber);opacity:.85">КАДР знімає обʼєм з одного кадру: нейромережа
-     замість лідара, без руху й паралакса. Масштаб при цьому умовний — монокулярна
-     глибина його не дає.</p>
+     замість лідара, без руху й паралакса. СЕРІЯ зшиває кілька таких знімків в одну
+     модель. Масштаб в обох випадках умовний — монокулярна глибина його не дає.</p>
   <button id="go">ПУСК</button>
   <div id="err"></div>
 </div>
@@ -234,7 +245,7 @@ input[type=range]::-moz-range-thumb{width:17px;height:17px;border:0;border-radiu
 /* ============================================================
    ПАРАМЕТРИ
    ============================================================ */
-const BUILD = 'H5 · вікно глибини';
+const BUILD = 'H6 · серія';
 const P = {
   /* детектор */
   gain:      3.4,
@@ -262,6 +273,8 @@ const P = {
   relief:    1.0,    // екзагерація рельєфу (тільки z — див. soloRelief)
   cutNear:   0,      // вікно глибини, % від ближньої межі
   cutFar:    100,    // вікно глибини, % до дальньої межі
+  autoshot:  false,  // серія: брати кадр, щойно камера зрушила
+  voxel:     1.0,    // множник розміру вокселя
   psize:     2.6,    // розмір точки у вьюпорті
   /* тумблери */
   lock:  true,  verts: true,  rigid:  false,   // виміряно: у світовій системі шкодить
@@ -292,7 +305,8 @@ const RMETA = {
   cutFar:  { l:'ДАЛЬНЄ',    min:0,    max:100,  st:1    },
   dstep:   { l:'ЩІЛЬНІСТЬ', min:1,    max:6,    st:1    },
   dcut:    { l:'РОЗРИВ',    min:0.01, max:0.4,  st:0.01 },
-  psize:   { l:'ТОЧКА',     min:1,    max:8,    st:0.2  }
+  psize:   { l:'ТОЧКА',     min:1,    max:8,    st:0.2  },
+  voxel:   { l:'ВОКСЕЛЬ',   min:0.4,  max:3,    st:0.1  }
 };
 
 /* Три вкладки замість однієї довгої стрічки: детектор — те, що бачить
@@ -304,12 +318,13 @@ const TABS = {
   fix:  { rows:['inertia','mem','weld','extrude','world'],
           tg:['lock','memory','arrows','verts','rigid','flow'],
           act:true },
-  shot: { rows:['hfov','range','relief','cutNear','cutFar','dstep','dcut','psize'] }
+  shot: { rows:['hfov','range','relief','cutNear','cutFar','dstep','dcut','psize','voxel'],
+          tg:['autoshot'] }
 };
 const PRELBL = { max:'МАКС КОНТРАСТ', clean:'ЧИСТІ ЛІНІЇ', wire:'ТІЛЬКИ КАРКАС', soft:'М\u2019ЯКО' };
 const TGLBL  = { lock:'ФІКСАЦІЯ', memory:'ПАМʼЯТЬ', arrows:'СТРІЛКИ', verts:'ВЕРШИНИ',
                  rigid:'ЖОРСТКІСТЬ', nms:'NMS', hyst:'ГІСТЕРЕЗИС', flow:'ПОТІК',
-                 dbg:'СИРА МАСКА' };
+                 dbg:'СИРА МАСКА', autoshot:'АВТОЗЙОМКА' };
 
 const PRESETS = {
   max:    { gain:5.2, radius:10, levels:3, tHigh:0.14, tLow:0.05, preblur:0, temporal:0.30, minLen:12 },
@@ -1782,7 +1797,7 @@ function cutZ(pct, range){
   return 1 + (R - 1) * pct / 100;
 }
 
-function soloRelief(map, opt, useCut){
+function soloRelief(map, opt, useCut, fitOv, keepMask){
   const step = Math.max(1, Math.round(opt.dstep));
   const W = map.w, H = map.h, d = map.d, rgb = map.rgb;
   const gw = Math.floor((W - 1) / step) + 1;
@@ -1790,7 +1805,7 @@ function soloRelief(map, opt, useCut){
   const n = gw * gh;
   const fx = (W * 0.5) / Math.tan(opt.hfov * Math.PI / 360);
   const cx = W * 0.5, cy = H * 0.5;
-  const fit = fitFromRange(d, opt.range);
+  const fit = fitOv || fitFromRange(d, opt.range);
   const ex = opt.relief;
   const zn = useCut ? cutZ(opt.cutNear, opt.range) : -Infinity;
   const zf = useCut ? cutZ(opt.cutFar,  opt.range) :  Infinity;
@@ -1807,7 +1822,12 @@ function soloRelief(map, opt, useCut){
       const inv = fit.a * d[v * W + u] + fit.b;
       const Z = inv > 1e-6 ? 1 / inv : 1e6;
       zs[i] = Z;
-      idx[i] = (Z >= zn && Z <= zf) ? kept++ : -1;
+      /* Маска має пріоритет над вікном: під час суміщення серії
+         перепідбір a,b виводить глибину за номінальний діапазон, і
+         вікно зрізало б випадкові шматки, міняючи пакування кадру
+         між ітераціями. Набір вузлів має лишатись тим самим. */
+      idx[i] = keepMask ? (keepMask[i] >= 0 ? kept++ : -1)
+                        : ((Z >= zn && Z <= zf) ? kept++ : -1);
     }
   }
 
@@ -1815,6 +1835,7 @@ function soloRelief(map, opt, useCut){
      стають NaN-ами, а зникають зі списку — інакше вони псували б bbox,
      лічильники й експорт. Індекси граней переномеровані під новий масив. */
   const pos = new Float32Array(kept * 3), col = new Float32Array(kept * 3);
+  const uv = new Uint32Array(kept), dv = new Float32Array(kept);
   i = 0;
   for (let gy = 0; gy < gh; gy++){
     const v = Math.min(H - 1, gy * step);
@@ -1832,6 +1853,7 @@ function soloRelief(map, opt, useCut){
       pos[j*3 + 2] = -Z * ex;
       const o = (v * W + u) * 4;
       col[j*3] = rgb[o] / 255; col[j*3 + 1] = rgb[o+1] / 255; col[j*3 + 2] = rgb[o+2] / 255;
+      uv[j] = v * W + u; dv[j] = d[v * W + u];
     }
   }
 
@@ -1850,7 +1872,9 @@ function soloRelief(map, opt, useCut){
       if ((mx - mn) / mn > cut) continue;
       tri.push(idx[a], idx[c], idx[b], idx[b], idx[c], idx[e]);
     }
-  return { pos, col, tri:new Uint32Array(tri), gw, gh, count:kept, good:kept, full:n };
+  return { pos, col, tri:new Uint32Array(tri), gw, gh, count:kept, good:kept, full:n,
+           idx, uv, dv, fit, nrm:null, T:newT(),
+           cam:{ fx, cx, cy, W, ex } };
 }
 
 /* каркас: унікальні ребра трикутників */
@@ -1909,6 +1933,7 @@ function cutBake(){
    і все, що міняється, — розгортка. Тому живцем, з debounce. */
 function soloTouch(){
   if (!soloMap || !VP.on || !dense || !dense.solo) return;
+  if (dense.series) return;      // серія вже зшита — перебудова зруйнує суміщення
   clearTimeout(soloT);
   soloT = setTimeout(() => {
     soloUnclip();
@@ -1963,23 +1988,574 @@ async function shootSolo(){
 }
 
 function exportSoloOBJ(){
-  if (!cutBaked) cutBake();
-  const f = dense && dense.frames && dense.frames[0];
-  if (!f) return;
-  const L = ['# DICH //EDGE — соло-кадр', '# масштаб умовний: монокулярна глибина його не дає'];
-  for (let i = 0; i < f.count; i++)
-    L.push('v ' + f.pos[i*3].toFixed(5) + ' ' + f.pos[i*3+1].toFixed(5) + ' ' + f.pos[i*3+2].toFixed(5));
-  for (let i = 0; i < f.tri.length; i += 3)
-    L.push('f ' + (f.tri[i]+1) + ' ' + (f.tri[i+1]+1) + ' ' + (f.tri[i+2]+1));
+  if (!cutBaked && !(dense && dense.series)) cutBake();
+  if (!dense || !dense.frames || !dense.frames.length) return;
+  const L = ['# DICH //EDGE — ' + (dense.series ? 'серія з ' + dense.series + ' кадрів' : 'соло-кадр'),
+             '# масштаб умовний: монокулярна глибина його не дає'];
+  let off = 0;
+  for (let k = 0; k < dense.frames.length; k++){
+    const f = dense.frames[k];
+    L.push('g kadr' + (k + 1));
+    for (let i = 0; i < f.count; i++)
+      L.push('v ' + f.pos[i*3].toFixed(5) + ' ' + f.pos[i*3+1].toFixed(5) + ' ' + f.pos[i*3+2].toFixed(5));
+    for (let i = 0; i < f.tri.length; i += 3)
+      L.push('f ' + (f.tri[i]+off+1) + ' ' + (f.tri[i+1]+off+1) + ' ' + (f.tri[i+2]+off+1));
+    off += f.count;
+  }
   const blob = new Blob([L.join('\n')], { type:'text/plain' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'dich-shot-' + Date.now() + '.obj';
+  a.download = (dense.series ? 'dich-series-' : 'dich-shot-') + Date.now() + '.obj';
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
 
 globalThis.__SOLO = { soloRelief, edgesFromTris, fitFromRange };
+
+/* ============================================================
+   ШАР J — СЕРІЯ: ЗШИВАННЯ КІЛЬКОХ ЗНІМКІВ
+   ============================================================
+   Кожен знімок приходить у власній позі й з власним довільним
+   масштабом глибини. Треба знайти і те, і те, а вони переплетені.
+
+   Порядок такий: наближення з трекера → ICP на 7 ступенів свободи
+   (поворот, зсув, масштаб) → перепідбір a,b по зоні перекриття →
+   доводжувальний ICP уже без масштабу → воксельне злиття.
+
+   Окремо про зсув. Стара версія ICP його свідомо не рухала: рельєф
+   з одного ракурсу є висотним полем, і зсув уздовж поверхні майже
+   не спостережуваний — розвʼязок ковзає. Тоді зсув давала SfM.
+   Тепер його нема, тому вироджені напрямки утримує пріор: штраф на
+   відхилення від наближення трекера. Де геометрія мовчить, лишається
+   здогадка трекера, а не випадковий дрейф.
+   ============================================================ */
+
+/* ---------- машинерія, перенесена з колишнього шару ICP ---------- */
+
+/* Загальний Холецький для малих систем */
+function cholN(A, b, x, n){
+  const L = new Float64Array(n*n);
+  for (let i = 0; i < n; i++)
+    for (let j = 0; j <= i; j++){
+      let s = A[i*n+j];
+      for (let k = 0; k < j; k++) s -= L[i*n+k]*L[j*n+k];
+      if (i === j){ if (s < 1e-14) return false; L[i*n+i] = Math.sqrt(s); }
+      else L[i*n+j] = s / L[j*n+j];
+    }
+  const y = new Float64Array(n);
+  for (let i = 0; i < n; i++){
+    let s = b[i];
+    for (let k = 0; k < i; k++) s -= L[i*n+k]*y[k];
+    y[i] = s / L[i*n+i];
+  }
+  for (let i = n-1; i >= 0; i--){
+    let s = y[i];
+    for (let k = i+1; k < n; k++) s -= L[k*n+i]*x[k];
+    x[i] = s / L[i*n+i];
+  }
+  return true;
+}
+
+/* просторовий хеш опорної хмари */
+function makeCloudHash(pos, count, cell){
+  const map = new Map();
+  for (let i = 0; i < count; i++){
+    const z = pos[i*3+2];
+    if (!isFinite(z)) continue;
+    const k = Math.floor(pos[i*3]/cell) + ',' + Math.floor(pos[i*3+1]/cell) + ',' + Math.floor(z/cell);
+    let a = map.get(k);
+    if (!a){ a = []; map.set(k, a); }
+    a.push(i);
+  }
+  return { map, cell };
+}
+function nearestIn(hash, pos, x, y, z, maxD){
+  const c = hash.cell;
+  const bx = Math.floor(x/c), by = Math.floor(y/c), bz = Math.floor(z/c);
+  let best = -1, bd = maxD*maxD;
+  for (let dx = -1; dx <= 1; dx++)
+    for (let dy = -1; dy <= 1; dy++)
+      for (let dz = -1; dz <= 1; dz++){
+        const a = hash.map.get((bx+dx)+','+(by+dy)+','+(bz+dz));
+        if (!a) continue;
+        for (let n = 0; n < a.length; n++){
+          const i = a[n];
+          const ex = pos[i*3]-x, ey = pos[i*3+1]-y, ez = pos[i*3+2]-z;
+          const d = ex*ex + ey*ey + ez*ez;
+          if (d < bd){ bd = d; best = i; }
+        }
+      }
+  return best;
+}
+
+/* Нормалі беремо з сітки кадру: сусіди відомі наперед, шукати нічого.
+   Сітка пробита вікном глибини, тому ходимо через idx і пропускаємо
+   вузли, у яких хоч один сусід випав. */
+function frameNormals(f){
+  const gw = f.gw, gh = f.gh, Pp = f.pos, idx = f.idx;
+  const N = new Float32Array(f.count * 3);
+  for (let y = 0; y < gh; y++)
+    for (let x = 0; x < gw; x++){
+      const g = y*gw + x, i = idx[g];
+      if (i < 0) continue;
+      const ga = idx[x > 0 ? g-1 : g], gb = idx[x < gw-1 ? g+1 : g];
+      const gc = idx[y > 0 ? g-gw : g], gd = idx[y < gh-1 ? g+gw : g];
+      if (ga < 0 || gb < 0 || gc < 0 || gd < 0) continue;
+      const ux = Pp[gb*3]-Pp[ga*3], uy = Pp[gb*3+1]-Pp[ga*3+1], uz = Pp[gb*3+2]-Pp[ga*3+2];
+      const vx = Pp[gd*3]-Pp[gc*3], vy = Pp[gd*3+1]-Pp[gc*3+1], vz = Pp[gd*3+2]-Pp[gc*3+2];
+      let nx = uy*vz - uz*vy, ny = uz*vx - ux*vz, nz = ux*vy - uy*vx;
+      const L = Math.hypot(nx, ny, nz);
+      if (L < 1e-12) continue;
+      N[i*3] = nx/L; N[i*3+1] = ny/L; N[i*3+2] = nz/L;
+    }
+  return N;
+}
+
+/* ---------- подібність кадр-до-кадру від трекера ---------- */
+
+/* M — покадрова similarity від шару A: p' = (ax·x − ay·y + bx, ay·x + ax·y + by).
+   Накопичуємо її від останнього знімка як добуток комплексних чисел. */
+const SIM = { ax:1, ay:0, bx:0, by:0 };
+function simReset(){ SIM.ax = 1; SIM.ay = 0; SIM.bx = 0; SIM.by = 0; }
+function simAccum(m){
+  const nax = m.ax*SIM.ax - m.ay*SIM.ay;
+  const nay = m.ay*SIM.ax + m.ax*SIM.ay;
+  const nbx = m.ax*SIM.bx - m.ay*SIM.by + m.bx;
+  const nby = m.ay*SIM.bx + m.ax*SIM.by + m.by;
+  SIM.ax = nax; SIM.ay = nay; SIM.bx = nbx; SIM.by = nby;
+}
+/* Наскільки картинка поїхала від останнього знімка, у пікселях обробки. */
+function simShift(){
+  const cx = pw*0.5, cy = ph*0.5;
+  const x = SIM.ax*cx - SIM.ay*cy + SIM.bx;
+  const y = SIM.ay*cx + SIM.ax*cy + SIM.by;
+  return Math.hypot(x - cx, y - cy);
+}
+
+/* ---------- дрібна лінійна алгебра ---------- */
+
+function rodrigues(w, R){                 // R = exp([w]×), 3×3 рядками
+  const th = Math.hypot(w[0], w[1], w[2]);
+  if (th < 1e-9){ R.set([1,0,0, 0,1,0, 0,0,1]); return R; }
+  const k0 = w[0]/th, k1 = w[1]/th, k2 = w[2]/th;
+  const c = Math.cos(th), s = Math.sin(th), t = 1 - c;
+  R[0] = c + k0*k0*t;      R[1] = k0*k1*t - k2*s;  R[2] = k0*k2*t + k1*s;
+  R[3] = k1*k0*t + k2*s;   R[4] = c + k1*k1*t;     R[5] = k1*k2*t - k0*s;
+  R[6] = k2*k0*t - k1*s;   R[7] = k2*k1*t + k0*s;  R[8] = c + k2*k2*t;
+  return R;
+}
+function mat3mul(A, B, O){                // O = A·B
+  for (let r = 0; r < 3; r++)
+    for (let c = 0; c < 3; c++)
+      O[r*3+c] = A[r*3]*B[c] + A[r*3+1]*B[3+c] + A[r*3+2]*B[6+c];
+  return O;
+}
+function mat3vec(A, x, y, z, out){
+  out[0] = A[0]*x + A[1]*y + A[2]*z;
+  out[1] = A[3]*x + A[4]*y + A[5]*z;
+  out[2] = A[6]*x + A[7]*y + A[8]*z;
+  return out;
+}
+function newT(){ return { R:new Float64Array([1,0,0, 0,1,0, 0,0,1]), t:new Float64Array(3), s:1 }; }
+
+/* Застосувати подібність до хмари і дописати її в накопичений трансформ
+   кадру. Обертання йде навколо C, тому поворот і зсув не борються між
+   собою чисельно. */
+const _tmp3 = new Float64Array(3), _tmpR = new Float64Array(9);
+function applySim(f, R, tv, sc, C){
+  const p = f.pos, n = f.nrm, N = f.count;
+  for (let i = 0; i < N; i++){
+    const qx = p[i*3] - C[0], qy = p[i*3+1] - C[1], qz = p[i*3+2] - C[2];
+    mat3vec(R, qx, qy, qz, _tmp3);
+    p[i*3]   = C[0] + sc*_tmp3[0] + tv[0];
+    p[i*3+1] = C[1] + sc*_tmp3[1] + tv[1];
+    p[i*3+2] = C[2] + sc*_tmp3[2] + tv[2];
+    if (n){
+      mat3vec(R, n[i*3], n[i*3+1], n[i*3+2], _tmp3);
+      n[i*3] = _tmp3[0]; n[i*3+1] = _tmp3[1]; n[i*3+2] = _tmp3[2];
+    }
+  }
+  /* накопичення: s' = s·sc, R' = R·R_old, t' = C + sc·R·(t_old − C) + tv */
+  const T = f.T;
+  mat3mul(R, T.R, _tmpR); T.R.set(_tmpR);
+  mat3vec(R, T.t[0]-C[0], T.t[1]-C[1], T.t[2]-C[2], _tmp3);
+  T.t[0] = C[0] + sc*_tmp3[0] + tv[0];
+  T.t[1] = C[1] + sc*_tmp3[1] + tv[1];
+  T.t[2] = C[2] + sc*_tmp3[2] + tv[2];
+  T.s *= sc;
+}
+function centroid(f, out){
+  let x = 0, y = 0, z = 0;
+  for (let i = 0; i < f.count; i++){ x += f.pos[i*3]; y += f.pos[i*3+1]; z += f.pos[i*3+2]; }
+  const k = f.count || 1;
+  out[0] = x/k; out[1] = y/k; out[2] = z/k;
+  return out;
+}
+
+/* ---------- ICP, точка-до-площини ---------- */
+
+const icpH = new Float64Array(49), icpG = new Float64Array(7), icpX = new Float64Array(7);
+const icpR = new Float64Array(9), icpT = new Float64Array(3);
+
+/* nDof = 7 з масштабом, 6 без. Якобіан: [q×n | n | q·n]. */
+function icpStep(f, ref, hash, maxD, minCos, lam, wT, accT, C, nDof, stride){
+  const n = nDof;
+  icpH.fill(0); icpG.fill(0);
+  let pairs = 0, sse = 0;
+  const J = new Float64Array(7);
+  for (let i = 0; i < f.count; i += stride){
+    const px = f.pos[i*3], py = f.pos[i*3+1], pz = f.pos[i*3+2];
+    const snx = f.nrm[i*3], sny = f.nrm[i*3+1], snz = f.nrm[i*3+2];
+    if (snx === 0 && sny === 0 && snz === 0) continue;
+    const j = nearestIn(hash, ref.pos, px, py, pz, maxD);
+    if (j < 0) continue;
+    const nx = ref.nrm[j*3], ny = ref.nrm[j*3+1], nz = ref.nrm[j*3+2];
+    if (nx === 0 && ny === 0 && nz === 0) continue;
+    if (Math.abs(snx*nx + sny*ny + snz*nz) < minCos) continue;
+    const r = (px - ref.pos[j*3])*nx + (py - ref.pos[j*3+1])*ny + (pz - ref.pos[j*3+2])*nz;
+    const qx = px - C[0], qy = py - C[1], qz = pz - C[2];
+    J[0] = qy*nz - qz*ny; J[1] = qz*nx - qx*nz; J[2] = qx*ny - qy*nx;
+    J[3] = nx; J[4] = ny; J[5] = nz;
+    J[6] = qx*nx + qy*ny + qz*nz;
+    /* Губер: одиничні промахи не тягнуть розвʼязок за собою */
+    const ar = Math.abs(r), hub = maxD*0.3;
+    const w = ar > hub ? hub/ar : 1;
+    for (let a = 0; a < n; a++){
+      icpG[a] += w * r * J[a];
+      for (let b = 0; b <= a; b++) icpH[a*n+b] += w * J[a] * J[b];
+    }
+    pairs++; sse += r*r;
+  }
+  if (pairs < 40) return null;
+  /* Ділимо на кількість пар: розвʼязок від цього не міняється, зате
+     вага пріора і демпфера перестають залежати від розміру хмари. */
+  const inv = 1 / pairs;
+  for (let a = 0; a < n; a++){
+    icpG[a] *= inv;
+    for (let b = 0; b <= a; b++) icpH[a*n+b] *= inv;
+  }
+  for (let a = 0; a < n; a++)
+    for (let b = a+1; b < n; b++) icpH[a*n+b] = icpH[b*n+a];
+  /* Пріор тримає зсув біля наближення трекера — саме там, де
+     точка-до-площини на висотному полі нічого не бачить. */
+  for (let a = 3; a < 6; a++){
+    icpH[a*n+a] += wT;
+    icpG[a] += wT * accT[a-3];
+  }
+  for (let a = 0; a < n; a++) icpH[a*n+a] *= (1 + lam);
+  for (let a = 0; a < n; a++) icpG[a] = -icpG[a];
+  if (!cholN(icpH, icpG, icpX, n)) return null;
+
+  rodrigues(icpX, icpR);
+  icpT[0] = icpX[3]; icpT[1] = icpX[4]; icpT[2] = icpX[5];
+  const sc = n === 7 ? 1 + icpX[6] : 1;
+  applySim(f, icpR, icpT, sc, C);
+  accT[0] += icpT[0]; accT[1] += icpT[1]; accT[2] += icpT[2];
+  return { pairs, rms: Math.sqrt(sse/pairs), cover: pairs / Math.ceil(f.count/stride) };
+}
+
+function icpRun(f, ref, hash, opt){
+  const C = centroid(f, new Float64Array(3));
+  const accT = new Float64Array(3);
+  let maxD = opt.maxD0, last = null;
+  for (let it = 0; it < opt.iters; it++){
+    const st = icpStep(f, ref, hash, maxD, opt.minCos, opt.lam, opt.wT, accT, C,
+                       opt.nDof, opt.stride);
+    if (!st) break;
+    last = st;
+    maxD = Math.max(opt.maxDmin, maxD * 0.9);
+  }
+  return last || { pairs:0, rms:Infinity, cover:0 };
+}
+
+/* ---------- перепідбір a,b по зоні перекриття ---------- */
+
+/* Мережа не є багатовидово узгодженою: та сама стіна з двох ракурсів
+   отримує різні відносні глибини. Масштаб з ICP забирає множник, але
+   зсув лишається і кривить форму. Тут по парах, які ICP уже зіставив,
+   заново підбираємо inv = a·d + b — так, щоб глибина кадру збіглася
+   з накопиченою моделлю. */
+function refitAffine(f, ref, hash, maxD){
+  const T = f.T, R = T.R, tv = T.t, s = T.s;
+  const cam = f.cam;
+  let Sdd = 0, Sd = 0, Sdy = 0, Sy = 0, N = 0;
+  const rw = new Float64Array(3);
+  for (let i = 0; i < f.count; i += 2){
+    const px = f.pos[i*3], py = f.pos[i*3+1], pz = f.pos[i*3+2];
+    const j = nearestIn(hash, ref.pos, px, py, pz, maxD);
+    if (j < 0) continue;
+    const nx = ref.nrm[j*3], ny = ref.nrm[j*3+1], nz = ref.nrm[j*3+2];
+    if (nx === 0 && ny === 0 && nz === 0) continue;
+
+    /* Промінь пікселя у власних координатах кадру. Точка на ньому —
+       рівно Z·ray, бо РЕЛЬЄФ множить саме z, і тому сидить у промені. */
+    const g = f.uv[i], u = g % cam.W, v = (g / cam.W) | 0;
+    mat3vec(R, (u - cam.cx) / cam.fx, -(v - cam.cy) / cam.fx, -cam.ex, rw);
+
+    /* Ціль беремо як перетин променя з ПЛОЩИНОЮ сусіда, а не як його
+       позицію: на похилій поверхні найближча точка зміщена вздовж неї,
+       і помилка глибини в такій парі лишається невидимою. */
+    const rn = rw[0]*nx + rw[1]*ny + rw[2]*nz;
+    const rl = Math.hypot(rw[0], rw[1], rw[2]);
+    if (Math.abs(rn) < 0.25 * rl) continue;            // ковзний кут — пара марна
+    const qx = ref.pos[j*3] - tv[0], qy = ref.pos[j*3+1] - tv[1], qz = ref.pos[j*3+2] - tv[2];
+    const zt = (qx*nx + qy*ny + qz*nz) / (rn * s);
+    if (!(zt > 0.02) || !isFinite(zt)) continue;
+    const d = f.dv[i], y = 1 / zt;
+    Sdd += d*d; Sd += d; Sdy += d*y; Sy += y; N++;
+  }
+  if (N < 80) return null;
+  const det = N*Sdd - Sd*Sd;
+  if (Math.abs(det) < 1e-12) return null;
+  const a = (N*Sdy - Sd*Sy) / det;
+  const b = (Sdd*Sy - Sd*Sdy) / det;
+  if (!(a > 1e-6) || !isFinite(b)) return null;      // інверсія глибини має лишитись зростаючою
+  return { a, b, n:N };
+}
+
+/* ---------- стан серії ---------- */
+const SERMAX = 16;
+const SER = {
+  on:false, shots:0, frames:[], vox:null, cell:0,
+  ref:null, hash:null, pending:null, pendMap:null,
+  wPrior:0.25, lastT:0, busy:false
+};
+
+/* ---------- наближення пози з трекера ---------- */
+
+/* Трекер дає 2D-подібність між кадрами. Розвернути її в 6 ступенів
+   свободи однозначно не можна: бічний зсув і поворот дають на екрані
+   те саме. Тому це саме НАБЛИЖЕННЯ — далі кілька кандидатів, і ICP
+   сам скаже, який з них правдоподібний. */
+function trackerGuess(meanZ){
+  const s = Math.hypot(SIM.ax, SIM.ay) || 1;
+  const th = Math.atan2(SIM.ay, SIM.ax);
+  const cx = pw*0.5, cy = ph*0.5;
+  const ix = SIM.ax*cx - SIM.ay*cy + SIM.bx - cx;
+  const iy = SIM.ay*cx + SIM.ax*cy + SIM.by - cy;
+  const fxp = (pw*0.5) / Math.tan(P.hfov*Math.PI/360);
+  /* картинка поїхала вправо ⇒ камера повернулась вліво */
+  return {
+    w: [ Math.atan2(iy, fxp), -Math.atan2(ix, fxp), -th ],
+    t: [ 0, 0, meanZ * (1 - 1/s) ]
+  };
+}
+
+/* ---------- повне суміщення кадру з моделлю ---------- */
+
+const ZERO3 = new Float64Array(3);
+function snapT(T){ return { R:Float64Array.from(T.R), t:Float64Array.from(T.t), s:T.s }; }
+function putT(f, T){ f.T.R.set(T.R); f.T.t.set(T.t); f.T.s = T.s; }
+
+/* Порядок: поза попереднього кадру → перебір кандидатів на грубому ICP →
+   повний ICP з масштабом → двічі (перепідбір a,b + ICP без масштабу).
+   Масштаб виключаємо після перепідбору навмисно: він і коефіцієнт a —
+   одна й та сама свобода, і якщо лишити обидва, вони почнуть змагатись. */
+function alignFrame(map, f, ref, hash, cell, guess, prevT){
+  if (prevT) applySim(f, prevT.R, prevT.t, prevT.s, ZERO3);
+  const pivot = prevT ? Float64Array.from(prevT.t) : ZERO3;
+  const basePos = Float32Array.from(f.pos), baseNrm = Float32Array.from(f.nrm);
+  const baseT = snapT(f.T);
+  const mask = f.idx;                       // набір вузлів фіксуємо на весь час суміщення
+
+  const cands = [null];
+  if (guess){
+    cands.push(guess);
+    cands.push({ w:[-guess.w[0], -guess.w[1], -guess.w[2]], t:guess.t });
+    cands.push({ w:guess.w, t:[-guess.t[0], -guess.t[1], -guess.t[2]] });
+  }
+  const R = new Float64Array(9);
+  let best = null, bestScore = -1;
+  for (let ci = 0; ci < cands.length; ci++){
+    f.pos.set(basePos); f.nrm.set(baseNrm); putT(f, baseT);
+    if (cands[ci]){ rodrigues(cands[ci].w, R); applySim(f, R, cands[ci].t, 1, pivot); }
+    const st = icpRun(f, ref, hash, { iters:8, maxD0:cell*8, maxDmin:cell*2,
+      minCos:0.3, lam:1e-2, wT:0, nDof:7, stride:6 });
+    const sc = st.cover / (1 + st.rms / (cell*3));
+    if (sc > bestScore){
+      bestScore = sc;
+      best = { ci, pos:Float32Array.from(f.pos), nrm:Float32Array.from(f.nrm), T:snapT(f.T) };
+    }
+  }
+  f.pos.set(best.pos); f.nrm.set(best.nrm); putT(f, best.T);
+
+  /* Пріор на зсув: там, де висотне поле зсуву не бачить, лишаємось
+     на кандидаті, а не їдемо кудись. */
+  let st = icpRun(f, ref, hash, { iters:34, maxD0:cell*5, maxDmin:cell*1.1,
+    minCos:0.45, lam:1e-3, wT:SER.wPrior, nDof:7, stride:2 });
+
+  let refits = 0;
+  for (let pass = 0; pass < 3; pass++){
+    const fit = refitAffine(f, ref, hash, cell*3);
+    if (!fit) break;
+    const nf = soloRelief(map, P, false, fit, mask);
+    if (!nf.count) break;
+    nf.nrm = frameNormals(nf);
+    applySim(nf, f.T.R, f.T.t, f.T.s, ZERO3);
+    f = nf; refits++;
+    st = icpRun(f, ref, hash, { iters:18, maxD0:cell*3, maxDmin:cell*0.8,
+      minCos:0.5, lam:1e-3, wT:SER.wPrior, nDof:6, stride:3 });
+  }
+  return { f, st, cand:best.ci, refits };
+}
+
+/* ---------- воксельне злиття ---------- */
+
+function voxKey(x, y, z, c){
+  return Math.floor(x/c) + ',' + Math.floor(y/c) + ',' + Math.floor(z/c);
+}
+function voxAdd(vox, f, cell){
+  for (let i = 0; i < f.count; i++){
+    const x = f.pos[i*3], y = f.pos[i*3+1], z = f.pos[i*3+2];
+    if (!isFinite(z)) continue;
+    const k = voxKey(x, y, z, cell);
+    let a = vox.get(k);
+    if (!a){ a = new Float64Array(10); vox.set(k, a); }
+    a[0] += x; a[1] += y; a[2] += z;
+    a[3] += f.col[i*3]; a[4] += f.col[i*3+1]; a[5] += f.col[i*3+2];
+    if (f.nrm){ a[6] += f.nrm[i*3]; a[7] += f.nrm[i*3+1]; a[8] += f.nrm[i*3+2]; }
+    a[9] += 1;
+  }
+}
+function voxBake(vox){
+  const n = vox.size;
+  const pos = new Float32Array(n*3), col = new Float32Array(n*3), nrm = new Float32Array(n*3);
+  let i = 0;
+  for (const a of vox.values()){
+    const k = a[9] || 1;
+    pos[i*3] = a[0]/k; pos[i*3+1] = a[1]/k; pos[i*3+2] = a[2]/k;
+    col[i*3] = a[3]/k; col[i*3+1] = a[4]/k; col[i*3+2] = a[5]/k;
+    const L = Math.hypot(a[6], a[7], a[8]);
+    if (L > 1e-9){ nrm[i*3] = a[6]/L; nrm[i*3+1] = a[7]/L; nrm[i*3+2] = a[8]/L; }
+    i++;
+  }
+  return { pos, col, nrm, count:n };
+}
+
+/* ---------- керування серією ---------- */
+
+function frameCell(f){
+  let mn = [1e30,1e30,1e30], mx = [-1e30,-1e30,-1e30];
+  for (let i = 0; i < f.count; i++)
+    for (let k = 0; k < 3; k++){
+      const v = f.pos[i*3+k];
+      if (v < mn[k]) mn[k] = v;
+      if (v > mx[k]) mx[k] = v;
+    }
+  const diag = Math.hypot(mx[0]-mn[0], mx[1]-mn[1], mx[2]-mn[2]) || 1;
+  return diag / 140 * P.voxel;
+}
+function meanDepth(f){
+  let s = 0;
+  for (let i = 0; i < f.count; i++) s += -f.pos[i*3+2];
+  return s / (f.count || 1);
+}
+
+/* Опорна модель — це зведена воксельна хмара. Вона ж служить
+   просторовим індексом для пошуку сусідів, тому індекс безкоштовний. */
+function acceptFrame(f){
+  SER.frames.push(f);
+  SER.shots = SER.frames.length;
+  voxAdd(SER.vox, f, SER.cell);
+  const m = voxBake(SER.vox);
+  SER.ref = m;
+  SER.hash = makeCloudHash(m.pos, m.count, SER.cell * 3);
+  simReset();
+  SER.lastT = performance.now();
+  seriesBadge();
+}
+function seriesBadge(){
+  const b = document.getElementById('serN');
+  if (b) b.textContent = SER.shots || '';
+}
+
+function seriesStart(){
+  SER.on = true; SER.shots = 0; SER.frames = []; SER.vox = new Map();
+  SER.ref = null; SER.hash = null; SER.pending = null; SER.pendMap = null;
+  SER.cell = 0; SER.lastT = 0;
+  simReset();
+  document.getElementById('dSer').classList.add('on');
+  seriesBadge();
+  hint('Серія: тисни КАДР. Тапни СЕРІЮ ще раз, щоб зібрати', true);
+}
+function seriesStop(){
+  SER.on = false; SER.pending = null; SER.pendMap = null;
+  document.getElementById('dSer').classList.remove('on');
+  document.getElementById('pact').style.display = 'none';
+  seriesBadge();
+}
+function seriesFinish(){
+  if (!SER.frames.length){ seriesStop(); hint('Серія порожня', true); return; }
+  const m = voxBake(SER.vox);
+  dense = { frames:SER.frames.slice(), pos:m.pos, col:m.col, n:m.count,
+            solo:true, series:SER.frames.length };
+  cutBaked = true;
+  soloMap = null;                       // повзунки більше не перебудовують серію
+  seriesStop();
+  soloUnclip();
+  openViewer().then(() => { VP.on = true; setDock(true); })
+              .catch(e => hint('Вьюпорт не піднявся: ' + e.message, true));
+}
+
+function showPending(){
+  document.getElementById('pact').style.display = 'flex';
+}
+
+/* Кадр серії: знімок → рельєф → суміщення → ворота якості. */
+async function seriesShot(){
+  if (SER.busy || soloBusy || SER.pending) return;
+  if (SER.shots >= SERMAX){ hint('Більше ' + SERMAX + ' кадрів не беру', true); return; }
+  SER.busy = true; soloBusy = true; shotHold = true;
+  document.getElementById('dShot').classList.add('on');
+  try {
+    stageReset();
+    await stage('кадр <b>' + (SER.shots + 1) + '</b> із ' + SERMAX + '…', '', 8);
+    const cap = grabShot();
+    await loadDepth();
+    const t0 = performance.now();
+    const out = await depthPipe(cap.url);
+    const D = depthOf(out);
+    const map = { d:D.d, w:D.w, h:D.h, rgb:resampleRGB(cap.canvas, D.w, D.h) };
+    let f = soloRelief(map, P, true);
+    if (!f.count) throw new Error('порожній рельєф — перевір вікно глибини');
+    f.nrm = frameNormals(f);
+    await stage('глибина за <b>' + Math.round(performance.now()-t0) + '</b> мс, ' +
+                f.count + ' точок', 'ok', 38);
+
+    if (!SER.frames.length){
+      SER.cell = frameCell(f);
+      acceptFrame(f);
+      await stage('опорний кадр · воксель <b>' + SER.cell.toFixed(3) + '</b>', 'ok', 100);
+    } else {
+      const t1 = performance.now();
+      const res = alignFrame(map, f, SER.ref, SER.hash, SER.cell,
+                             trackerGuess(meanDepth(f)),
+                             SER.frames[SER.frames.length - 1].T);
+      const ms = Math.round(performance.now() - t1);
+      const cov = res.st.cover, rms = res.st.rms;
+      await stage('суміщення за <b>' + ms + '</b> мс · кандидат ' + res.cand +
+                  ' · перепідборів ' + res.refits, '', 76);
+      await stage('перекриття <b>' + (cov*100).toFixed(0) + '%</b> · нев\u02bcязка <b>' +
+                  rms.toFixed(4) + '</b> при вокселі ' + SER.cell.toFixed(3),
+                  cov >= 0.22 && rms <= SER.cell*1.6 ? 'ok' : 'wt', 92);
+      if (cov >= 0.22 && rms <= SER.cell * 1.6){
+        acceptFrame(res.f);
+        await stage('кадр сів · у моделі <b>' + SER.ref.count + '</b> точок', 'ok', 100);
+      } else {
+        SER.pending = res.f;
+        await stage('кадр сів погано — вирішуй', 'no', 100);
+        showPending();
+      }
+    }
+    if (!SER.pending)
+      setTimeout(() => document.getElementById('procp').classList.remove('show'), 900);
+  } catch (e){
+    await stage('кадр не вийшов: ' + (e && e.message ? e.message : e), 'no', 100);
+    console.error(e);
+  }
+  document.getElementById('dShot').classList.remove('on');
+  SER.busy = false; soloBusy = false; shotHold = false;
+}
 
 /* ============================================================
    ШАР G — ВЬЮПОРТ НА THREE.JS
@@ -2187,21 +2763,25 @@ function buildScene3(keepView){
     ctl3.update();
   }
   const info = document.getElementById('vpinfo');
-  if (info) info.textContent = dense
-    ? dense.n + ' ТОЧОК · ' + ((dense.frames[0].tri.length / 3) | 0) + ' ГРАНЕЙ'
-    : '';
+  if (info) info.textContent = !dense ? ''
+    : dense.series
+      ? dense.series + ' КАДРІВ · ' + dense.n + ' ТОЧОК'
+      : dense.n + ' ТОЧОК · ' + ((dense.frames[0].tri.length / 3) | 0) + ' ГРАНЕЙ';
 }
 
 function ensureSoloWire(){
-  if (objLine || !TH || !dense) return;
-  const f = dense.frames[0];
-  if (!f || !f.tri.length) return;
-  const T = TH;
-  const g = new T.BufferGeometry();
-  g.setAttribute('position', new T.BufferAttribute(f.pos, 3));
-  g.setIndex(new T.BufferAttribute(edgesFromTris(f.tri), 1));
-  objLine = new T.LineSegments(g, new T.LineBasicMaterial({
-    color:0x6AD582, transparent:true, opacity:0.55 }));
+  if (objLine || !TH || !dense || !dense.frames) return;
+  const T = TH, grp = new T.Group();
+  for (const f of dense.frames){
+    if (!f.tri.length) continue;
+    const g = new T.BufferGeometry();
+    g.setAttribute('position', new T.BufferAttribute(f.pos, 3));
+    g.setIndex(new T.BufferAttribute(edgesFromTris(f.tri), 1));
+    grp.add(new T.LineSegments(g, new T.LineBasicMaterial({
+      color:0x6AD582, transparent:true, opacity:0.55 })));
+  }
+  if (!grp.children.length) return;
+  objLine = grp;
   sc3.add(objLine);
   objLine.visible = dmode === 'lines';
 }
@@ -2229,6 +2809,16 @@ function detectStage(){
   traceContours();
 }
 
+/* Накопичуємо покадрову подібність трекера — з неї береться
+   наближення пози для наступного кадру серії. */
+function seriesTick(){
+  if (!SER.on) return;
+  simAccum(M);
+  if (!P.autoshot || SER.busy || SER.pending || !SER.frames.length) return;
+  if (performance.now() - SER.lastT < 1400) return;
+  if (simShift() > pw * 0.15) seriesShot();
+}
+
 function lockStage(){
   const tmp = pyrPrev; pyrPrev = pyrCur; pyrCur = tmp;
   buildPyr(pyrCur, B.gray);
@@ -2248,6 +2838,7 @@ function lockStage(){
   frameNo++;
   if (frameNo % 6 === 0){ weldPass(); recluster(); }
   depth();
+  seriesTick();
 }
 
 /* ============================================================
@@ -2706,7 +3297,34 @@ document.getElementById('dBox').addEventListener('click', e => {
   P.boxes = !P.boxes;
   e.currentTarget.classList.toggle('on', P.boxes);
 });
-document.getElementById('dShot').addEventListener('click', shootSolo);
+document.getElementById('dShot').addEventListener('click', () =>
+  SER.on ? seriesShot() : shootSolo());
+
+/* Перший тап починає серію, наступний — збирає модель. */
+document.getElementById('dSer').addEventListener('click', () => {
+  if (!SER.on) seriesStart();
+  else if (SER.frames.length) seriesFinish();
+  else { seriesStop(); hint('Серія скасована', true); }
+});
+
+/* Кадр сів погано — рішення за людиною, як домовлялись. */
+document.getElementById('paYes').addEventListener('click', () => {
+  if (SER.pending) acceptFrame(SER.pending);
+  SER.pending = null;
+  document.getElementById('pact').style.display = 'none';
+  document.getElementById('procp').classList.remove('show');
+});
+document.getElementById('paNo').addEventListener('click', () => {
+  SER.pending = null;
+  document.getElementById('pact').style.display = 'none';
+  document.getElementById('procp').classList.remove('show');
+  simReset();
+});
+document.getElementById('paRe').addEventListener('click', () => {
+  SER.pending = null;
+  document.getElementById('pact').style.display = 'none';
+  seriesShot();
+});
 document.getElementById('dCam').addEventListener('click', async e => {
   const el = e.currentTarget;
   el.classList.add('on');
