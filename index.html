@@ -175,7 +175,7 @@ const clamp=(v,a,b)=>v<a?a:v>b?b:v;
 const video=$('video'), glc=$('gl');
 
 const FOV=62, ZNEAR=1.2, ZRANGE=7.0, BREAK=ZRANGE*0.085;
-const QP_NEURAL=[{v:3600,pr:1.0},{v:8000,pr:1.2},{v:15000,pr:1.4}];
+const QP_NEURAL=[{v:5000,pr:1.0},{v:12000,pr:1.2},{v:24000,pr:1.4}];
 const QP_FAST=[{v:16000,pr:1.0},{v:45000,pr:1.25},{v:95000,pr:1.5}];   // GPU-режим тягне значно більше
 const QP=()=>depthSrc==='fast'?QP_FAST:QP_NEURAL;
 const MAXP=200000;                                  // ліміт точок у хмарі
@@ -448,6 +448,56 @@ function computeNormals(){
   nrmAttr.needsUpdate=true;
 }
 
+/* ─────────── якість глибини: перцентилі + уточнення за зображенням ─────────── */
+let guideL=null, bufA=null, bufB=null;
+function updateGuide(){
+  const px=samplePixels(GW,GH), n=GW*GH;
+  if(!guideL||guideL.length!==n) guideL=new Float32Array(n);
+  for(let i=0;i<n;i++) guideL[i]=(px[i*4]*0.299+px[i*4+1]*0.587+px[i*4+2]*0.114)/255;
+}
+// 2% і 98% замість min/max — поодинокі викиди більше не зʼїдають діапазон
+function percentiles(data){
+  let mn=Infinity,mx=-Infinity;
+  for(let i=0;i<data.length;i++){ const v=data[i]; if(v<mn)mn=v; if(v>mx)mx=v; }
+  const rr=(mx-mn)||1, H=new Uint32Array(256);
+  for(let i=0;i<data.length;i++) H[((data[i]-mn)/rr*255)|0]++;
+  const n=data.length, loN=n*0.02, hiN=n*0.98;
+  let acc=0, lo=mn, hi=mx, gotLo=false;
+  for(let b=0;b<256;b++){ acc+=H[b];
+    if(!gotLo&&acc>=loN){ lo=mn+(b/255)*rr; gotLo=true; }
+    if(acc>=hiN){ hi=mn+(b/255)*rr; break; } }
+  return [lo,hi];
+}
+// білінійне збільшення + підтягування межі глибини до контурів кадру
+function upsampleGuided(data,dw,dh,lo,rng){
+  const n=GW*GH;
+  if(!bufA||bufA.length!==n){ bufA=new Float32Array(n); bufB=new Float32Array(n); }
+  for(let y=0;y<GH;y++){
+    const fy=(y/(GH-1))*(dh-1), y0=fy|0, y1=Math.min(dh-1,y0+1), ty=fy-y0;
+    for(let x=0;x<GW;x++){
+      const fx=(x/(GW-1))*(dw-1), x0=fx|0, x1=Math.min(dw-1,x0+1), tx=fx-x0;
+      const a=data[y0*dw+x0], b=data[y0*dw+x1], c=data[y1*dw+x0], d=data[y1*dw+x1];
+      const v=(a*(1-tx)+b*tx)*(1-ty)+(c*(1-tx)+d*tx)*ty;
+      bufA[y*GW+x]=clamp((v-lo)/rng,0,1);
+    }
+  }
+  let src=bufA, dst=bufB;
+  for(let pass=0;pass<2;pass++){
+    dst.set(src);
+    for(let y=1;y<GH-1;y++)for(let x=1;x<GW-1;x++){
+      const i=y*GW+x, g0=guideL[i];
+      let sum=0,wsum=0;
+      for(let dy=-1;dy<=1;dy++){ const o=i+dy*GW;
+        for(let dx=-1;dx<=1;dx++){ const j=o+dx, dl=guideL[j]-g0;
+          const w=1/(1+dl*dl*420);       // схожа яскравість → більша вага
+          sum+=src[j]*w; wsum+=w; } }
+      dst[i]=sum/wsum;
+    }
+    const tt=src; src=dst; dst=tt;
+  }
+  return src;
+}
+
 /* ─────────── ШВИДКЕ джерело глибини: рельєф прямо з кадру (без моделі) ─────────── */
 let fastC=null,fastX=null,lastFast=0;
 function buildFullIndex(){
@@ -597,18 +647,17 @@ const DEPTH=(()=>{
   function ingest(data,dw,dh,isRaw){
     const zp=zPrevAttr.array, zn=zNextAttr.array, t=matS.uniforms.uT.value;
     for(let i=0;i<zp.length;i++) zp[i]+=(zn[i]-zp[i])*t;
-    let mn=Infinity,mx=-Infinity;
-    for(let i=0;i<data.length;i++){ const v=data[i]; if(v<mn)mn=v; if(v>mx)mx=v; }
+    const pc=percentiles(data); let lo=pc[0], hi=pc[1];
     // ЄДИНА шкала на сесію: інакше кожен ракурс мав би свій масштаб і хмара розсипалась
-    if(!isRaw||gMin===null){ gMin=mn; gMax=mx; }
+    if(!isRaw||gMin===null){ gMin=lo; gMax=hi; }
     else if(!rangeLocked){
-      gMin=Math.min(gMin,mn); gMax=Math.max(gMax,mx);
-      gMin=gMin*0.96+mn*0.04; gMax=gMax*0.96+mx*0.04;
+      gMin=Math.min(gMin,lo); gMax=Math.max(gMax,hi);
+      gMin=gMin*0.96+lo*0.04; gMax=gMax*0.96+hi*0.04;
     }
-    const lo=gMin, rng=(gMax-gMin)||1;
-    for(let y=0;y<GH;y++){ const sy=Math.min(dh-1,(y*dh/GH)|0);
-      for(let x=0;x<GW;x++){ const sx=Math.min(dw-1,(x*dw/GW)|0);
-        zn[y*GW+x]=ZNEAR+(1-clamp((data[sy*dw+sx]-lo)/rng,0,1))*ZRANGE; } }
+    lo=gMin; const rng=(gMax-gMin)||1;
+    updateGuide();
+    const up=upsampleGuided(data,dw,dh,lo,rng);
+    for(let i=0;i<zn.length;i++) zn[i]=ZNEAR+(1-up[i])*ZRANGE;
     const iL=idxL.array; let k=0;
     for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){
       const i=y*GW+x;
