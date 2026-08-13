@@ -1,0 +1,248 @@
+
+<script>
+/*__CORE_BEGIN__*/
+const ZL = (() => {
+'use strict';
+const VER = 'zlipok-one-1.0.0';
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+
+// ── Інтринсики ────────────────────────────────────────────────
+// Кадр ресайзиться у квадрат dw×dh для моделі, тож fx і fy рахуються
+// з РІЗНИХ кутів зору: вертикальний задає користувач, горизонтальний
+// виводиться з пропорцій вихідного фото. Камера: X праворуч, Y вгору,
+// погляд уздовж -Z. Піксель: u праворуч, v вниз.
+function intrForShot(fovYDeg, photoW, photoH, dw, dh) {
+  const ty = Math.tan(fovYDeg * Math.PI / 360);
+  const tx = ty * (photoW / photoH);
+  return { fx: (dw / 2) / tx, fy: (dh / 2) / ty, cx: dw / 2, cy: dh / 2, w: dw, h: dh,
+    fovY: fovYDeg, fovX: 2 * Math.atan(tx) * 180 / Math.PI };
+}
+
+// ── Диспаритет → нормалізована глибина (без одиниць) ──────────
+// Модель дає АФІННО-невизначений диспаритет: d = a/z + b з невідомими a, b.
+// Тому min-max нормалізація ЗАБОРОНЕНА: вона силоміць ставить d=0 на
+// найдальшій точці, тобто z→∞, і фон розтягується у кілька разів
+// (перевірено харнесом: 51× замість 3×). Беремо чистий реципрок z = k/d —
+// він точно зберігає порядок глибин. Невідомий зсув b користувач може
+// підібрати «глибиною фону» (shift): 0 — як дала модель, →1 — фон далі.
+function disparityToDepth(rel, opt) {
+  const n = rel.length;
+  const shift = clamp((opt && opt.shift) || 0, 0, 0.98);
+  // робастний мінімум диспаритету (1-й процентиль) — стійкіший за min()
+  const step = Math.max(1, Math.floor(n / 4096));
+  const s = [];
+  for (let i = 0; i < n; i += step) s.push(rel[i]);
+  s.sort((p, q) => p - q);
+  const dLo = s.length ? s[Math.floor(s.length * 0.01)] : 0;
+  const floorD = 1e-4;
+  const z = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const d = rel[i] - shift * dLo;
+    z[i] = 1 / (d > floorD ? d : floorD);
+  }
+  // масштаб: медіана глибини = 1
+  const zs = [];
+  for (let i = 0; i < n; i += step) zs.push(z[i]);
+  zs.sort((p, q) => p - q);
+  const med = zs.length ? zs[zs.length >> 1] : 1;
+  const k = med > 1e-9 ? 1 / med : 1;
+  let zmin = Infinity, zmax = -Infinity;
+  for (let i = 0; i < n; i++) { const v = z[i] * k; z[i] = v; if (v < zmin) zmin = v; if (v > zmax) zmax = v; }
+  return { z, zmin, zmax, median: 1, shift, dLo };
+}
+
+// ── Розгортка пікселя у промінь ────────────────────────────────
+function rayAt(intr, u, v) {
+  return [(u - intr.cx) / intr.fx, -((v - intr.cy) / intr.fy), -1];
+}
+// Точка на глибині z (z — уздовж оптичної осі, додатня перед камерою)
+function unproject(intr, u, v, z, out, o) {
+  out[o] = (u - intr.cx) / intr.fx * z;
+  out[o + 1] = -((v - intr.cy) / intr.fy) * z;
+  out[o + 2] = -z;
+}
+
+// ── Хмара точок із UV на вихідне фото ─────────────────────────
+function pointsFromDepth(o) {
+  const { z, dw, dh, intr, stride = 1, zMax = 0 } = o;
+  const nx = Math.ceil(dw / stride), ny = Math.ceil(dh / stride);
+  const pos = new Float32Array(nx * ny * 3), uv = new Float32Array(nx * ny * 2);
+  let n = 0;
+  for (let py = 0; py < dh; py += stride) {
+    for (let px = 0; px < dw; px += stride) {
+      const d = z[py * dw + px];
+      if (!(d > 0) || (zMax && d > zMax)) continue;
+      unproject(intr, px + 0.5, py + 0.5, d, pos, n * 3);
+      uv[n * 2] = (px + 0.5) / dw;
+      uv[n * 2 + 1] = 1 - (py + 0.5) / dh;   // GL-текстура: v знизу вгору
+      n++;
+    }
+  }
+  return { positions: pos.subarray(0, n * 3), uvs: uv.subarray(0, n * 2), count: n };
+}
+
+// ── Сітковий меш із depth-мапи ─────────────────────────────────
+// Вершини — вузли сітки з кроком stride. Трикутник відкидається, якщо:
+//  · будь-який кут невалідний;
+//  · відносний перепад глибини в комірці > edgeTol (силует/розрив);
+//  · нормаль майже перпендикулярна до променя (розтягнутий «шлейф»).
+// Без цих відсікань одне фото дає характерні «сталактити» від країв обʼєкта.
+function buildGridMesh(o) {
+  const { z, dw, dh, intr, stride = 2, edgeTol = 0.06, grazeCos = 0.06 } = o;
+  const gw = Math.floor((dw - 1) / stride) + 1, gh = Math.floor((dh - 1) / stride) + 1;
+  const pos = new Float32Array(gw * gh * 3), uv = new Float32Array(gw * gh * 2);
+  const zg = new Float32Array(gw * gh);
+  for (let gy = 0; gy < gh; gy++) for (let gx = 0; gx < gw; gx++) {
+    const px = gx * stride, py = gy * stride, gi = gy * gw + gx;
+    const d = z[py * dw + px];
+    zg[gi] = d > 0 ? d : 0;
+    unproject(intr, px + 0.5, py + 0.5, d > 0 ? d : 0, pos, gi * 3);
+    uv[gi * 2] = (px + 0.5) / dw;
+    uv[gi * 2 + 1] = 1 - (py + 0.5) / dh;
+  }
+  const idx = [];
+  let culledEdge = 0, culledGraze = 0;
+  const tri = (a, b, c) => {
+    const za = zg[a], zb = zg[b], zc = zg[c];
+    if (!(za > 0) || !(zb > 0) || !(zc > 0)) return;
+    const lo = Math.min(za, zb, zc), hi = Math.max(za, zb, zc);
+    if ((hi - lo) / lo > edgeTol) { culledEdge++; return; }
+    const ax = pos[a*3], ay = pos[a*3+1], az = pos[a*3+2];
+    let e1x = pos[b*3]-ax, e1y = pos[b*3+1]-ay, e1z = pos[b*3+2]-az;
+    let e2x = pos[c*3]-ax, e2y = pos[c*3+1]-ay, e2z = pos[c*3+2]-az;
+    let nxv = e1y*e2z - e1z*e2y, nyv = e1z*e2x - e1x*e2z, nzv = e1x*e2y - e1y*e2x;
+    const nl = Math.hypot(nxv, nyv, nzv);
+    if (nl < 1e-12) { culledGraze++; return; }
+    nxv /= nl; nyv /= nl; nzv /= nl;
+    const cl = Math.hypot(ax, ay, az) || 1;      // напрям на камеру (камера в нулі)
+    const dot = Math.abs(-(ax/cl)*nxv - (ay/cl)*nyv - (az/cl)*nzv);
+    if (dot < grazeCos) { culledGraze++; return; }
+    idx.push(a, b, c);
+  };
+  for (let gy = 0; gy < gh - 1; gy++) for (let gx = 0; gx < gw - 1; gx++) {
+    const a = gy * gw + gx, b = a + 1, c = a + gw, d = c + 1;
+    tri(a, c, b);   // CCW при погляді з камери (-Z)
+    tri(b, c, d);
+  }
+  const indices = (gw * gh > 65535) ? new Uint32Array(idx) : new Uint16Array(idx);
+  return { positions: pos, uvs: uv, indices, gw, gh,
+    verts: gw * gh, tris: idx.length / 3, culledEdge, culledGraze };
+}
+
+// ── Нормали індексованого меша ────────────────────────────────
+function vertexNormals(positions, indices) {
+  const nrm = new Float32Array(positions.length);
+  for (let i = 0; i < indices.length; i += 3) {
+    const a = indices[i]*3, b = indices[i+1]*3, c = indices[i+2]*3;
+    const e1x = positions[b]-positions[a], e1y = positions[b+1]-positions[a+1], e1z = positions[b+2]-positions[a+2];
+    const e2x = positions[c]-positions[a], e2y = positions[c+1]-positions[a+1], e2z = positions[c+2]-positions[a+2];
+    const nx = e1y*e2z - e1z*e2y, ny = e1z*e2x - e1x*e2z, nz = e1x*e2y - e1y*e2x;
+    nrm[a]+=nx; nrm[a+1]+=ny; nrm[a+2]+=nz;
+    nrm[b]+=nx; nrm[b+1]+=ny; nrm[b+2]+=nz;
+    nrm[c]+=nx; nrm[c+1]+=ny; nrm[c+2]+=nz;
+  }
+  for (let i = 0; i < nrm.length; i += 3) {
+    const l = Math.hypot(nrm[i], nrm[i+1], nrm[i+2]);
+    if (l > 1e-12) { nrm[i]/=l; nrm[i+1]/=l; nrm[i+2]/=l; } else nrm[i+2] = 1;
+  }
+  return nrm;
+}
+
+// ── Габарити і центрування ────────────────────────────────────
+function bounds(positions, count) {
+  const n = count !== undefined ? count : positions.length / 3;
+  const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < n; i++) for (let a = 0; a < 3; a++) {
+    const v = positions[i*3+a];
+    if (v < mn[a]) mn[a] = v;
+    if (v > mx[a]) mx[a] = v;
+  }
+  return { min: mn, max: mx,
+    center: [(mn[0]+mx[0])/2, (mn[1]+mx[1])/2, (mn[2]+mx[2])/2],
+    size: [mx[0]-mn[0], mx[1]-mn[1], mx[2]-mn[2]],
+    diag: Math.hypot(mx[0]-mn[0], mx[1]-mn[1], mx[2]-mn[2]) };
+}
+
+// ── PLY (binary_little_endian) ────────────────────────────────
+function writePlyPoints(positions, colors, count) {
+  const head = 'ply\nformat binary_little_endian 1.0\ncomment ' + VER + ' (нормалізовані одиниці)\n' +
+    'element vertex ' + count + '\nproperty float x\nproperty float y\nproperty float z\n' +
+    'property uchar red\nproperty uchar green\nproperty uchar blue\nend_header\n';
+  const hb = new TextEncoder().encode(head);
+  const buf = new ArrayBuffer(hb.length + count * 15);
+  new Uint8Array(buf).set(hb, 0);
+  const dv = new DataView(buf);
+  let o = hb.length;
+  for (let i = 0; i < count; i++) {
+    dv.setFloat32(o, positions[i*3], true); o += 4;
+    dv.setFloat32(o, positions[i*3+1], true); o += 4;
+    dv.setFloat32(o, positions[i*3+2], true); o += 4;
+    dv.setUint8(o++, colors[i*3]); dv.setUint8(o++, colors[i*3+1]); dv.setUint8(o++, colors[i*3+2]);
+  }
+  return buf;
+}
+function parsePlyPoints(buf) {   // для харнесу
+  const bytes = new Uint8Array(buf);
+  const head = new TextDecoder().decode(bytes.slice(0, 512));
+  const count = +/element vertex (\d+)/.exec(head)[1];
+  // ЗСУВ РАХУЄМО В БАЙТАХ: у заголовку є кирилиця, тож символьний індекс
+  // не дорівнює байтовому.
+  const marker = new TextEncoder().encode('end_header\n');
+  let end = -1;
+  outer: for (let i = 0; i + marker.length <= bytes.length; i++) {
+    for (let j = 0; j < marker.length; j++) if (bytes[i + j] !== marker[j]) continue outer;
+    end = i + marker.length; break;
+  }
+  if (end < 0) throw new Error('PLY: не знайдено end_header');
+  const dv = new DataView(buf);
+  const positions = new Float32Array(count * 3), colors = new Uint8Array(count * 3);
+  let o = end;
+  for (let i = 0; i < count; i++) {
+    positions[i*3] = dv.getFloat32(o, true); o += 4;
+    positions[i*3+1] = dv.getFloat32(o, true); o += 4;
+    positions[i*3+2] = dv.getFloat32(o, true); o += 4;
+    colors[i*3] = dv.getUint8(o++); colors[i*3+1] = dv.getUint8(o++); colors[i*3+2] = dv.getUint8(o++);
+  }
+  return { positions, colors, count };
+}
+
+// ── Кольори точок із RGBA-сітки фото ──────────────────────────
+function colorsForUV(uvs, count, rgba, w, h) {
+  const col = new Uint8Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    const px = clamp(Math.round(uvs[i*2] * w - 0.5), 0, w - 1);
+    const py = clamp(Math.round((1 - uvs[i*2+1]) * h - 0.5), 0, h - 1);
+    const s = (py * w + px) * 4;
+    col[i*3] = rgba[s]; col[i*3+1] = rgba[s+1]; col[i*3+2] = rgba[s+2];
+  }
+  return col;
+}
+
+// ── Різкість кадру (Лаплас на сірому) ─────────────────────────
+function toGray(rgba, n) {
+  const g = new Float32Array(n);
+  for (let i = 0; i < n; i++) g[i] = 0.299*rgba[i*4] + 0.587*rgba[i*4+1] + 0.114*rgba[i*4+2];
+  return g;
+}
+function laplacianVar(g, w, h) {
+  let s = 0, s2 = 0, n = 0;
+  for (let y = 1; y < h-1; y++) for (let x = 1; x < w-1; x++) {
+    const i = y*w+x;
+    const v = g[i-1] + g[i+1] + g[i-w] + g[i+w] - 4*g[i];
+    s += v; s2 += v*v; n++;
+  }
+  return s2/n - (s/n)*(s/n);
+}
+async function sha256Hex(data) {
+  const b = typeof data === 'string' ? new TextEncoder().encode(data) : data;
+  const h = await crypto.subtle.digest('SHA-256', b);
+  return [...new Uint8Array(h)].map(x => x.toString(16).padStart(2, '0')).join('');
+}
+
+return { VER, clamp, intrForShot, disparityToDepth, rayAt, unproject, pointsFromDepth,
+  buildGridMesh, vertexNormals, bounds, writePlyPoints, parsePlyPoints, colorsForUV,
+  toGray, laplacianVar, sha256Hex };
+})();
+/*__CORE_END__*/
+window.ZL = ZL;
+</script>
